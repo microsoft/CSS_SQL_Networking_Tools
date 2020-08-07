@@ -239,7 +239,7 @@ namespace SQLNA
 
                             if (fd.payload[6] > 1) continue; // TDS Continuous Response packets can have greater values, but we are ignoring them right now
 
-                            // TDS window needs to be 0   -- from TDSView -- TDO understand the reason for this - does MARS have non-Zero value?
+                            // TDS window needs to be 0   -- from TDSView -- TODO understand the reason for this - does MARS have non-Zero value?
                             if (fd.payload[7] != 0) continue;
                         }
 
