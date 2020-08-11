@@ -9,6 +9,13 @@ These tools all run locally and do not use any external services or report back 
 
 # Tools
 
+SQL Network Analyzer - a command-line tool that reads a network trace (or series of chained traces) and produces a report indicating potential problems.
+SQl Network Analyzer UI - a GUI interface for SQL Serwork Analyzer.
+
+# Documentation
+
+The Wiki contains documentation for the tools on this site.
+
 # Contributing
 
 This project welcomes contributions and suggestions.  Most contributions require you to agree to a
