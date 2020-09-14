@@ -54,8 +54,10 @@ namespace SQLNA
 
             try
             {
-                // Use the FileInfo class to get the directory name and the length of the file name with wild cards so we can split it out
-                // The class does not support wild card characters, so replace * and ? with a letter
+                // In case a relative path was specified, we need to use the fileInfo class to resolve this into an absolute path
+                // If wildcards were specified, replace with letters to make a pseudo-filename; the file name does not have to exist for the calls we are doing
+                // Get the directory name and the length of the file name with wild cards so we can split it out
+                // e.g.   ..\temp\mytrace*.cap -> c:\users\johnsmith\temp for directory and mytrace*.cap for the filespec as arguments for the GetFiles method
                 fi = new FileInfo(fileSpec.Replace("*", "s").Replace("?", "q"));
                 files = Directory.GetFiles(fi.DirectoryName, fileSpec.Substring(fileSpec.Length - fi.Name.Length));
 
@@ -80,7 +82,7 @@ namespace SQLNA
             }
 
             // order by last write time - first to last
-            rows = dt.Select("", "InitialTick");   // changed from FileDate - have seen cases where the files get touched by UDE
+            rows = dt.Select("", "InitialTick");   // changed from FileDate - have seen cases where the files get touched and FileDate is altered
             
             // size ArrayLists based on total size of all files - a guestimate to reduce the number of times the ArrayList must be grown
             t.frames = new System.Collections.ArrayList((int)(totalSize / BYTES_PER_FRAME));
@@ -181,8 +183,6 @@ namespace SQLNA
             bool isETL = filePath.ToLower().EndsWith(".etl");   // ETL files have no maging number. Must be done by file name.
             Frame frame = null;
 
-            bool f_ReportedWifi = false;
-            bool f_ReportedNetEvent = false;
             bool f_ReportedOther = false;
 
             FileData file = (FileData)t.files[t.files.Count - 1];
@@ -249,31 +249,22 @@ namespace SQLNA
 
                         switch (frame.linkType)
                         {
+                            case 0:  // unknown - default to ethernet
                             case 1:  // Ethernet
                                 {
-                                    ParseEthernetFrame(frame.data, t, f);
+                                    ParseEthernetFrame(frame.data, 0, t, f);
                                     break;
                                 }
                             case 6:  // WiFi
                                 {
-                                    ParseWifiFrame(frame.data, t, f); // TODO flesh this out
+                                    ParseWifiFrame(frame.data, 0, t, f); // TODO flesh this out
                                     // Test file: \Documents\Interesting Network Traces\WifiTrace\
-                                    if (!f_ReportedWifi)
-                                    {
-                                        Program.logDiagnostic($"Frame {frame.frameNumber}: Wifi detected but not yet supported. Packet ignored.");
-                                        f_ReportedWifi = true;
-                                    }
                                     break;
                                 }
-                            case 0xFFE0:  // NetEvent (usually in ETL and parsed by now)
+                            case 0xFFE0:  // NetEvent (usually in ETL and parsed by now) - happens when NETMON saves ETL capture as a CAP file
                                 {
-                                    ParseNetEventFrame(frame.data, t, f); // TODO flesh this out
+                                    ParseNetEventFrame(frame.data, 0, t, f); // TODO flesh this out
                                     // Test file: \Documents\Interesting Network Traces\Filtered ETL in a CAP File - fix SQLNA\*_filtered.cap
-                                    if (!f_ReportedNetEvent)
-                                    {
-                                        Program.logDiagnostic($"Frame {frame.frameNumber}: NetEvent detected but not yet supported. Packet ignored.");
-                                        f_ReportedNetEvent = true;
-                                    }
                                     break;
                                 }
                             default:
@@ -308,23 +299,95 @@ namespace SQLNA
             }
         }
 
-        public static void ParseNetEventFrame(byte[] b, NetworkTrace t, FrameData f) // TODO
+        public static void ParseNetEventFrame(byte[] b, int offset, NetworkTrace t, FrameData f) // TEST
         {
-            // Can call either ParseEthernetFrame or ParseWifiFrame depending on the link type
-            // Copy code from the ETLFileReader.TraceEvent_EventCallback method
+            Guid NDIS = new Guid("2ED6006E-4729-4609-B423-3EE7BCD678EF");
+            ushort eventID = 0;
+            ushort flags = 0;
+            long fileTicks = 0;
+            long ticks = 0;
+            Boolean isEthernet = false;
+            Boolean isWifi = false;
+            Boolean isFragment = false;
+            ushort userDataLength = 0;
+            uint NDISFragmentSize = 0;
+
+            // Read NetEvent Header
+            offset = 4; // bypass size and header type, 2 bytes each; we get size later
+            flags = utility.ReadUInt16(b, offset);
+            offset += 2;
+            offset += 10; // bypass EventProperty (2), ThreadID (4), and ProcessID (4)
+            fileTicks = (long)utility.ReadUInt64(b, offset);
+            ticks = DateTime.FromFileTimeUtc(fileTicks).Ticks;
+            offset += 8;
+
+            // Is this an NDIS event? If not, exit to go to the next frame.
+            byte[] GuidBytes = new byte[16];
+            Array.Copy(b, offset, GuidBytes, 0, 16);
+            Guid ProviderID = new Guid(GuidBytes); // 0x6E00D62E29470946B4233EE7BCD678EF yields GUID {2ed6006e-4729-4609-b423-3ee7bcd678ef}
+            if (!ProviderID.Equals(NDIS)) return;  // not the provider we want
+            offset += 16;
+
+            // Read Descriptor - Event ID
+            eventID = utility.ReadUInt16(b, offset);
+            if (eventID != 1001) return;   // not the event we want
+            offset += 2;
+
+            offset += 6; // skip Version (1), Channel (1), Level (1), OpCode (1), Task (2)
+
+            // Read Descriptor KeyWord Bytes (8 bytes total)
+            isEthernet = (b[offset] & 0x01) != 0;  // isEthernet and isWifi are mutually exclusive
+            isWifi = (b[offset + 1] & 0x80) != 0;
+            if (isEthernet == false && isWifi == false) return;   // not a link layer we support
+
+            isFragment = (b[offset + 3] & 0xC0) != 0xC0;
+            if (isFragment)   // we aren't supporting fragments right now, log it
+            {
+                Program.logDiagnostic("ParseNetEventFrame. Frame " + f.frameNo + " is a fragment. Ignoring.");
+                return;
+            }
+            offset += 8;
+
+            offset += 30; // skip ProcessorTime (8), ActivityID (16), BufferContext (4), ExtendedDataCount (2)
+
+            userDataLength = utility.ReadUInt16(b, offset);
+            offset += 2;
+
+            offset += 1;  // skip Reassembled (1)
+
+            // Read NDIS Header (12 bytes for eventID 1001)
+
+            offset += 8;  // skip MiniportIfIndex (4), LowerIfIndex (4)
+            NDISFragmentSize = utility.ReadUInt32(b, offset);
+            if (NDISFragmentSize + 12 != userDataLength)
+            {
+                Program.logDiagnostic("ParseNetEventFrame. Frame " + f.frameNo + ". userDataLength - NDISFragmentSize != 12 . Ignoring.");
+                return;
+            }
+            offset += 4;
+
+            // one of these is guaranteed to be called; the case where both are false is tested above
+            if (isEthernet)
+            {
+                ParseEthernetFrame(b, offset, t, f);
+            }
+            else if (isWifi)
+            {
+                ParseWifiFrame(b, offset, t, f);
+            }
         }
 
-        public static void ParseEthernetFrame(byte[] b, NetworkTrace t, FrameData f)
+        public static void ParseEthernetFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
         {
             ulong sourceMAC = 0;
             ulong destMAC = 0;
             ushort NextProtocol = 0;    // IPV4 = 0x0800 (2048)    IPV6 = 0x86DD (34525)     VLAN = 0x8100 inserts 4 bytes at offset 12
-            ushort NextProtocolOffset = 0;
+            int NextProtocolOffset = 0;
 
-            destMAC = utility.B2UInt48(b, 0);
-            sourceMAC = utility.B2UInt48(b, 6);
-            NextProtocol = utility.B2UInt16(b, 12);
-            NextProtocolOffset = 14;
+            destMAC = utility.B2UInt48(b, offset);
+            sourceMAC = utility.B2UInt48(b, offset + 6);
+            NextProtocol = utility.B2UInt16(b, offset + 12);
+            NextProtocolOffset = offset + 14;
 
 
             // VLAN detection - original
@@ -376,9 +439,161 @@ namespace SQLNA
             }
         }
 
-        public static void ParseWifiFrame(byte[] b, NetworkTrace t, FrameData f)
+        public static void ParseWifiFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
         {
-            // TODO - get the frame header details
+            byte version = 0;
+            ushort metadataLength = 0;
+            byte frameType = 0;
+            byte subType = 0;
+            byte DSType = 0;
+            byte protectedFrame = 0;
+            byte orderedPackets = 0;
+
+            ulong sourceMAC = 0;
+            ulong destMAC = 0;
+            ushort NextProtocol = 0;    // IPV4 = 0x0800 (2048)    IPV6 = 0x86DD (34525)
+
+            // Read Wifi Metadata
+            version = b[offset];
+            if (version != 2)
+            {
+                Program.logDiagnostic($"ParseWifiFrame. Frame {f.frameNo}. Unknown Wifi version: {version}");
+                return;
+            }
+
+            metadataLength = utility.ReadUInt16(b, offset + 1);
+            offset += metadataLength;
+
+            // Read Frame Control
+
+            /*
+            subType values - ignore Null or reserved subType values
+
+            0000 Data
+            0001 Data + CF-ACK
+            0010 Data + CF-poll
+            0011 Data + CF-ACK + CF-poll
+            0100 Null - no data
+            0101 Null + CF-ACK
+            0110 Null + CF-poll
+            0111 Null + CF-ACK + CF-poll
+            1000 QoS Data
+            1001 QoS Data + CF-ACK
+            1010 QoS Data + CF-poll
+            1011 QoS Data + CF-ACK + CF-poll
+            1100 QoS Null
+            1101 Reserved
+            1110 QoS Null + CF-poll
+            1111 Reserved
+            */
+
+            frameType = (byte)((b[offset] >> 2) & 0x03);  // 0x02 = data. Other values = control frames, etc., that we can ignore
+            if (frameType != 2) return;  // not a data packet
+
+            subType = (byte)(b[offset] >> 4);
+            if ((subType & 0x04) != 0) return;  // a non-data packet
+
+            DSType = (byte)(b[offset + 1] & 0x03);  // controls where the MAC address values are
+
+            // The protectedFrame flag does not appear to do anything in the trace I examined, commenting out, for now
+            // protectedFrame = (byte)(b[offset + 1] & 0x40);
+            // if (protectedFrame != 0) return;   // frame is encrypted and we cannot read it; typically only for transmission
+
+            orderedPackets = (byte)(b[offset + 1] >> 7);   // this needs to be known as it can lengthen the header by 4 bytes
+
+            offset += 2;  // two bytes for Frame Control
+
+            offset += 2; // skip Duration
+
+            // Read MAC addresses based on DSType
+
+            switch (DSType)
+            {
+                case 0:   // Dest, Source, Base Station, Sequence Control = 20 bytes
+                    {
+                        destMAC = utility.B2UInt48(b, offset);
+                        sourceMAC = utility.B2UInt48(b, offset + 6);
+                        offset += 20;
+                        break;
+                    }
+                case 1:   // Base Station, Source, Dest, Sequence Control = 20 bytes
+                    {
+                        sourceMAC = utility.B2UInt48(b, offset + 6);
+                        destMAC = utility.B2UInt48(b, offset + 12);
+                        offset += 20;
+                        break;
+                    }
+                case 2:   // Dest, Base Station, Source, Sequence Control = 20 bytes
+                    {
+                        destMAC = utility.B2UInt48(b, offset);
+                        sourceMAC = utility.B2UInt48(b, offset + 12);
+                        offset += 20;
+                        break;
+                    }
+                case 3:   // Receiver, Transmitter, Dest, Sequence Control, Source = 26 bytes
+                    {
+                        destMAC = utility.B2UInt48(b, offset + 12);
+                        sourceMAC = utility.B2UInt48(b, offset + 20);
+                        offset += 26;  // extra length of the header
+                        break;
+                    }
+            }
+
+            if ((subType & 0x08) != 0)
+            {
+                offset += 2;  // skip Quality of Service (QoS) extra bytes
+                if (orderedPackets != 0)
+                {
+                    offset += 4;  // skip HTControl bytes
+                }
+            }
+
+            // Parse LLC
+
+            offset += 2; // skip DSAP (1) and SSAP (1)
+            offset += ((b[offset] & 0x03) == 0x03 ? 1 : 2);  // flag values 0x00, 0x01, and 0x10 have an extra INFO byte, whereas 0x03 does not
+
+            // Parse SNAP
+
+            offset += 3;  // skip Organization Code
+            NextProtocol = utility.B2UInt16(b, offset);
+            offset += 2;
+
+            // Choose either IPV4 or IPV6
+
+            try
+            {
+                if (NextProtocol == 0x800)
+                {
+                    ParseIPV4Frame(b, offset, t, f);
+                }
+                else if (NextProtocol == 0x86DD)
+                {
+                    ParseIPV6Frame(b, offset, t, f);
+                }
+            }
+            catch (IndexOutOfRangeException)
+            {
+                if (f.conversation != null) f.conversation.truncationErrorCount++;
+            }
+            catch { throw; }
+
+            if (NextProtocol == 0x800 || NextProtocol == 0x86DD)
+            {
+                if (f.conversation != null)
+                {
+                    f.conversation.sourceMAC = sourceMAC;
+                    f.conversation.destMAC = destMAC;
+                    // statistical gathering
+                    if (f.conversation.startTick == 0 || f.ticks < f.conversation.startTick)
+                    {
+                        f.conversation.startTick = f.ticks;
+                    }
+                    if (f.conversation.endTick < f.ticks) f.conversation.endTick = f.ticks;
+                    if (f.isFromClient) f.conversation.sourceFrames++; else f.conversation.destFrames++;
+                    f.conversation.totalBytes += (ulong)b.Length;
+                }
+            }
         }
 
         public static void ParseIPV4Frame(byte[] b, int offset, NetworkTrace t, FrameData f)
