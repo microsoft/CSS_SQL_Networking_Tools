@@ -29,8 +29,8 @@ namespace SQLNA
         public static bool outputConversationList = false;   // enables a section in the main report that is normally suppressed
         public static string filterFormat = "";              // blank | N | W   if N or W, replaces the Client IP and Port in reports with a filter string in either NETMON or WireShark format
 
-        public const string VERSION_NUMBER = "1.5.1500.0";
-        public const string UPDATE_DATE = "2020/12/31"; 
+        public const string VERSION_NUMBER = "1.5.1600.0";
+        public const string UPDATE_DATE = "2021/01/31"; 
 
         static void Main(string[] args)
         {
