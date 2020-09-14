@@ -241,6 +241,8 @@ namespace SQLNA
 
         #region "Byte to number helpers"
 
+        // "Read" functions are little-endian (Intel normal), i.e. MSB is at the largest address and LSB is at the lowest address
+
         public static UInt64 ReadUInt64(byte[] b, int startOffset)
         {
             UInt64 v = 0;
@@ -284,6 +286,8 @@ namespace SQLNA
             v += (UInt16)tds[pos + 0];
             return v;
         }
+
+        // "B" functions are big-endian, i.e. MSB is at the lowest address and MSB is at the lowest address
 
         public static UInt16 B2UInt16(byte[] b, int startOffset)
         {
