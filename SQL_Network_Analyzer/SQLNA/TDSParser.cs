@@ -405,9 +405,28 @@ namespace SQLNA
                                 }
                             case (byte)TDSPacketType.RESPONSE:  //0x4
                                 {
+                                    // process error responses
+                                    if (fd.payload[8] == (byte)TDSTokenType.ERROR)
+                                    {
+                                        c.Error = utility.ReadUInt32(fd.payload,11);
+                                        c.ErrorState = fd.payload[15];
+                                        int ErrorLen = (int)fd.payload[17];
+                                        c.ErrorMsg = utility.ReadUnicodeString(fd.payload, 19, ErrorLen);
+                                    }
+                                    // process read-only intent server name tokens
+                                    else if (fd.payload[8] == (byte)TDSTokenType.ENVCHANGE)
+                                    {
+                                        if (fd.payload[11] == 21) // 21 is LOGINREDIRECT
+                                        {
+                                            c.RedirectPort = utility.ReadUInt16(fd.payload, 15);
+                                            int ServerLen = fd.payload[17];
+                                            c.RedirectServer = utility.ReadUnicodeString(fd.payload, 19, ServerLen);
+                                            c.hasReadOnlyIntentConnection = true;
+                                        }
+                                    }
                                     //pre-login info from Server. 
                                     // if (tokenOffset(fd.payload, (byte)TDSTokenType.PRELOGINRESPONSE) > 7)  // response header is offset 0..7 - need to fix this routine
-                                    if (fd.payload[8] == (byte)TDSTokenType.PRELOGINRESPONSE) // only 1 token in the payload
+                                    else if (fd.payload[8] == (byte)TDSTokenType.PRELOGINRESPONSE) // only 1 token in the payload
                                     {
                                         GetServerPreloginInfo(fd.payload, fd.conversation);
                                         c.hasPreloginResponse = true;

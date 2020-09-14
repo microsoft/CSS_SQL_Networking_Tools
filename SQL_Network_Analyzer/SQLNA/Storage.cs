@@ -91,6 +91,7 @@ namespace SQLNA
         public bool hasAttentions = false;                     // set in OutputText.DisplaySQLServerSummary
         public bool hasLowTLSVersion = false;                  // set in OutputText.DisplaySQLServerSummary
         public bool hasPostLogInResponse = false;
+        public bool hasReadOnlyIntentConnections = false;
         public string serverVersion = "";
         public string instanceName = "";
         public string sqlHostName = "";
@@ -118,7 +119,7 @@ namespace SQLNA
         public uint keepAliveCount = 0;
     }
 
-    public class TimeoutConnectionData
+    public class FailedConnectionData
     {
         public string clientIP = null;
         public ushort sourcePort = 0;
@@ -136,6 +137,26 @@ namespace SQLNA
         public uint keepAliveCount = 0;
         public bool hasNullNTLMCreds = false;
         public bool LateLoginAck = false;
+        public uint Error;
+        public uint ErrorState;
+        public string ErrorMsg;
+    }
+
+    public class ReadOnlyIntentConnectionData
+    {
+        public string clientIP = null;
+        public ushort sourcePort = 0;
+        public bool isIPV6 = false;
+        public int frames = 0;
+        public uint lastFrame = 0;
+        public int firstFile = 0;
+        public int lastFile = 0;
+        public long startOffset = 0;
+        public long endOffset = 0;
+        public long endTicks = 0;
+        public long duration = 0;
+        public uint RedirectPort = 0;
+        public string RedirectServer = "";
     }
 
     public class AttentionConnectionData

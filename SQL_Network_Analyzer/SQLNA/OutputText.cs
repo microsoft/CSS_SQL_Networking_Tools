@@ -25,17 +25,16 @@ namespace SQLNA
             DisplaySQLServerSummary(Trace);
             if (Program.outputConversationList) DisplaySucessfullLoginReport(Trace);  // optional section; must be explicitly requested
             DisplayResetConnections(Trace);
-            DisplayLoginTimeouts(Trace);
+            DisplayLoginErrors(Trace);
             DisplayAttentions(Trace);
             DisplayTLSIssues(Trace);
             DisplayClientPortUsage(Trace);
             DisplaySSRPReport(Trace);
             DisplayKerberosResponseReport(Trace);
             DisplayDNSResponsesReport(Trace);
+            DisplayReadOnlyIntentConnections(Trace);
             OutputStats(Trace);
             DisplayFooter();
-
-            
         }
 
         private static void DisplayHeader()
@@ -145,6 +144,7 @@ namespace SQLNA
                                    "Conversations:R", 
                                    "NTLM Conv:R",
                                    "non-TLS 1.2 Conv:R",
+                                   "ReadOnly Intent Conv:R",
                                    "Frames:R", 
                                    "Bytes:R", 
                                    "Resets:R", 
@@ -176,6 +176,7 @@ namespace SQLNA
                             IPAddress = utility.FormatIPV4Address(c.sourceIP);
                         if (clientIPs.IndexOf(IPAddress) == -1) clientIPs.Add(IPAddress);
                         if (c.hasLoginFailure) s.hasLoginFailures = true;
+                        if (c.hasReadOnlyIntentConnection) s.hasReadOnlyIntentConnections = true;
                         if (c.hasPostLoginResponse) s.hasPostLogInResponse = true;
                         if (c.AttentionTime > 0) s.hasAttentions = true;
                         if (c.hasLowTLSVersion)
@@ -200,6 +201,7 @@ namespace SQLNA
                          s.conversations.Count.ToString(),
                          NTLMResponseCount.ToString(),
                          lowTLSVersionCount.ToString(),
+                         (from ConversationData conv in s.conversations where conv.hasReadOnlyIntentConnection select conv).Count().ToString(),
                          totalFrames.ToString(),
                          totalBytes.ToString("#,##0"),
                          totalResets.ToString(),
@@ -534,7 +536,7 @@ namespace SQLNA
             
         }
 
-        private static void DisplayLoginTimeouts(NetworkTrace Trace)
+        private static void DisplayLoginErrors(NetworkTrace Trace)
         {
             bool hasError = false;
             long firstTick = 0;
@@ -551,7 +553,7 @@ namespace SQLNA
                 if (s.hasLoginFailures)
                 {
                     hasError = true;
-                    List<TimeoutConnectionData> TimeoutRecords = new List<TimeoutConnectionData>();
+                    List<FailedConnectionData> TimeoutRecords = new List<FailedConnectionData>();
 
                     // initialize graph object
                     TextGraph g = new TextGraph();
@@ -567,7 +569,7 @@ namespace SQLNA
                     {
                         if (c.hasLoginFailure)
                         {
-                            TimeoutConnectionData td = new TimeoutConnectionData();
+                            FailedConnectionData td = new FailedConnectionData();
 
                             td.clientIP = (c.isIPV6) ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP);
                             td.sourcePort = c.sourcePort;
@@ -585,6 +587,9 @@ namespace SQLNA
                             td.keepAliveCount = c.keepAliveCount;
                             td.hasNullNTLMCreds = c.hasNullNTLMCreds;
                             td.LateLoginAck = c.hasLateLoginAck;
+                            td.Error = c.Error;
+                            td.ErrorState = c.ErrorState;
+                            td.ErrorMsg = c.ErrorMsg;
 
                             TimeoutRecords.Add(td);
 
@@ -599,17 +604,17 @@ namespace SQLNA
                     {
                         case "N":
                             {
-                                rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Login Progress:L", "Keep-Alives:R", "Retransmits:R", "NullCreds:R", "LoginAck:L");
+                                rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Login Progress:L", "Keep-Alives:R", "Retransmits:R", "NullCreds:R", "LoginAck:L", "Error:L");
                                 break;
                             }
                         case "W":
                             {
-                                rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Login Progress:L", "Keep-Alives:R", "Retransmits:R", "NullCreds:R", "LoginAck:L");
+                                rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Login Progress:L", "Keep-Alives:R", "Retransmits:R", "NullCreds:R", "LoginAck:L", "Error:L");
                                 break;
                             }
                         default:
                             {
-                                rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Login Progress:L", "Keep-Alives:R", "Retransmits:R", "NullCreds:R", "LoginAck:L");
+                                rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Login Progress:L", "Keep-Alives:R", "Retransmits:R", "NullCreds:R", "LoginAck:L", "Error:L");
                                 break;
                             }
                     }
@@ -634,7 +639,8 @@ namespace SQLNA
                                                      row.keepAliveCount.ToString(),
                                                      row.rawRetransmits.ToString(),
                                                      row.hasNullNTLMCreds ? "Yes" : "",
-                                                     row.LateLoginAck ? "Late" : "");
+                                                     row.LateLoginAck ? "Late" : "",
+                                                     row.Error + ", State " + row.ErrorState + ": " + row.ErrorMsg);
                                     break;
                                 }
                             case "W":  // list client IP and port as a WireShark filter string
@@ -651,7 +657,8 @@ namespace SQLNA
                                                      row.keepAliveCount.ToString(),
                                                      row.rawRetransmits.ToString(),
                                                      row.hasNullNTLMCreds ? "Yes" : "",
-                                                     row.LateLoginAck ? "Late" : "");
+                                                     row.LateLoginAck ? "Late" : "",
+                                                     row.Error + ", State " + row.ErrorState + ": " + row.ErrorMsg);
                                     break;
                                 }
                             default:  // list client IP and port as separate columns
@@ -669,7 +676,8 @@ namespace SQLNA
                                                      row.keepAliveCount.ToString(),
                                                      row.rawRetransmits.ToString(),
                                                      row.hasNullNTLMCreds ? "Yes" : "",
-                                                     row.LateLoginAck ? "Late" : "");
+                                                     row.LateLoginAck ? "Late" : "",
+                                                     row.Error + ", State " + row.ErrorState + ": " + row.ErrorMsg);
                                     break;
                                 }
                         }
@@ -689,7 +697,7 @@ namespace SQLNA
                     // Display graph
                     //
 
-                    Program.logMessage("    Distribution of timed-out connections.");
+                    Program.logMessage("    Distribution of timed-out/failed connections.");
                     Program.logMessage();
                     g.ProcessData();
                     Program.logMessage("    " + g.GetLine(0));
@@ -1010,7 +1018,6 @@ namespace SQLNA
             }
         }
 
-
         private static void DisplaySSRPReport(NetworkTrace Trace)
         {
             long firstTick = 0;
@@ -1224,15 +1231,13 @@ namespace SQLNA
                     }
                 }
             }
-        }
-
-     
+        }   
 
          private static void DisplayDNSResponsesReport(NetworkTrace Trace)
         {
             if (Trace.DNSRequestCount == 0)
             {
-                Program.logMessage("No DNS traffic was found in the network trace..");
+                Program.logMessage("No DNS traffic was found in the network trace.");
                 Program.logMessage();
                 return;
             }
@@ -1393,7 +1398,7 @@ namespace SQLNA
                 int TailIndex = 0;
                 int ConnectionsPerMinute = 0;
 
-                foreach (ConversationData c in Trace.conversations) // these will be in ascenading order based on parsing algorithm
+                foreach (ConversationData c in Trace.conversations) // these will be in ascending order based on parsing algorithm
                 {
                     if (rec.isMatch(c))
                     {
@@ -1462,30 +1467,194 @@ namespace SQLNA
                 if (TopPeakValue == 0) TopPeakValue = rec.PeakConnectionsPerMinute;
             }
 
-            Program.logMessage("High Ephemeral Port Usage (Top 10)");
-            Program.logMessage();
-            Program.logMessage(rf.GetHeaderText());
-            Program.logMessage(rf.GetSeparatorText());
-
-            for (int i = 0; i < rf.GetRowCount(); i++)
-            {
-                Program.logMessage(rf.GetDataText(i));
-            }
-
             if (TopPeakValue < 1000)
             {
-                Program.logMessage();
                 Program.logMessage("No clients appear to be running out of ephemeral ports.");
+            }
+            else
+            { 
+                Program.logMessage("High Ephemeral Port Usage (Top 10)");
+                Program.logMessage();
+                Program.logMessage(rf.GetHeaderText());
+                Program.logMessage(rf.GetSeparatorText());
+
+                for (int i = 0; i < rf.GetRowCount(); i++)
+                {
+                    Program.logMessage(rf.GetDataText(i));
+                } 
             }
 
             Program.logMessage();
+        }
+
+        private static void DisplayReadOnlyIntentConnections(NetworkTrace Trace)
+        {
+            bool hasReadOnlyConnection = false;
+            long firstTick = 0;
+            long lastTick = 0;
+
+            if (Trace.frames != null && Trace.frames.Count > 0)
+            {
+                firstTick = ((FrameData)Trace.frames[0]).ticks;
+                lastTick = ((FrameData)Trace.frames[Trace.frames.Count - 1]).ticks;
+            }
+
+            foreach (SQLServer s in Trace.sqlServers)
+            {
+                if (s.hasReadOnlyIntentConnections)
+                {
+                    hasReadOnlyConnection = true;
+                    List<ReadOnlyIntentConnectionData> ReadOnlyRecords = new List<ReadOnlyIntentConnectionData>();
+
+                    // initialize graph object
+                    TextGraph g = new TextGraph();
+                    g.startTime = new DateTime(firstTick);
+                    g.endTime = new DateTime(lastTick);
+                    g.SetGraphWidth(150);
+                    g.fAbsoluteScale = true;
+                    g.SetCutoffValues(1, 3, 9, 27, 81);
+
+                    string sqlIP = (s.isIPV6) ? utility.FormatIPV6Address(s.sqlIPHi, s.sqlIPLo) : utility.FormatIPV4Address(s.sqlIP);
+
+                    foreach (ConversationData c in s.conversations)
+                    {
+                        if (c.hasReadOnlyIntentConnection)
+                        {
+                            ReadOnlyIntentConnectionData rocd = new ReadOnlyIntentConnectionData();
+
+                            rocd.clientIP = (c.isIPV6) ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP);
+                            rocd.sourcePort = c.sourcePort;
+                            rocd.isIPV6 = c.isIPV6;
+                            rocd.lastFrame = ((FrameData)c.frames[c.frames.Count - 1]).frameNo;
+                            rocd.firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
+                            rocd.lastFile = Trace.files.IndexOf(((FrameData)(c.frames[c.frames.Count - 1])).file);
+                            rocd.endTicks = ((FrameData)c.frames[c.frames.Count - 1]).ticks;
+                            rocd.startOffset = ((FrameData)c.frames[0]).ticks - firstTick;
+                            rocd.endOffset = rocd.endTicks - firstTick;
+                            rocd.duration = rocd.endOffset - rocd.startOffset;
+                            rocd.frames = c.frames.Count;
+                            rocd.RedirectPort = c.RedirectPort;
+                            rocd.RedirectServer = c.RedirectServer;
+
+                            ReadOnlyRecords.Add(rocd);
+
+                            g.AddData(new DateTime(rocd.endTicks), 1.0); // for graphing
+                        }
+                    }
+
+                    Program.logMessage("The following Read-Only Intent conversations with SQL Server " + sqlIP + " on port " + s.sqlPort + " were redirected to read-only server:\r\n");
+                    ReportFormatter rf = new ReportFormatter();
+
+                    switch (Program.filterFormat)
+                    {
+                        case "N":
+                            {
+                                rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Redir Srv:R", "Redir Port:R");
+                                break;
+                            }
+                        case "W":
+                            {
+                                rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Redir Srv:R", "Redir Port:R");
+                                break;
+                            }
+                        default:
+                            {
+                                rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Redir Srv:R", "Redir Port:R");
+                                break;
+                            }
+                    }
+
+                    var OrderedRows = from row in ReadOnlyRecords orderby row.endOffset ascending select row;
+
+                    foreach (var row in OrderedRows)
+                    {
+                        switch (Program.filterFormat)
+                        {
+                            case "N":  // list client IP and port as a NETMON filter string
+                                {
+                                    rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                                        (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                        row.lastFrame.ToString(),
+                                                        (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                        row.frames.ToString(),
+                                                        (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        row.RedirectServer,
+                                                        row.RedirectPort.ToString());
+                                    break;
+                                }
+                            case "W":  // list client IP and port as a WireShark filter string
+                                {
+                                    rf.SetcolumnData((row.isIPV6 ? "ipv6" : "ip") + ".addr==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
+                                                        (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                        row.lastFrame.ToString(),
+                                                        (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                        row.frames.ToString(),
+                                                        (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        row.RedirectServer,
+                                                        row.RedirectPort.ToString());
+                                    break;
+                                }
+                            default:  // list client IP and port as separate columns
+                                {
+                                    rf.SetcolumnData(row.clientIP,
+                                                        row.sourcePort.ToString(),
+                                                        (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                        row.lastFrame.ToString(),
+                                                        (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                        row.frames.ToString(),
+                                                        (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        row.RedirectServer,
+                                                        row.RedirectPort.ToString());
+                                    break;
+                                }
+                        }
+                    }
+
+                    Program.logMessage(rf.GetHeaderText());
+                    Program.logMessage(rf.GetSeparatorText());
+
+                    for (int i = 0; i < rf.GetRowCount(); i++)
+                    {
+                        Program.logMessage(rf.GetDataText(i));
+                    }
+
+                    Program.logMessage();
+
+                    //
+                    // Display graph
+                    //
+
+                    Program.logMessage("    Distribution of read-only intent connections.");
+                    Program.logMessage();
+                    g.ProcessData();
+                    Program.logMessage("    " + g.GetLine(0));
+                    Program.logMessage("    " + g.GetLine(1));
+                    Program.logMessage("    " + g.GetLine(2));
+                    Program.logMessage("    " + g.GetLine(3));
+                    Program.logMessage("    " + g.GetLine(4));
+                    Program.logMessage("    " + g.GetLine(5));
+
+                    Program.logMessage();
+                }
+            }
+            if (!hasReadOnlyConnection)
+            {
+                Program.logMessage("No read-only intent connections were found.");
+                Program.logMessage();
+            }
         }
 
         private static void DisplayFooter()
         {
             Program.logMessage("End of Report");
             Program.logMessage();
-            Program.logMessage("Please send your feedback to our Wiki.");
+            Program.logMessage("Please send your feedback to our Wiki at https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki.");
 
             //if (DateTime.Now > DateTime.Parse(Program.UPDATE_DATE))
             //{
@@ -1496,7 +1665,7 @@ namespace SQLNA
 
         private static void OutputStats(NetworkTrace Trace)
         {
-            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,Retransmit,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ServerName,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion");
+            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,Retransmit,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ServerName,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
             foreach (ConversationData c in Trace.conversations)
             {
                 int firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
@@ -1546,7 +1715,12 @@ namespace SQLNA
                                 c.FriendlyTDSVersionServer + "," +
                                 c.FriendlyTDSVersionClient + "," + 
                                 ((c.tlsVersionServer == null) ? "" : c.tlsVersionServer) + "," +
-                                ((c.tlsVersionClient == null) ? "" : c.tlsVersionClient));
+                                ((c.tlsVersionClient == null) ? "" : c.tlsVersionClient) + "," +
+                                c.RedirectServer.Replace(",", "<") + "," +
+                                (c.RedirectPort == 0 ? "" : c.RedirectPort.ToString()) + "," +
+                                (c.Error == 0 ? "" : c.Error.ToString()) + "," +
+                                (c.ErrorState == 0 ? "" : c.ErrorState.ToString()) + "," +
+                                c.ErrorMsg);
             }
         }
 

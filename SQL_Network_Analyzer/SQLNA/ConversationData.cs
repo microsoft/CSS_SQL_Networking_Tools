@@ -82,6 +82,12 @@ namespace SQLNA
         public long FinTime = 0;                    //   - set in TCP Parser - so we can check whether LoginAck was sent after connection was closed
         public long ResetTime = 0;                  //   - set in TCP Parser - so we can check whether LoginAck was sent after connection was closed
         public long AttentionTime = 0;              //   - set in TDS Parser - so we can identify command timeouts
+        public uint Error = 0;
+        public string ErrorMsg = "";
+        public uint ErrorState = 0;
+        public bool hasReadOnlyIntentConnection = false;
+        public uint RedirectPort = 0;
+        public string RedirectServer = "";
 
         public bool hasLateLoginAck  // added Dec 5, 2016
         {
