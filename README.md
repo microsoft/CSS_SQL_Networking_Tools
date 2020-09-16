@@ -15,7 +15,7 @@ SQL Network Analyzer UI - a GUI interface for SQL Network Analyzer.
 
 # Documentation
 
-The Wiki contains documentation for the tools on this site.
+The Wiki contains documentation for the tools on this site..
 
 # Contributing
 
