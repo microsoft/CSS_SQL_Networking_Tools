@@ -28,11 +28,11 @@ namespace SQLNA
             DisplayLoginErrors(Trace);
             DisplayAttentions(Trace);
             DisplayTLSIssues(Trace);
+            DisplayReadOnlyIntentConnections(Trace);
             DisplayClientPortUsage(Trace);
             DisplaySSRPReport(Trace);
             DisplayKerberosResponseReport(Trace);
             DisplayDNSResponsesReport(Trace);
-            DisplayReadOnlyIntentConnections(Trace);
             OutputStats(Trace);
             DisplayFooter();
         }
@@ -159,7 +159,7 @@ namespace SQLNA
                     string IPAddress = null;  // client IP address
                     string sqlIP = (s.isIPV6) ? utility.FormatIPV6Address(s.sqlIPHi, s.sqlIPLo) : utility.FormatIPV4Address(s.sqlIP);
                     int firstFile = 0;
-                    if (s.conversations.Count > 0) Trace.files.IndexOf(((FrameData)(((ConversationData)s.conversations[0]).frames[0])).file);
+                    if (s.conversations.Count > 0) firstFile = Trace.files.IndexOf(((FrameData)(((ConversationData)s.conversations[0]).frames[0])).file);
                     int lastFile = 0;
                     int NTLMResponseCount = 0;
                     int lowTLSVersionCount = 0;
@@ -185,7 +185,7 @@ namespace SQLNA
                             lowTLSVersionCount++;
                         }
                         int lastConvFile = Trace.files.IndexOf(((FrameData)(c.frames[c.frames.Count - 1])).file);
-                        if (lastConvFile > lastFile) lastFile = lastConvFile;
+                        if (lastConvFile > lastFile) lastFile = lastConvFile;  // the last conversation may not end last, so we have to check
                         if (c.hasNTLMResponse == true) NTLMResponseCount += 1;
                     }
 
@@ -597,7 +597,7 @@ namespace SQLNA
                         }
                     }
 
-                    Program.logMessage("The following conversations with SQL Server " + sqlIP + " on port " + s.sqlPort + " timed out or were closed prior to completing the login process:\r\n");
+                    Program.logMessage("The following conversations with SQL Server " + sqlIP + " on port " + s.sqlPort + " timed out or were closed prior to completing the login process or had a login error:\r\n");
                     ReportFormatter rf = new ReportFormatter();
 
                     switch (Program.filterFormat)
@@ -640,7 +640,7 @@ namespace SQLNA
                                                      row.rawRetransmits.ToString(),
                                                      row.hasNullNTLMCreds ? "Yes" : "",
                                                      row.LateLoginAck ? "Late" : "",
-                                                     row.Error + ", State " + row.ErrorState + ": " + row.ErrorMsg);
+                                                     row.Error == 0 ? "" : $"Error {row.Error}, State {row.ErrorState}: {row.ErrorMsg}");
                                     break;
                                 }
                             case "W":  // list client IP and port as a WireShark filter string
@@ -658,7 +658,7 @@ namespace SQLNA
                                                      row.rawRetransmits.ToString(),
                                                      row.hasNullNTLMCreds ? "Yes" : "",
                                                      row.LateLoginAck ? "Late" : "",
-                                                     row.Error + ", State " + row.ErrorState + ": " + row.ErrorMsg);
+                                                     row.Error == 0 ? "" : $"Error {row.Error}, State {row.ErrorState}: {row.ErrorMsg}");
                                     break;
                                 }
                             default:  // list client IP and port as separate columns
@@ -677,7 +677,7 @@ namespace SQLNA
                                                      row.rawRetransmits.ToString(),
                                                      row.hasNullNTLMCreds ? "Yes" : "",
                                                      row.LateLoginAck ? "Late" : "",
-                                                     row.Error + ", State " + row.ErrorState + ": " + row.ErrorMsg);
+                                                     row.Error == 0 ? "" : $"Error {row.Error}, State {row.ErrorState}: {row.ErrorMsg}");
                                     break;
                                 }
                         }
@@ -1402,6 +1402,9 @@ namespace SQLNA
                 {
                     if (rec.isMatch(c))
                     {
+                        if (c.sourcePort < rec.LowPort) rec.LowPort = c.sourcePort;   // set for existing or new connections
+                        if (c.sourcePort > rec.HighPort) rec.HighPort = c.sourcePort; // set for existing or new connections
+
                         if (c.synCount > 0)
                         {
                             if (rec.isSource(c))
@@ -1410,8 +1413,6 @@ namespace SQLNA
                                 if (c.isSQL) rec.NewSQLConnections++;
                                 ConnectionsPerMinute++;
                                 if (ConnectionsPerMinute > rec.PeakConnectionsPerMinute) rec.PeakConnectionsPerMinute = ConnectionsPerMinute;
-                                if (c.sourcePort < rec.LowPort) rec.LowPort = c.sourcePort;
-                                if (c.sourcePort > rec.HighPort) rec.HighPort = c.sourcePort;
 
                                 //
                                 // bring up the tail end and decrement ConnectionsPerMinute if we find old ones.
@@ -1464,6 +1465,8 @@ namespace SQLNA
                                  rec.LowPort.ToString(),
                                  rec.HighPort.ToString(),
                                  rec.PeakConnectionsPerMinute.ToString());
+
+                // relies on sort order of "var q2" query being descending; gets value of first record, which should be the busiest
                 if (TopPeakValue == 0) TopPeakValue = rec.PeakConnectionsPerMinute;
             }
 
@@ -1701,8 +1704,8 @@ namespace SQLNA
                                 (c.isMARSEnabled ? "Y" : "") + "," +
                                 c.frames.Count + "," +
                                 c.totalBytes + "," +
-                                "," +
-                                "," +
+                                "," +   // do not have a separate counter for sent bytes      TODO ? do we really need it?
+                                "," +   // do not have a separate counter for received bytes  TODO ? do we really need it?
                                 (c.frames.Count > 1 ? (c.totalBytes * 1.0 / duration * utility.TICKS_PER_SECOND).ToString("0") : "") + "," +
                                 firstFile + "," +
                                 lastFile + "," +
@@ -1720,7 +1723,7 @@ namespace SQLNA
                                 (c.RedirectPort == 0 ? "" : c.RedirectPort.ToString()) + "," +
                                 (c.Error == 0 ? "" : c.Error.ToString()) + "," +
                                 (c.ErrorState == 0 ? "" : c.ErrorState.ToString()) + "," +
-                                c.ErrorMsg);
+                                c.ErrorMsg.Replace(",", "."));  // replace comma with period, otherwise this MUST be the last column
             }
         }
 
