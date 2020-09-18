@@ -885,21 +885,29 @@ namespace SQLNA
         {
             int headerLength = (b[offset + 12] >> 4) * 4; // upper nibble * 4
             int smpLength = 0;
+            bool canTestChecksum = true;
+            ushort CheckSum = 0;
+
+            if ((b[offset + 12] & 0xF) != 0) canTestChecksum = false;  // we want the lower 4 bits to be all 0
+            if (headerLength != 20) canTestChecksum = false;           // we want no TCP options
 
             // port number offsets handled in IPV4 and IPV6 parsers in order to create the ConversationData object
             f.seqNo = utility.B2UInt32(b, offset + 4);
             f.ackNo = utility.B2UInt32(b, offset + 8);
             f.flags = b[offset + 13];
             f.windowSize = utility.B2UInt16(b, offset + 14);
+            CheckSum = utility.B2UInt16(b, offset + 16);
+            if (utility.B2UInt16(b, offset + 18) != 0) canTestChecksum = false;   // we only want to test if the Urgent flag is 0
 
             // raw payload length
             int payloadLen = f.lastByteOffSet - offset - headerLength + 1;
+            if (payloadLen != 0) canTestChecksum = false;  // want to keep it simple - don't test if there's a payload
 
             //TCPPayload may have SMP header before TDS - 16 bytes, begins with byte 0x53 (83 decimal)
             if ((payloadLen > 15) && (b[offset + headerLength] == 0x53))
             {
                 smpLength = 16;
-                f.conversation.isMARSEnabled = true;
+                f.conversation.isMARSEnabled = true;   // TODO we should realy check the TCP Prelogin packet flags or response flags; can cause false positives
                 f.smpSession = utility.ReadUInt16(b, offset + headerLength + 2);   // so we can tell different conversations apart when parsing TDS
                 // Program.logDiagnostic("Removed SMP header from frame " + f.frameNo.ToString());  // debug output
             }
@@ -940,6 +948,15 @@ namespace SQLNA
                 f.conversation.keepAliveCount++;
             }
 
+            // test checksum to find where the trace was taken
+            if (t.BadChecksumFrames.Count < 10 && canTestChecksum)
+            {
+                ushort CalcCheckSum = CalculateTCPCheckSum(f, (ushort)headerLength);
+                if (CalcCheckSum != CheckSum)
+                {
+                    t.BadChecksumFrames.Add(f); // the source IP is the one we want
+                }
+            }
         }
 
         public static void ParseUDPFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
@@ -1049,6 +1066,87 @@ namespace SQLNA
                     }  // for
                 }  // for
             }  // foreach
+        }
+
+        //
+        // Calculate TCPChecksum calculates the TCP Check Sum so we can tell which machine/IP address the trace was taken on
+        // This is based on the fact that if TCP Offloading is enabled, then packets orginating on the trace machine will give a bad checksum
+        // We will calculate the checksum until 10 packets are found with a mismatch.
+        // The IP address that appears most often will be reported.
+        // If none are found, or none that repeat a significant amount (exact rubrik TBD) then we cannot identify the machine the trace was taken on
+        //
+        // *** Designed to be called on short frames that were not truncated and no payload - we are not validating every frame, just enough to determine our goal
+        //
+
+        public static ushort CalculateTCPCheckSum(FrameData f, ushort TcpLength)
+        {
+            int Accumulator = 0;
+
+            ConversationData c = f.conversation;
+
+            // Add IPV6 or IPV4 Pseudoheader
+            if (c.isIPV6)
+            {
+                Accumulator += (ushort)((c.sourceIPHi >> 48) & 0xFFFF);
+                Accumulator += (ushort)((c.sourceIPHi >> 32) & 0xFFFF);
+                Accumulator += (ushort)((c.sourceIPHi >> 16) & 0xFFFF);
+                Accumulator += (ushort)((c.sourceIPHi) & 0xFFFF);
+                Accumulator += (ushort)((c.sourceIPLo >> 48) & 0xFFFF);
+                Accumulator += (ushort)((c.sourceIPLo >> 32) & 0xFFFF);
+                Accumulator += (ushort)((c.sourceIPLo >> 16) & 0xFFFF);
+                Accumulator += (ushort)((c.sourceIPLo) & 0xFFFF);
+
+                Accumulator += (ushort)((c.destIPHi >> 12) & 0xFFFF);
+                Accumulator += (ushort)((c.destIPHi >> 8) & 0xFFFF);
+                Accumulator += (ushort)((c.destIPHi >> 4) & 0xFFFF);
+                Accumulator += (ushort)((c.destIPHi) & 0xFFFF);
+                Accumulator += (ushort)((c.destIPLo >> 12) & 0xFFFF);
+                Accumulator += (ushort)((c.destIPLo >> 8) & 0xFFFF);
+                Accumulator += (ushort)((c.destIPLo >> 4) & 0xFFFF);
+                Accumulator += (ushort)((c.destIPLo) & 0xFFFF);
+
+                Accumulator += 6; // Protocol 6 = TCP
+                Accumulator += TcpLength + f.payloadLength;
+            }
+            else  // IPv4
+            {
+                Accumulator += (ushort)((c.sourceIP >> 16) & 0xFFFF);
+                Accumulator += (ushort)((c.sourceIP) & 0xFFFF);
+                Accumulator += (ushort)((c.destIP >> 16) & 0xFFFF);
+                Accumulator += (ushort)((c.destIP) & 0xFFFF);
+
+                Accumulator += 6; // Protocol 6 = TCP
+                Accumulator += TcpLength + f.payloadLength;
+            }
+
+            // Add TCP fields in the byte array
+
+            Accumulator += c.sourcePort;
+            Accumulator += c.destPort;
+
+            Accumulator += (ushort)((f.seqNo >> 16) & 0xFFFF);
+            Accumulator += (ushort)((f.seqNo) & 0xFFFF);
+            Accumulator += (ushort)((f.ackNo >> 16) & 0xFFFF);
+            Accumulator += (ushort)((f.ackNo) & 0xFFFF);
+
+            Accumulator += (ushort)(((TcpLength / 4) << 12) + f.flags);  // we are assuming Reserved and Nonce Sum are all 0 for bits 4-7
+            Accumulator += f.windowSize;
+
+            // use 0 for checksum - NOP
+
+            // Assume Urgent pointer is 0  - must be managed by caller
+            // Assume no TCP options       - must be managed by caller (header length must be 20)
+            // Assume no payload           - must be managed by the caller
+
+            // add overflow amount - for one's complement addition
+            if (Accumulator > 65535) Accumulator = (Accumulator & 0xFFFF) + (Accumulator >> 16);
+            // Might overflow once more
+            if (Accumulator > 65535) Accumulator -= 65535;  // subtract 65536 (0x10000) and add 1 - same effect as the calculation above, but more specialized form
+
+            // take one's complement = invert all bits (xor against 0xFFFF)
+            Accumulator ^= 0xFFFF;
+
+            return (ushort)Accumulator;
         }
 
     }  // end of class

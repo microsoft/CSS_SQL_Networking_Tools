@@ -90,7 +90,7 @@ namespace SQLNA
                         tdsBytes += c.totalBytes;
                         tdsFrames += c.frames.Count;
                         tdsConversations++;
-                     }
+                    }
                 }
             }
 
@@ -123,9 +123,36 @@ namespace SQLNA
                 Program.logMessage();
             }
 
+            // identify the IP address on which the network trace was captured
+            if (Trace.BadChecksumFrames.Count > 0)  // if 0, then no bad checksums
+            {
+                ArrayList Addresses = new ArrayList();
+                foreach (FrameData f in Trace.BadChecksumFrames)
+                {
+                    ConversationData c = f.conversation;
+                    Addresses.Add(c.isIPV6 ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP));
+                }
 
+                var GroupedRows = from row in Addresses.ToArray()
+                                  group row by row into g
+                                  orderby g.Count() descending
+                                  select new { Address = g.Key, AddrCount = g.Count() };
+
+                if (GroupedRows.Count() == 1)
+                {
+                    Program.logMessage($"Trace was probably taken on this IP address: {GroupedRows.First().Address}");
+                }
+                else
+                {
+                    foreach(var row in GroupedRows)
+                    {
+                        Program.logMessage($"Trace was probably taken on this IP address: {row.Address}, ({row.AddrCount * 10}%)");
+                    }
+                }
+                               
+                Program.logMessage();
+            }
         }
-
 
         private static void DisplaySQLServerSummary(NetworkTrace Trace)
         {
@@ -144,7 +171,7 @@ namespace SQLNA
                                    "Conversations:R", 
                                    "NTLM Conv:R",
                                    "non-TLS 1.2 Conv:R",
-                                   "ReadOnly Intent Conv:R",
+                                   "Redirected Conv:R",
                                    "Frames:R", 
                                    "Bytes:R", 
                                    "Resets:R", 
@@ -1249,7 +1276,7 @@ namespace SQLNA
                 return;
             }
 
-                Program.logMessage("The problematic DNS responses are :\r\n");
+                Program.logMessage("The problematic DNS responses are:\r\n");
 
                 ReportFormatter rf = new ReportFormatter();
                 rf.SetColumnNames("Client Address:L",
@@ -1545,7 +1572,7 @@ namespace SQLNA
                         }
                     }
 
-                    Program.logMessage("The following Read-Only Intent conversations with SQL Server " + sqlIP + " on port " + s.sqlPort + " were redirected to read-only server:\r\n");
+                    Program.logMessage("The following Application Intent = Readonly conversations with SQL Server " + sqlIP + " on port " + s.sqlPort + " were redirected to read-only server:\r\n");
                     ReportFormatter rf = new ReportFormatter();
 
                     switch (Program.filterFormat)
@@ -1633,7 +1660,7 @@ namespace SQLNA
                     // Display graph
                     //
 
-                    Program.logMessage("    Distribution of read-only intent connections.");
+                    Program.logMessage("    Distribution of redirected Application Intent = Readonly connections.");
                     Program.logMessage();
                     g.ProcessData();
                     Program.logMessage("    " + g.GetLine(0));
@@ -1648,7 +1675,7 @@ namespace SQLNA
             }
             if (!hasReadOnlyConnection)
             {
-                Program.logMessage("No read-only intent connections were found.");
+                Program.logMessage("No redirected Application Intent = Readonly connections were found.");
                 Program.logMessage();
             }
         }
@@ -1659,11 +1686,11 @@ namespace SQLNA
             Program.logMessage();
             Program.logMessage("Please send your feedback to our Wiki at https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki.");
 
-            //if (DateTime.Now > DateTime.Parse(Program.UPDATE_DATE))
-            //{
-            //    Program.logMessage();
-            //    Program.logMessage("This version of SQL Network Analyzer is likely not current. Please check if there is an updated version available.");
-            //}
+            if (DateTime.Now > DateTime.Parse(Program.UPDATE_DATE))
+            {
+                Program.logMessage();
+                Program.logMessage("This version of SQL Network Analyzer is likely not current. Please check if there is an updated version available.");
+            }
         }
 
         private static void OutputStats(NetworkTrace Trace)

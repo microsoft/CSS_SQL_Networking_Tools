@@ -16,21 +16,22 @@ namespace SQLNA
     // conversationIndex used to look up conversations. Based on XOR-ing the client port and server port to form an index
     //
 
-    class NetworkTrace                                      // constructed in Main
+    class NetworkTrace                                                // constructed in Main
     {
 
         public string fileExt = null;
-        public ArrayList files = new ArrayList();           // set in ParseFileSpec - added to in ParseFileSpec
-        public ArrayList conversations = new ArrayList();   // set in ParseFileSpec - added to in GetIPV4Converation and GetIPV6Conversation
-        public ArrayList frames = new ArrayList();          // set in ParseFileSpec - added to in ParseIPV4Frame and ParseIPV6Frame
-        public ArrayList sqlServers = new ArrayList();      // added to in ProcessTDS - not pre-sized because of estimated small size
-        public ArrayList SSRPRequests = new ArrayList();    // added to in ProcessUDP - not pre-sized because of estimated small size
-        public ArrayList DNSResponses = new ArrayList();    // problem DNS responses
-        public int DNSRequestCount = 0;                     // total number of DNS Requests
+        public ArrayList files = new ArrayList();                     // set in ParseFileSpec - added to in ParseFileSpec
+        public ArrayList conversations = new ArrayList();             // set in ParseFileSpec - added to in GetIPV4Converation and GetIPV6Conversation
+        public ArrayList frames = new ArrayList();                    // set in ParseFileSpec - added to in ParseIPV4Frame and ParseIPV6Frame
+        public ArrayList sqlServers = new ArrayList();                // added to in ProcessTDS - not pre-sized because of estimated small size
+        public ArrayList SSRPRequests = new ArrayList();              // added to in ProcessUDP - not pre-sized because of estimated small size
+        public ArrayList DNSResponses = new ArrayList();              // problem DNS responses
+        public int DNSRequestCount = 0;                               // total number of DNS Requests
         public ArrayList KerbResponses = new ArrayList();
-        public ArrayList[] conversationIndex = new ArrayList[65536];
+        public ArrayList[] conversationIndex = new ArrayList[65536];  // short-cut to look-up conversations
+        public ArrayList BadChecksumFrames = new ArrayList();         // sample of frames with bad checksum; to determine where trace was taken
 
-        public ArrayList GetConversationList(ushort index)  // used for conversationIndex to speed up searching
+        public ArrayList GetConversationList(ushort index)            // used for conversationIndex to speed up searching
         {
             ArrayList a = conversationIndex[index];
             if (a == null)
