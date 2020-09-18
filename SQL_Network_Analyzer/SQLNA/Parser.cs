@@ -1119,7 +1119,7 @@ namespace SQLNA
                 Accumulator += TcpLength + f.payloadLength;
             }
 
-            // Add TCP fields in the byte array
+            // Add TCP fields
 
             Accumulator += c.sourcePort;
             Accumulator += c.destPort;
