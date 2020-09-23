@@ -131,6 +131,7 @@ namespace SQLNA
             Frame nf = null;
             long ticksLo;
             long seekOffset;
+            long nextOffset = 0;
 
             frameNumber++;
 
@@ -182,7 +183,18 @@ namespace SQLNA
             }
             nf.data = r.ReadBytes((int)nf.bytesAvailable);
             nf.length = nf.bytesAvailable;
-            nf.linkType = r.ReadUInt16();
+
+            //
+            // nf.linkType = r.ReadUInt16();  // initial code based on spec notes and data structures
+            //
+            // After direct examination of some problematic NETMON traces, it appears that the Link Type
+            // can be stored in either 1 or 2 bytes depending on where the start of the next frame is.
+            //
+            // Because Frame numbers are 1-based and the table is 0-based, the frame offset is frameTable[frameNumber - 1],
+            // so the next frame's offset is frameTable[frameNumber]. For the last frame, the frame table starts immediately afterwards.
+            //
+            nextOffset = (frameNumber < frameTable.Length) ? frameTable[frameNumber] : frameTableOffset;  // last frame ends right before the frame table
+            nf.linkType = (r.BaseStream.Position + 1 < nextOffset) ? r.ReadUInt16() : r.ReadByte();       // check if we have at least 2 bytes before the next frame
 
             return nf;
         }
