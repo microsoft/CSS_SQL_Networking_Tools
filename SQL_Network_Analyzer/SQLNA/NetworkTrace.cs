@@ -146,7 +146,7 @@ namespace SQLNA
             return null;
         }
 
-        public SQLServer FindSQLServer(uint IP, ulong IPHi, ulong IPLo, ushort Port, bool isIPV6)  // added Dec 5, 2016
+        public SQLServer FindSQLServer(uint IP, ulong IPHi, ulong IPLo, ushort Port, bool isIPV6)  // these should normall be destination values
         {
             // search for existing SQL Server and return it - can use foreach loop as this is not called often and there are a small number of entries
             foreach (SQLServer s in sqlServers)

@@ -130,7 +130,14 @@ namespace SQLNA
                 foreach (FrameData f in Trace.BadChecksumFrames)
                 {
                     ConversationData c = f.conversation;
-                    Addresses.Add(c.isIPV6 ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP));
+                    if (f.isFromClient)
+                    {
+                        Addresses.Add(c.isIPV6 ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP));
+                    }
+                    else
+                    {
+                        Addresses.Add(c.isIPV6 ? utility.FormatIPV6Address(c.destIPHi, c.destIPLo) : utility.FormatIPV4Address(c.destIP));
+                    }
                 }
 
                 var GroupedRows = from row in Addresses.ToArray()
@@ -169,7 +176,9 @@ namespace SQLNA
                                    "Files:R",
                                    "Clients:R", 
                                    "Conversations:R", 
+                                   "Kerb Conv:R",
                                    "NTLM Conv:R",
+                                   "MARS Conv:R",
                                    "non-TLS 1.2 Conv:R",
                                    "Redirected Conv:R",
                                    "Frames:R", 
@@ -188,7 +197,9 @@ namespace SQLNA
                     int firstFile = 0;
                     if (s.conversations.Count > 0) firstFile = Trace.files.IndexOf(((FrameData)(((ConversationData)s.conversations[0]).frames[0])).file);
                     int lastFile = 0;
+                    int integratedCount = 0;
                     int NTLMResponseCount = 0;
+                    int MARSCount = 0;
                     int lowTLSVersionCount = 0;
 
                     foreach (ConversationData c in s.conversations)
@@ -206,6 +217,8 @@ namespace SQLNA
                         if (c.hasReadOnlyIntentConnection) s.hasReadOnlyIntentConnections = true;
                         if (c.hasPostLoginResponse) s.hasPostLogInResponse = true;
                         if (c.AttentionTime > 0) s.hasAttentions = true;
+                        // may see MARS enabled in PreLogin packet, or if that's missing, if the conversation has SMP packets
+                        if (c.isMARSEnabled  || (c.smpAckCount + c.smpDataCount + c.smpSynCount + c.smpFinCount > 0)) MARSCount++;
                         if (c.hasLowTLSVersion)
                         {
                             s.hasLowTLSVersion = true;
@@ -213,6 +226,7 @@ namespace SQLNA
                         }
                         int lastConvFile = Trace.files.IndexOf(((FrameData)(c.frames[c.frames.Count - 1])).file);
                         if (lastConvFile > lastFile) lastFile = lastConvFile;  // the last conversation may not end last, so we have to check
+                        if (c.hasIntegratedSecurity) integratedCount++;
                         if (c.hasNTLMResponse == true) NTLMResponseCount += 1;
                     }
 
@@ -226,7 +240,9 @@ namespace SQLNA
                          (s.conversations.Count == 0 ? "NO TRAFFIC" : ((firstFile == lastFile) ? firstFile.ToString() : firstFile + "-" + lastFile)),
                          clientIPs.Count.ToString(),
                          s.conversations.Count.ToString(),
+                         (integratedCount - NTLMResponseCount).ToString(),  // kerberos (maybe? Azure Active Directory?)
                          NTLMResponseCount.ToString(),
+                         MARSCount.ToString(),
                          lowTLSVersionCount.ToString(),
                          (from ConversationData conv in s.conversations where conv.hasReadOnlyIntentConnection select conv).Count().ToString(),
                          totalFrames.ToString(),
@@ -268,6 +284,8 @@ namespace SQLNA
 
             foreach (SQLServer s in Trace.sqlServers)
             {
+                int ignoredMARSConnections = 0;
+
                 if (s.hasResets)
                 {
                     hasError = true;
@@ -287,6 +305,22 @@ namespace SQLNA
                     {
                         if (c.resetCount > 0)
                         {
+                            //
+                            // Ignore normal MARS shutdown sequence that always shows a RESET after SMP:FIN and ACK+FIN packets.
+                            //
+                            // We may not see the prelogin packets, so cannot rely on the isMARSEnabled flag being true.
+                            //
+                            // Encrypted MARS connections are going to show in the report as we have no way of knowing for sure whether
+                            // the SMP:FIN packet was issued.
+                            //
+                            // Manual inspection of the CSV file or network trace may be needed.
+                            //
+                            if (c.smpFinCount > 0 && c.finCount > 0 && c.smpFinTime < c.ResetTime && c.FinTime < c.ResetTime)
+                            {
+                                ignoredMARSConnections++;
+                                continue;
+                            }
+
                             ResetConnectionData rd = new ResetConnectionData();
 
                             rd.clientIP = (c.isIPV6) ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP);
@@ -323,112 +357,128 @@ namespace SQLNA
                         }
                     }
 
-                    Program.logMessage("The following conversations with SQL Server " + sqlIP + " on port " + s.sqlPort + " were reset:\r\n");
-                    ReportFormatter rf = new ReportFormatter();
-                    switch (Program.filterFormat)
+                    if (ResetRecords.Count > 0)
                     {
-                        case "N":
-                            {
-                                rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "Retransmits:R");
-                                break;
-                            }
-                        case "W":
-                            {
-                                rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "Retransmits:R");
-                                break;
-                            }
-                        default:
-                            {
-                                rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "Retransmits:R");
-                                break;
-                            }
-                    }
-
-                    var OrderedRows = from row in ResetRecords orderby row.endOffset ascending select row;
-
-                    foreach (var row in OrderedRows)
-                    {
+                        Program.logMessage("The following conversations with SQL Server " + sqlIP + " on port " + s.sqlPort + " were reset:\r\n");
+                        ReportFormatter rf = new ReportFormatter();
                         switch (Program.filterFormat)
                         {
-                            case "N":  // list client IP and port as a NETMON filter string
+                            case "N":
                                 {
-                                    rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
-                                                     (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
-                                                     row.ResetFrame.ToString(),
-                                                     (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
-                                                     (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
-                                                     new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
-                                                     row.frames.ToString(),
-                                                     (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
-                                                     (row.isClientReset ? "Client" : "Server"),
-                                                     row.flags,
-                                                     row.keepAliveCount.ToString(),
-                                                     row.rawRetransmits.ToString());
+                                    rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "Retransmits:R");
                                     break;
                                 }
-                            case "W":  // list client IP and port as a WireShark filter string
+                            case "W":
                                 {
-                                    rf.SetcolumnData((row.isIPV6 ? "ipv6" : "ip") + ".addr==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
-                                                     (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
-                                                     row.ResetFrame.ToString(),
-                                                     (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
-                                                     (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
-                                                     new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
-                                                     row.frames.ToString(),
-                                                     (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
-                                                     (row.isClientReset ? "Client" : "Server"),
-                                                     row.flags,
-                                                     row.keepAliveCount.ToString(),
-                                                     row.rawRetransmits.ToString());
+                                    rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "Retransmits:R");
                                     break;
                                 }
-                            default:  // list client IP and port as separate columns
+                            default:
                                 {
-                                    rf.SetcolumnData(row.clientIP,
-                                                     row.sourcePort.ToString(),
-                                                     (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
-                                                     row.ResetFrame.ToString(),
-                                                     (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
-                                                     (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
-                                                     new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
-                                                     row.frames.ToString(),
-                                                     (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
-                                                     (row.isClientReset ? "Client" : "Server"),
-                                                     row.flags,
-                                                     row.keepAliveCount.ToString(),
-                                                     row.rawRetransmits.ToString());
+                                    rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "Retransmits:R");
                                     break;
                                 }
                         }
+
+                        var OrderedRows = from row in ResetRecords orderby row.endOffset ascending select row;
+
+                        foreach (var row in OrderedRows)
+                        {
+                            switch (Program.filterFormat)
+                            {
+                                case "N":  // list client IP and port as a NETMON filter string
+                                    {
+                                        rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                                         (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                         row.ResetFrame.ToString(),
+                                                         (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                         row.frames.ToString(),
+                                                         (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         (row.isClientReset ? "Client" : "Server"),
+                                                         row.flags,
+                                                         row.keepAliveCount.ToString(),
+                                                         row.rawRetransmits.ToString());
+                                        break;
+                                    }
+                                case "W":  // list client IP and port as a WireShark filter string
+                                    {
+                                        rf.SetcolumnData((row.isIPV6 ? "ipv6" : "ip") + ".addr==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
+                                                         (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                         row.ResetFrame.ToString(),
+                                                         (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                         row.frames.ToString(),
+                                                         (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         (row.isClientReset ? "Client" : "Server"),
+                                                         row.flags,
+                                                         row.keepAliveCount.ToString(),
+                                                         row.rawRetransmits.ToString());
+                                        break;
+                                    }
+                                default:  // list client IP and port as separate columns
+                                    {
+                                        rf.SetcolumnData(row.clientIP,
+                                                         row.sourcePort.ToString(),
+                                                         (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                         row.ResetFrame.ToString(),
+                                                         (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                         row.frames.ToString(),
+                                                         (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         (row.isClientReset ? "Client" : "Server"),
+                                                         row.flags,
+                                                         row.keepAliveCount.ToString(),
+                                                         row.rawRetransmits.ToString());
+                                        break;
+                                    }
+                            }
+                        }
+
+                        Program.logMessage(rf.GetHeaderText());
+                        Program.logMessage(rf.GetSeparatorText());
+
+                        for (int i = 0; i < rf.GetRowCount(); i++)
+                        {
+                            Program.logMessage(rf.GetDataText(i));
+                        }
+
+                        Program.logMessage();
+
+                        //
+                        // Display graph
+                        //
+
+                        Program.logMessage("    Distribution of RESET connections.");
+                        Program.logMessage();
+                        g.ProcessData();
+                        Program.logMessage("    " + g.GetLine(0));
+                        Program.logMessage("    " + g.GetLine(1));
+                        Program.logMessage("    " + g.GetLine(2));
+                        Program.logMessage("    " + g.GetLine(3));
+                        Program.logMessage("    " + g.GetLine(4));
+                        Program.logMessage("    " + g.GetLine(5));
+
+                        Program.logMessage();
+
+                        if (ignoredMARSConnections > 0)
+                        {
+                            Program.logMessage($"{ignoredMARSConnections} MARS connections were omitted from the report as being a false positive.");
+                            Program.logMessage();
+                        }
                     }
-
-                    Program.logMessage(rf.GetHeaderText());
-                    Program.logMessage(rf.GetSeparatorText());
-
-                    for (int i = 0; i < rf.GetRowCount(); i++)
+                    else // if (ResetRecords.Count > 0)
                     {
-                        Program.logMessage(rf.GetDataText(i));
+                        // all reset records were due to MARS connections
+                        Program.logMessage($"All {ignoredMARSConnections} reset connections were due to the MARS connections MARS connection closing sequence and were benign.");
+                        Program.logMessage();
                     }
-
-                    Program.logMessage();
-                    
-                    //
-                    // Display graph
-                    //
-
-                    Program.logMessage("    Distribution of RESET connections.");
-                    Program.logMessage();
-                    g.ProcessData();
-                    Program.logMessage("    " + g.GetLine(0));
-                    Program.logMessage("    " + g.GetLine(1));
-                    Program.logMessage("    " + g.GetLine(2));
-                    Program.logMessage("    " + g.GetLine(3));
-                    Program.logMessage("    " + g.GetLine(4));
-                    Program.logMessage("    " + g.GetLine(5));
-
-                    Program.logMessage();
                     
                 }
+
             }
 
             if (hasError == false)
@@ -1728,7 +1778,7 @@ namespace SQLNA
                                 (c.hasNTLMChallenge || c.hasNTLMResponse ? "Y" : "") + "," +
                                 (c.hasLogin7 ? "Y" : "") + "," +
                                 (c.isEncrypted ? "Y" : "") + "," +
-                                (c.isMARSEnabled ? "Y" : "") + "," +
+                                (c.isSQL && (c.isMARSEnabled || (c.smpAckCount + c.smpSynCount + c.smpFinCount + c.smpDataCount) > 0) ? "Y" : "") + "," +
                                 c.frames.Count + "," +
                                 c.totalBytes + "," +
                                 "," +   // do not have a separate counter for sent bytes      TODO ? do we really need it?

@@ -27,9 +27,9 @@ namespace SQLNA
         public static string outFile = null;
         public static string diagOutFile = null;
         public static bool outputConversationList = false;   // enables a section in the main report that is normally suppressed
-        public static string filterFormat = "";              // blank | N | W   if N or W, replaces the Client IP and Port in reports with a filter string in either NETMON or WireShark format
+        public static string filterFormat = "";              // blank | N | W   if N or W, replace the Client IP and Port in reports with a filter string in either NETMON or WireShark format
 
-        public const string VERSION_NUMBER = "1.5.1620.0";
+        public const string VERSION_NUMBER = "1.5.1630.0";
         public const string UPDATE_DATE = "2021/01/31";
         public const string GITHUB_PROJECT_URL = "https://github.com/microsoft/CSS_SQL_Networking_Tools";
 

@@ -27,6 +27,7 @@ namespace SQLNA
         public byte flags = 0;                            // set in ParseTCPFrame
         public ushort windowSize = 0;                     // set in ParseTCPFrame
         public ushort smpSession = 0;                     // set in ParseTCPFrame
+        public byte smpType = 0;                          // set in ParseTCPFrame
         public byte[] payload = null;                     // set in ParseTCPFrame and ParseUDPFrame
         public bool isRetransmit = false;                 // set in FindRetransmits
         public bool isFromClient = false;                 // set in ParseIPV4Frame and ParseIPV6Frame
@@ -43,6 +44,44 @@ namespace SQLNA
         {
             get { return (reassembledPayLoad == null) ? 0 : reassembledPayLoad.Length; }
         }
+
+        public bool isKeepAlive
+        {
+            get
+            {
+                return ((payloadLength == 1) &&
+                        (payload[0] == 0) &&
+                        ((flags & (byte)TCPFlag.ACK) != 0) &&
+                        ((flags & (byte)(TCPFlag.FIN | TCPFlag.FIN | TCPFlag.SYN | TCPFlag.RESET | TCPFlag.PUSH)) == 0));
+            }
+        }
+
+        public bool hasFINFlag
+        {
+            get { return (flags & (byte)TCPFlag.FIN) != 0; }
+        }
+
+        public bool hasSYNFlag
+        {
+            get { return (flags & (byte)TCPFlag.SYN) != 0; }
+        }
+
+        public bool hasACKFlag
+        {
+            get { return (flags & (byte)TCPFlag.ACK) != 0; }
+        }
+
+        public bool hasPUSHFlag
+        {
+            get { return (flags & (byte)TCPFlag.PUSH) != 0; }
+        }
+
+        public bool hasRESETFlag
+        {
+            get { return (flags & (byte)TCPFlag.RESET) != 0; }
+        }
+
+
         public string ColumnHeader1()
         {
             if (conversation.isUDP)

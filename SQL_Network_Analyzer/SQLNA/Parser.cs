@@ -655,11 +655,11 @@ namespace SQLNA
                 // fortunately, the port numbers are in the same location for both protocols
                 SPort = utility.B2UInt16(b, offset + HeaderLength);
                 DPort = utility.B2UInt16(b, offset + HeaderLength + 2);
-                ConversationData c = t.GetIPV4Conversation(sourceIP, SPort, destIP, DPort);
+                ConversationData c = t.GetIPV4Conversation(sourceIP, SPort, destIP, DPort);  // adds conversation if new
                 //
                 // Determine whether the TCP client port has rolled around and this should be a new conversation
                 //
-                // The rule is if we see a SYN packet, then is there a RESET or FIN packet already in the conversation, and is it older than 20 seconds. If so, then new conversation.
+                // The rule is if we see a SYN packet, then if there is a RESET or FIN packet already in the conversation, and is it older than 20 seconds. If so, then new conversation.
                 //
                 if (NextProtocol == 6) // TCP
                 {
@@ -667,7 +667,7 @@ namespace SQLNA
                     if ((f.flags & (byte)TCPFlag.SYN) != 0 && (c.finCount > 0 || (c.resetCount > 0) && (f.ticks - ((FrameData)(c.frames[c.frames.Count - 1])).ticks) > 20 * utility.TICKS_PER_SECOND))
                     {
                         ConversationData cOld = c;
-                        c = new ConversationData();  // TODO Where do we add this to the network trace ???
+                        c = new ConversationData();
                         c.sourceIP = cOld.sourceIP;
                         c.sourceIPHi = cOld.sourceIPHi;
                         c.sourceIPLo = cOld.sourceIPLo;
@@ -903,20 +903,51 @@ namespace SQLNA
             int payloadLen = f.lastByteOffSet - offset - headerLength + 1;
             if (payloadLen != 0) canTestChecksum = false;  // want to keep it simple - don't test if there's a payload
 
-            //TCPPayload may have SMP header before TDS - 16 bytes, begins with byte 0x53 (83 decimal)
-            if ((payloadLen > 15) && (b[offset + headerLength] == 0x53))
-            {
-                smpLength = 16;
-                f.conversation.isMARSEnabled = true;   // TODO we should realy check the TCP Prelogin packet flags or response flags; can cause false positives
-                f.smpSession = utility.ReadUInt16(b, offset + headerLength + 2);   // so we can tell different conversations apart when parsing TDS
-                // Program.logDiagnostic("Removed SMP header from frame " + f.frameNo.ToString());  // debug output
-            }
-
             // captured payload length may be less than actual frame length
             if (f.lastByteOffSet >= b.Length) f.lastByteOffSet = (ushort)(b.Length - 1); // last element position = Length - 1
 
-            //TCPPayload/may be TDS
-            // recalculate payload length to account for possible SMP header
+            //
+            // Session MultiPlex Protocol
+            //
+            // TCPPayload may have SMP header before TDS - 16 bytes, begins with byte 0x53 (83 decimal)
+            // Done here because SMP could potentially be for non-SQL conversations; needs to be validated
+            //
+            // Type = 1     SMP:SYN     No payload after this
+            // Type = 2     SMP:ACK     No payload after this
+            // Type = 4     SMP:FIN     No payload after this
+            // Type = 8     SMP:DATA    Should have a payload of at least 1 byte - this assumption is baked into the code below
+            //
+            // Documented here: https://docs.microsoft.com/en-us/openspecs/windows_protocols/mc-smp/04c8edde-371d-4af5-bb33-a39b3948f0af
+            //
+
+            if ((f.isContinuation == false) && (payloadLen > 15) && (b[offset + headerLength] == 0x53))
+            {
+                byte smpType = b[offset + headerLength + 1];  // valid values 1=SMP:SYN; 2=SMP:ACK; 4=SMP:FIN; 8=SMP:DATA
+                uint smpPayloadLength = utility.ReadUInt32(b, offset + headerLength + 4);
+
+                if (((smpType == 1 || smpType == 2 || smpType == 4) && payloadLen == 16 && smpPayloadLength == 16)  // no payload for SMP:SYN, SMP:ACK, SMP:FIN
+                   || (smpType == 8 && payloadLen > 16 && smpPayloadLength == payloadLen))                          // spec indicates that flags cannot be OR-ed together
+                {
+                    //
+                    // we are almost 100% sure we have an SMP packet
+                    //
+                    smpLength = 16;  // added to offset later to provide a new payload offset if SMP:DATA, others have no payload
+                    f.smpType = smpType;
+                    f.smpSession = utility.ReadUInt16(b, offset + headerLength + 2);
+                    if (f.smpSession > f.conversation.smpMaxSession) f.conversation.smpMaxSession = f.smpSession;
+                    // f.conversation.isMARSEnabled = true;   // set in TDS Parser
+                    if (smpType == 1) f.conversation.smpSynCount++;
+                    if (smpType == 2) f.conversation.smpAckCount++;
+                    if (smpType == 4)
+                    {
+                        f.conversation.smpFinCount++;
+                        if (f.conversation.smpFinTime == 0) f.conversation.smpFinTime = f.ticks; // so we can tell if reset occurs after SMP:FIN
+                    }
+                    if (smpType == 8) f.conversation.smpDataCount++;
+                }
+            }
+
+            // copy the remaining bytes from b[] into f.Payload[]. The smpLength value means we skip the smp header, if present.
             payloadLen = f.lastByteOffSet - offset - headerLength - smpLength + 1;
             if (payloadLen > 0)
             {
@@ -925,27 +956,24 @@ namespace SQLNA
             }
 
             // conversation statistics
-            if ((f.flags & (byte)TCPFlag.FIN) != 0)
+            if (f.hasFINFlag)
             {
                 f.conversation.finCount++;
                 if (f.conversation.FinTime == 0) f.conversation.FinTime = f.ticks;
             }
-            if ((f.flags & (byte)TCPFlag.SYN) != 0) f.conversation.synCount++;
-            if ((f.flags & (byte)TCPFlag.RESET) != 0)
+            if (f.hasSYNFlag) f.conversation.synCount++;
+            if (f.hasRESETFlag)
             {
                 f.conversation.resetCount++;
                 if (f.conversation.ResetTime == 0) f.conversation.ResetTime = f.ticks;
             }
-            if ((f.flags & (byte)TCPFlag.PUSH) != 0) f.conversation.pushCount++;
-            if ((f.flags & (byte)TCPFlag.ACK) != 0) f.conversation.ackCount++;
+            if (f.hasPUSHFlag) f.conversation.pushCount++;
+            if (f.hasACKFlag) f.conversation.ackCount++;
 
             // keep alive - ACK packet has a 1 byte payload that equals 0
-            if ((f.payloadLength == 1) &&
-                (f.payload[0] == 0) &&
-                ((f.flags & (byte)TCPFlag.ACK) != 0) &&
-                ((f.flags & (byte)(TCPFlag.FIN | TCPFlag.FIN | TCPFlag.SYN | TCPFlag.RESET | TCPFlag.PUSH)) == 0))
+            if (f.isKeepAlive)
             {
-                f.conversation.keepAliveCount++;
+                f.conversation.keepAliveCount++;  // 2 should happen every 30 seconds of idle time; one from the client and one from the server
             }
 
             // test checksum to find where the trace was taken
