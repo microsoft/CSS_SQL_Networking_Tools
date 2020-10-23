@@ -298,7 +298,7 @@ namespace SQLNA
                                         }
                                         else if (handshakeType == 2) // Server Hello -- do we sometimes hit here, or is it just in the TDS RESPONSE version of this logic
                                         {
-                                            Program.logDiagnostic($"Non-Response Server Hello packet seen in file {fd.file} and frame {fd.frameNo}.");
+                                            Program.logDiagnostic($"TDS:Prelogin Server Hello packet seen at frame {fd.frameNo}.");
                                             c.hasServerSSL = true;
                                             c.tlsVersionServer = translateSSLVersion(sslMajorVersion, sslMinorVersion);
                                             if (sslMajorVersion != 3 || sslMinorVersion != 3) c.hasLowTLSVersion = true;  // mark anything other than TLS 1.2
