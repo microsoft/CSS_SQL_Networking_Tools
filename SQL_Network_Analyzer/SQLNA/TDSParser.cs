@@ -96,7 +96,10 @@ namespace SQLNA
                                     if (4 == length)
                                         conv.threadID = utility.ReadUInt32(tdsPayLoad, 8 + offset);
                                     break;
-                            default:
+                            case 4: // MARS options. 
+                            if (tdsPayLoad[8 + offset] == 1) conv.isMARSEnabled = true;
+                            break;
+                        default:
                                     break;
                         }
                     }
@@ -138,10 +141,17 @@ namespace SQLNA
                             //conv.serverVersion = majorVersion.ToString() + "." + minorVersion.ToString() + "." + levelVersion.ToString();
                             //break;
                         case 1: // encyption options. 
-                            if (tdsPayLoad[8 + offset] == 1) conv.isEncrypted = true;
+                            byte encrypt = tdsPayLoad[8 + offset];
+                            conv.isEncrypted = (encrypt == 1 || encrypt == 3) ? true : false;  // if the server says YES or NO, then that's that
                             break;
-                        case 2: // Client requested Instance
-                        case 3: 
+                        case 2:  // we don't care
+                        case 3:  // we don't care
+                            {
+                                break;
+                            }
+                        case 4:
+                            conv.isMARSEnabled = (tdsPayLoad[8 + offset] == 1) ? true : false;  // if the server says YES or NO, then that's that
+                            break;
                         default:
                             break;
                     }
@@ -182,7 +192,6 @@ namespace SQLNA
 
                 if ((c.sourcePort < 500) || (c.destPort < 500)) continue;  // to avoid confusing encrypted traffic on common services with SQL traffic. Override with /SQL command-line switch
 
-                //TLS//SSL Payload ?
                 foreach (FrameData fd in c.frames)
                 {
                     try
@@ -205,10 +214,9 @@ namespace SQLNA
 
                         int firstByte = fd.payload[0];
 
-                        //if (c.sourcePort == 1431)  // debugging construct
+                        //if (c.destPort == 50422)  // debugging construct - more efficient than a conditional breakpoint
                         //{
-
-                        //    if (fd.frameNo == 428)
+                        //    if (fd.frameNo == 80723)
                         //        Console.WriteLine(fd.frameNo + "   " + firstByte + "   " + fd.FormatPayloadChars(30));
                         //}
 
@@ -219,10 +227,10 @@ namespace SQLNA
                             (firstByte != (int)TDSPacketType.RESPONSE) &&   //    4
                             (firstByte != (int)TDSPacketType.ATTENTION) &&  //    6
                             (firstByte != (int)TDSPacketType.BULKLOAD) &&   //    7
-                            (firstByte != (int)TDSPacketType.DTC) &&        //   14
-                            (firstByte != (int)TDSPacketType.SSPI) &&       //   17
-                            (firstByte != (int)TDSPacketType.PRELOGIN) &&   //   18
-                            (firstByte != (int)TDSPacketType.APPDATA))      //   23
+                            (firstByte != (int)TDSPacketType.DTC) &&        //   14   0x0E
+                            (firstByte != (int)TDSPacketType.SSPI) &&       //   17   0x11
+                            (firstByte != (int)TDSPacketType.PRELOGIN) &&   //   18   0x12
+                            (firstByte != (int)TDSPacketType.APPDATA))      //   23   0x17
                         {
                             continue;
                         }
@@ -290,7 +298,7 @@ namespace SQLNA
                                         }
                                         else if (handshakeType == 2) // Server Hello -- do we sometimes hit here, or is it just in the TDS RESPONSE version of this logic
                                         {
-                                            Program.logDiagnostic($"Non-Response Server Hello packet seen in file {fd.file} and frame {fd.frameNo}.");
+                                            Program.logDiagnostic($"TDS:Prelogin Server Hello packet seen at frame {fd.frameNo}.");
                                             c.hasServerSSL = true;
                                             c.tlsVersionServer = translateSSLVersion(sslMajorVersion, sslMinorVersion);
                                             if (sslMajorVersion != 3 || sslMinorVersion != 3) c.hasLowTLSVersion = true;  // mark anything other than TLS 1.2
@@ -327,6 +335,8 @@ namespace SQLNA
                                     c.hasLogin7 = true;
                                     payLoadLength += fd.payload.Length;
 
+                                    // parse this better - JTDS and FreeTDS don't normally encrypt of do the driver prelogin packets TODO
+
                                     if (fd.isFromClient)
                                         tdsClientSource++;   // looks like SQL is on the destIP side - good
                                     else
@@ -336,12 +346,12 @@ namespace SQLNA
                                 }
                             case (byte)TDSPacketType.SSPI:
                                 {
-                                    c.hasIntegratedSecurity = true;
+                                    c.hasIntegratedSecurity = true;  // kerberos or NTLM
 
                                     //accumulate the payload. 
                                     payLoadLength += fd.payload.Length;
 
-                                    // Check for NTLM Response Message - TODO if this isn't true, do we abort the TDS parsing for this conversation?
+                                    // Check for NTLM Response Message - if we don't find it, assume Kerberos
                                     if (fd.payloadLength > 16)
                                     {
                                         if ((utility.ReadAnsiString(fd.payload, 8, 7) == "NTLMSSP") &&   // NTLM signature
@@ -555,7 +565,7 @@ namespace SQLNA
                     tdsClientSource = tdsServerDest = tdsServerSource = tdsClientDest = 0; // short-cut this option for determining if we have a SQL conversation
                 }
 
-                if (KeyFrameCount > 4)  // we're pretty sure this is a SQL Server
+                if (KeyFrameCount > 4)  // we're pretty sure this is a SQL Server -  JTDS just has Logon7 and hasPostLoginResponse special packets
                 {
                     c.hasTDS = true;
                     c.isSQL = true;
@@ -650,7 +660,7 @@ namespace SQLNA
                 if (s.conversations.Count == 1)
                 {
                     ConversationData c = (ConversationData)(s.conversations[0]);
-                    SQLServer s2 = trace.FindSQLServer(c.sourceIP, c.sourceIPHi, c.sourceIPLo, c.sourcePort, c.isIPV6);
+                    SQLServer s2 = trace.FindSQLServer(c.sourceIP, c.sourceIPHi, c.sourceIPLo, c.sourcePort, c.isIPV6);  // normally we lookup by destination values
                     if (s2 != null)
                     {
                         reverseSourceDest(c);
@@ -663,7 +673,7 @@ namespace SQLNA
                     }
                 }
             }
-            // remove bad entries from the trace.sqlServes collection - iterate backwards because of Remove method
+            // remove bad entries from the trace.sqlServers collection - iterate backwards because of Remove method
             for (int i = trace.sqlServers.Count - 1; i > 0; i--)
             {
                 SQLServer s = (SQLServer)(trace.sqlServers[i]);
