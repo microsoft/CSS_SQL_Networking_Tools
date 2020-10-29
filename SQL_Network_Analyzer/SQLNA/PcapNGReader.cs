@@ -231,18 +231,15 @@ namespace SQLNA
 
             InterfaceOptions intOpt = (InterfaceOptions)(interfaceOptions[InterfaceID]);
 
-            if (intOpt.LinkType == 1)   // Ethernet - return null for all others
-            {
-                frameNumber++; 
-                nf = new Frame();
-                nf.frameLength = packetLen;
-                nf.bytesAvailable = capturedLen;
-                nf.frameNumber = frameNumber;
-                nf.length = capturedLen;
-                nf.ticks = timeToTicks(timestampHi, timestampLo, intOpt.timeResolution, intOpt.timestampOffset);
-                nf.data = r.ReadBytes((Int32)capturedLen);
-                nf.linkType = (UInt16)intOpt.LinkType;
-            }
+            frameNumber++; 
+            nf = new Frame();
+            nf.frameLength = packetLen;
+            nf.bytesAvailable = capturedLen;
+            nf.frameNumber = frameNumber;
+            nf.length = capturedLen;
+            nf.ticks = timeToTicks(timestampHi, timestampLo, intOpt.timeResolution, intOpt.timestampOffset);
+            nf.data = r.ReadBytes((Int32)capturedLen);
+            nf.linkType = (UInt16)intOpt.LinkType;
             
             // Seek to beginning of the next block
             r.BaseStream.Seek(nextBlockStart, SeekOrigin.Begin);
@@ -266,14 +263,14 @@ namespace SQLNA
                 throw new Exception("Invalid PCAPNG file. Simple Packet Block at offset " + blockStart + " not allowed. Section at offset " + sectionStart + " has more than one Interface Description Block.");
             }
 
-            // does not have timestamps, so we really do not want these ...
+            // does not have timestamps, so we really do not want these ... ignore the block
 
-            InterfaceOptions intOpt = (InterfaceOptions)(interfaceOptions[0]);
+            //InterfaceOptions intOpt = (InterfaceOptions)(interfaceOptions[0]);
 
-            if (intOpt.LinkType == 1)   // Ethernet - return null for all others
-            {
-                throw new Exception("Simple Packet Block not allowed since it does not contain any timestamp information.");
-            }
+            //if (intOpt.LinkType == 1)   // Ethernet - return null for all others
+            //{
+            //    throw new Exception("Simple Packet Block not allowed since it does not contain any timestamp information.");
+            //}
 
             // ignore the block if not Ethernet - perhaps a new section will have Ethernet traffic
 
@@ -307,17 +304,15 @@ namespace SQLNA
 
             InterfaceOptions intOpt = (InterfaceOptions)(interfaceOptions[(Int32)InterfaceID]);
 
-            if (intOpt.LinkType == 1)   // Ethernet - return null for all others
-            {
-                frameNumber++;
-                nf = new Frame();
-                nf.frameLength = packetLen;
-                nf.bytesAvailable = capturedLen;
-                nf.frameNumber = frameNumber;
-                nf.length = capturedLen;
-                nf.ticks = timeToTicks(timestampHi, timestampLo, intOpt.timeResolution, intOpt.timestampOffset);
-                nf.data = r.ReadBytes((Int32)capturedLen);
-            }
+            frameNumber++;
+            nf = new Frame();
+            nf.frameLength = packetLen;
+            nf.bytesAvailable = capturedLen;
+            nf.frameNumber = frameNumber;
+            nf.length = capturedLen;
+            nf.ticks = timeToTicks(timestampHi, timestampLo, intOpt.timeResolution, intOpt.timestampOffset);
+            nf.data = r.ReadBytes((Int32)capturedLen);
+            nf.linkType = (UInt16)intOpt.LinkType;
 
             // Seek to beginning of the next block
             r.BaseStream.Seek(nextBlockStart, SeekOrigin.Begin);
@@ -358,9 +353,9 @@ namespace SQLNA
 
     public class InterfaceOptions
     {
-        public UInt16   LinkType = 0;                           // 1 = Ethernet, the only type we support
+        public UInt16   LinkType = 0;                           // default to Ethernet if not specified
         public UInt32   maxBytesRead = 0;
         public byte     timeResolution = 6;                     // default (6 = microseconds) if this option is missing
-        public Int64    timestampOffset = 0;                    // default (0 = none) if this noption is missing
+        public Int64    timestampOffset = 0;                    // default (0 = none) if this option is missing
     }
 }

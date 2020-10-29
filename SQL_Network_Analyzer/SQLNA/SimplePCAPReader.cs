@@ -85,10 +85,10 @@ namespace SQLNA
             maxFrameLength = read4Bytes();
             networkType = read4Bytes();
 
-            if (networkType != 1)
-            {
-                throw new Exception("Network type is not Ethernet.");
-            }
+            //if (networkType != 1)
+            //{
+            //    throw new Exception("Network type is not Ethernet.");
+            //}
 
         }
 

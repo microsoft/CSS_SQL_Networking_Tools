@@ -261,6 +261,12 @@ namespace SQLNA
                                     // Test file: \Documents\Interesting Network Traces\WifiTrace\
                                     break;
                                 }
+                            case 0x0071:  // Linux Cooked Capture - no MAC addresses, just IP and higher protocols
+                            case 0xE071:  // Linux Cooked Capture - no MAC addresses, just IP and higher protocols
+                                {
+                                    ParseLinuxCookedFrame(frame.data, 0, t, f);
+                                    break;
+                                }
                             case 0xFFE0:  // NetEvent (usually in ETL and parsed by now) - happens when NETMON saves ETL capture as a CAP file
                                 {
                                     ParseNetEventFrame(frame.data, 0, t, f); // TODO flesh this out
@@ -296,6 +302,85 @@ namespace SQLNA
             {
                 if (r != null) r.Close();
                 if (er != null) er.Close();
+            }
+        }
+
+        public static void ParseLinuxCookedFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
+        {
+            UInt16 PacketType = 0;        // we just want 0=Incoming and 4=Outgoing
+            UInt16 AddressType = 0;       // we just want 0 or 1 = Ethernet
+            UInt16 AddressLength = 0;     // we can read MAC address if length = 6
+            ulong sourceMAC = 0;
+            ulong destMAC = 0;
+            ushort NextProtocol = 0;    // IPV4 = 0x0800 (2048)    IPV6 = 0x86DD (34525)     VLAN = 0x8100 inserts 4 bytes at offset 12
+
+            PacketType = utility.B2UInt16(b, offset);
+            if (PacketType != 0 && PacketType != 4) return;
+            offset += 2;
+
+            AddressType = utility.B2UInt16(b, offset);
+            if (AddressType != 0 && AddressType != 1) return;
+            offset += 2;
+
+            AddressLength = utility.B2UInt16(b, offset);
+            offset += 2;
+            switch (AddressLength)
+            {
+                case 6:
+                    {
+                        if (PacketType == 0)
+                        {
+                            sourceMAC = utility.B2UInt48(b, offset);
+                        }
+                        else
+                        {
+                            destMAC = utility.B2UInt48(b, offset);
+                        }
+                        offset += 8;  // ignore implementation-specif c data of 2 bytes
+                        break;
+                    }
+                default:
+                    {
+                        offset += 8;  // data is always 8 in length, address + remainder bytes
+                        break;
+                    }
+            }
+
+            NextProtocol = utility.B2UInt16(b, offset);
+            offset += 2;
+
+            try
+            {
+                if (NextProtocol == 0x800)
+                {
+                    ParseIPV4Frame(b, offset, t, f);
+                }
+                else if (NextProtocol == 0x86DD)
+                {
+                    ParseIPV6Frame(b, offset, t, f);
+                }
+            }
+            catch (IndexOutOfRangeException)
+            {
+                if (f.conversation != null) f.conversation.truncationErrorCount++;
+            }
+            catch { throw; }
+
+            if (NextProtocol == 0x800 || NextProtocol == 0x86DD)
+            {
+                if (f.conversation != null)
+                {
+                    f.conversation.sourceMAC = sourceMAC;
+                    f.conversation.destMAC = destMAC;
+                    // statistical gathering
+                    if (f.conversation.startTick == 0 || f.ticks < f.conversation.startTick)
+                    {
+                        f.conversation.startTick = f.ticks;
+                    }
+                    if (f.conversation.endTick < f.ticks) f.conversation.endTick = f.ticks;
+                    if (f.isFromClient) f.conversation.sourceFrames++; else f.conversation.destFrames++;
+                    f.conversation.totalBytes += (ulong)b.Length;
+                }
             }
         }
 
