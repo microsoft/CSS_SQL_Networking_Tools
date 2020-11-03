@@ -495,7 +495,7 @@ namespace SQLNA
                                                         c.RedirectPort = utility.ReadUInt16(fd.payload, offset + 7);
                                                         int ServerLen = fd.payload[offset + 9];
                                                         c.RedirectServer = utility.ReadUnicodeString(fd.payload, offset + 11, ServerLen);
-                                                        c.hasReadOnlyIntentConnection = true;
+                                                        c.hasRedirectedConnection = true;
                                                 }
                                                 offset = tokenOffset(fd.payload, (byte)TDSTokenType.ENVCHANGE, offset + tokenLength + 3);
                                             }

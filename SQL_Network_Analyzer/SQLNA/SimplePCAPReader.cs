@@ -84,12 +84,6 @@ namespace SQLNA
             sigFigs = read4Bytes();
             maxFrameLength = read4Bytes();
             networkType = read4Bytes();
-
-            //if (networkType != 1)
-            //{
-            //    throw new Exception("Network type is not Ethernet.");
-            //}
-
         }
 
         public override Frame Read()

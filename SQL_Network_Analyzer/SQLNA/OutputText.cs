@@ -28,7 +28,7 @@ namespace SQLNA
             DisplayLoginErrors(Trace);
             DisplayAttentions(Trace);
             DisplayTLSIssues(Trace);
-            DisplayReadOnlyIntentConnections(Trace);
+            DisplayRedirectedConnections(Trace);
             DisplayClientPortUsage(Trace);
             DisplaySSRPReport(Trace);
             DisplayKerberosResponseReport(Trace);
@@ -214,7 +214,7 @@ namespace SQLNA
                             IPAddress = utility.FormatIPV4Address(c.sourceIP);
                         if (clientIPs.IndexOf(IPAddress) == -1) clientIPs.Add(IPAddress);
                         if (c.hasLoginFailure) s.hasLoginFailures = true;
-                        if (c.hasReadOnlyIntentConnection) s.hasReadOnlyIntentConnections = true;
+                        if (c.hasRedirectedConnection) s.hasRedirectedConnections = true;
                         if (c.hasPostLoginResponse) s.hasPostLogInResponse = true;
                         if (c.AttentionTime > 0) s.hasAttentions = true;
                         // may see MARS enabled in PreLogin packet, or if that's missing, if the conversation has SMP packets
@@ -244,7 +244,7 @@ namespace SQLNA
                          NTLMResponseCount.ToString(),
                          MARSCount.ToString(),
                          lowTLSVersionCount.ToString(),
-                         (from ConversationData conv in s.conversations where conv.hasReadOnlyIntentConnection select conv).Count().ToString(),
+                         (from ConversationData conv in s.conversations where conv.hasRedirectedConnection select conv).Count().ToString(),
                          totalFrames.ToString(),
                          totalBytes.ToString("#,##0"),
                          totalResets.ToString(),
@@ -1567,9 +1567,14 @@ namespace SQLNA
             Program.logMessage();
         }
 
-        private static void DisplayReadOnlyIntentConnections(NetworkTrace Trace)
+        private static void DisplayRedirectedConnections(NetworkTrace Trace)
         {
-            bool hasReadOnlyConnection = false;
+            //
+            // Connections can be redirected when connecting to Windows Azure SQL Database
+            // Connections can be redirected when connecting to Always-On with ApplicationIntent=readOnly
+            //
+
+            bool hasRedirectedConnection = false;
             long firstTick = 0;
             long lastTick = 0;
 
@@ -1581,10 +1586,10 @@ namespace SQLNA
 
             foreach (SQLServer s in Trace.sqlServers)
             {
-                if (s.hasReadOnlyIntentConnections)
+                if (s.hasRedirectedConnections)
                 {
-                    hasReadOnlyConnection = true;
-                    List<ReadOnlyIntentConnectionData> ReadOnlyRecords = new List<ReadOnlyIntentConnectionData>();
+                    hasRedirectedConnection = true;
+                    List<RedirectedConnectionData> ReadOnlyRecords = new List<RedirectedConnectionData>();
 
                     // initialize graph object
                     TextGraph g = new TextGraph();
@@ -1598,9 +1603,9 @@ namespace SQLNA
 
                     foreach (ConversationData c in s.conversations)
                     {
-                        if (c.hasReadOnlyIntentConnection)
+                        if (c.hasRedirectedConnection)
                         {
-                            ReadOnlyIntentConnectionData rocd = new ReadOnlyIntentConnectionData();
+                            RedirectedConnectionData rocd = new RedirectedConnectionData();
 
                             rocd.clientIP = (c.isIPV6) ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP);
                             rocd.sourcePort = c.sourcePort;
@@ -1622,7 +1627,8 @@ namespace SQLNA
                         }
                     }
 
-                    Program.logMessage("The following Application Intent = Readonly conversations with SQL Server " + sqlIP + " on port " + s.sqlPort + " were redirected to read-only server:\r\n");
+                    Program.logMessage("The following conversations with SQL Server " + sqlIP + " on port " + s.sqlPort + " were redirected to server.\r\n");
+                    Program.logMessage("This could be due to Application Intent = ReadOnly or SQL Azure Gateway redirection.\r\n");
                     ReportFormatter rf = new ReportFormatter();
 
                     switch (Program.filterFormat)
@@ -1710,7 +1716,7 @@ namespace SQLNA
                     // Display graph
                     //
 
-                    Program.logMessage("    Distribution of redirected Application Intent = Readonly connections.");
+                    Program.logMessage("    Distribution of redirected connections.");
                     Program.logMessage();
                     g.ProcessData();
                     Program.logMessage("    " + g.GetLine(0));
@@ -1723,9 +1729,9 @@ namespace SQLNA
                     Program.logMessage();
                 }
             }
-            if (!hasReadOnlyConnection)
+            if (!hasRedirectedConnection)
             {
-                Program.logMessage("No redirected Application Intent = Readonly connections were found.");
+                Program.logMessage("No redirected connections were found.");
                 Program.logMessage();
             }
         }

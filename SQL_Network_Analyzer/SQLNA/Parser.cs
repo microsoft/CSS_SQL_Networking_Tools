@@ -305,6 +305,24 @@ namespace SQLNA
             }
         }
 
+        //
+        // Protocol stacking
+        //
+        // .ETL NDIS Net Event                 -> Ethernet/Wifi
+        // Link Type: NDIS Net Event (.CAP)    -> Ethernet/Wifi
+        // Link Type: Ethernet                 -> IPV4/IPV6
+        // Link Type: Wifi/LLC/SNAP            -> IPV4/IPV6
+        // Link Type: Linux Cooked Capture     -> IPV4/IPV6
+        //
+        // GRE                                 -> ERSPAN/IPV4/IPV6
+        // ERSPAN                              -> Ethernet
+        // IPV4/IPV6                           -> TCP/UDP/GRE (Generic Routing Encapsulation)
+        //
+        // UDP                                 -> SSRP
+        // TCP                                 -> TDS/Kerberosv5/DNS/SMP
+        // SMP                                 -> TDS
+        //
+
         public static void ParseLinuxCookedFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
         {
             UInt16 PacketType = 0;        // we just want 0=Incoming and 4=Outgoing
@@ -384,7 +402,7 @@ namespace SQLNA
             }
         }
 
-        public static void ParseNetEventFrame(byte[] b, int offset, NetworkTrace t, FrameData f) // TEST
+        public static void ParseNetEventFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
         {
             Guid NDIS = new Guid("2ED6006E-4729-4609-B423-3EE7BCD678EF");
             ushort eventID = 0;
@@ -462,6 +480,115 @@ namespace SQLNA
             }
         }
 
+        public static void ParseGenericRoutingEncapsulation(byte[] b, int offset, NetworkTrace t, FrameData f)
+        {
+            byte flags1 = b[offset];
+            byte flags2 = b[offset + 1];
+            offset += 2;
+
+            Boolean fRFC = (flags1 & 0x7F) == 0 && flags2 == 0;
+            Boolean fChecksum = (flags1 & 0x80) == 0x80;
+            Boolean fRouting = (flags1 & 0x40) == 0x40;
+            Boolean fKey = (flags1 & 0x20) == 0x20;
+            Boolean fSequence = (flags1 & 0x10) == 0x10;
+            Boolean fSSR = (flags1 & 0x08) == 0x08;
+            byte RecursionControl = (byte)(flags1 & 0x07);
+            Boolean fAck = (flags2 & 0x80) == 0x80;
+            byte Version = (byte)(flags2 & 0x07);
+
+            uint NextProtocol = utility.B2UInt16(b, offset);
+            offset += 2;
+
+            if (Version ==0)
+            {
+                if (fRouting || fChecksum) offset += 2;     // bypass checksum
+                if (fRFC && fChecksum) offset += 2;         // bypass reserved bytes
+                if (fRouting || fChecksum) offset += 2;     // bypass offset
+                if (fKey) offset += 4;                      // bypass key value
+                if (fSequence) offset += 4;                 // bypass sequence number
+
+                if (fSSR)
+                {
+                    UInt16 AddressFamily = utility.ReadUInt16(b, offset); ;
+                    byte SREOffset = b[offset + 2];
+                    byte SRELength = b[offset + 3];
+                    offset += 4;
+
+                    while (AddressFamily != 0 && SRELength != 0)  // read until null payload and address family
+                    {
+                        offset += SRELength;   // bypass SRE payload
+
+                        AddressFamily = utility.ReadUInt16(b, offset); ;
+                        SREOffset = b[offset + 2];
+                        SRELength = b[offset + 3];
+                        offset += 4;
+                    }
+                }
+            }
+            else if (Version == 1)
+            {
+                // bypass PayloadLength (2), CallID (2)
+                offset += 4;
+                if (fSequence) offset += 4; // bypass the sequence # value
+                if (fAck) offset += 4;      // bypass the ACK # value
+            }
+
+            switch (NextProtocol)
+            {
+                case 0x0800:   // IPV4
+                    {
+                        ParseIPV4Frame(b, offset, t, f);
+                        break;
+                    }
+                case 0x86DD:   // IPV6
+                    {
+                        ParseIPV6Frame(b, offset, t, f);
+                        break;
+                    }
+                case 0x88BE:   // ERSPAN Type II
+                case 0x22EB:   // ERSPAN Type III
+                    {
+                        ParseERSPANFrame(b, offset, t, f);
+                        break;
+                    }
+            }
+
+        }
+
+        public static void ParseERSPANFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
+        {
+            //
+            // ERSPAN is a CISCO router protocol and only works on Ethernet switches
+            // Next Protocol = Ethernet
+            //
+            // https://tools.ietf.org/html/draft-foschiano-erspan-00
+            //
+            byte flag1 = b[offset];
+            byte version = (byte)(flag1 >> 4);
+
+            switch (version)
+            {
+                case 1:  // Type II ERSPAN frame
+                    {
+                        offset += 8;
+                        ParseEthernetFrame(b, offset, t, f);
+                        break;
+                    }
+                case 2:  // Type III ERSPAN Frame - 12 byte header + optional 8 byte additional data
+                    {
+                        Boolean fEthernet = (b[offset + 10] & 0x80) == 0x80;
+                        Boolean fOptional = (b[offset + 11] & 0x01) == 0x01;
+                        if (fEthernet)
+                        {
+                            offset += 12;
+                            if (fOptional) offset += 8;
+                            ParseEthernetFrame(b, offset, t, f);
+                        }
+                        break;
+                    }
+            }
+        }
+
         public static void ParseEthernetFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
         {
             ulong sourceMAC = 0;
@@ -473,14 +600,6 @@ namespace SQLNA
             sourceMAC = utility.B2UInt48(b, offset + 6);
             NextProtocol = utility.B2UInt16(b, offset + 12);
             NextProtocolOffset = offset + 14;
-
-
-            // VLAN detection - original
-            //if (NextProtocol == 0x8100)
-            //{
-            //    NextProtocol = utility.B2UInt16(b, 16);
-            //    NextProtocolOffset = 18;
-            //}
 
             // VLAN detection - may have more than one shim
             while (NextProtocol == 0x8100)
@@ -531,7 +650,7 @@ namespace SQLNA
             byte frameType = 0;
             byte subType = 0;
             byte DSType = 0;
-            byte protectedFrame = 0;
+            // byte protectedFrame = 0;
             byte orderedPackets = 0;
 
             ulong sourceMAC = 0;
@@ -805,7 +924,11 @@ namespace SQLNA
             else if (NextProtocol == 0x11)
             {
                 ParseUDPFrame(b, offset + HeaderLength, t, f);
-            };
+            }
+            else if (NextProtocol == 0x2f)
+            {
+                ParseGenericRoutingEncapsulation(b, offset + HeaderLength, t, f);
+            }
         }
 
         public static void ParseIPV6Frame(byte[] b, int offset, NetworkTrace t, FrameData f)
@@ -912,7 +1035,7 @@ namespace SQLNA
 
             switch (NextProtocol)
             {
-                case 6:   //TCP
+                case 6:       //TCP
                     {
                         ParseTCPFrame(b, offset + HeaderLength, t, f);
                         break;
@@ -920,6 +1043,11 @@ namespace SQLNA
                 case 0x11:    // UDP
                     {
                         ParseUDPFrame(b, offset + HeaderLength, t, f);
+                        break;
+                    }
+                case 0x2F:    // Generic Routing Encapsulation (GRE)
+                    {
+                        ParseGenericRoutingEncapsulation(b, offset + HeaderLength, t, f);
                         break;
                     }
                 case 0:
