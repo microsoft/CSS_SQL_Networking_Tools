@@ -91,7 +91,7 @@ namespace SQLNA
         public bool hasAttentions = false;                     // set in OutputText.DisplaySQLServerSummary
         public bool hasLowTLSVersion = false;                  // set in OutputText.DisplaySQLServerSummary
         public bool hasPostLogInResponse = false;
-        public bool hasReadOnlyIntentConnections = false;
+        public bool hasRedirectedConnections = false;
         public string serverVersion = "";
         public string instanceName = "";
         public string sqlHostName = "";
@@ -142,7 +142,7 @@ namespace SQLNA
         public string ErrorMsg;
     }
 
-    public class ReadOnlyIntentConnectionData
+    public class RedirectedConnectionData
     {
         public string clientIP = null;
         public ushort sourcePort = 0;

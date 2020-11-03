@@ -91,7 +91,7 @@ namespace SQLNA
         public uint Error = 0;
         public string ErrorMsg = "";
         public uint ErrorState = 0;
-        public bool hasReadOnlyIntentConnection = false;
+        public bool hasRedirectedConnection = false;
         public uint RedirectPort = 0;
         public string RedirectServer = "";
 
