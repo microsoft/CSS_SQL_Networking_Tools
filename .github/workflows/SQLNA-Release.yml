@@ -2,11 +2,11 @@ name: Build SQLNA
 
 # manually triggered workflow
 on: [workflow_dispatch]
-	
+
 env:
     SOLUTION_FILE_PATH: .\SQL_Network_Analyzer
     BUILD_CONFIGURATION: Release
-	
+
 jobs:
     job1:
       runs-on: windows-latest
