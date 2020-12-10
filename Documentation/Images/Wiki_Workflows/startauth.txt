@@ -1,0 +1,107 @@
+set KerbDebugFlags=0x201207
+set KdcDebugFlags=0x23083
+set KpsDebugFlags=0xff
+set NtlmDebugFlags=0x15003
+set NegoExtsDebugFlags=0xFFFF
+set Pku2uDebugFlags=0xFFFF
+set SslDebugFlags=0x0000FDFF
+set DigestDebugFlags=0x000003FF
+set CredsspDebugFlags=0x0000FFFF
+set DpapiSrvDebugFlags=0xFF
+set WebAuthDebugFlags=0xFFFF
+set IdstoreDebugFlags=0x2FF
+set IdcommonDebugFlags=0x2FF
+set LivesspDebugFlags=0x3FF
+set WlidsvcDebugFlags=0x7
+set IdlistenDebugFlags=0x7FFFFFFF
+set BaseCspDebugFlags=0xFFFFFFFF
+set VaultDebugFlags=0xFFF
+set BcryptDebugFlags=0xFFFFFFFF
+set NcryptDebugFlags=0xFFFFFFFF
+set CryptspDebugFlags=0xFFFFFFFF
+set WinHttpDebugFlags=0x7FFFFF
+set WininetDebugFlags=0x7FFFFF
+set CloudAPFlags=0xfff
+set HttpSysDebugFlags=0xFFFFFFFF
+
+mkdir .\logs
+del /f /q .\logs\*.*
+logman.exe start LsaTrace -p {D0B639E0-E650-4D1D-8F39-1580ADE72784} 0x40141F -o .\logs\LsaTrace.etl -ets
+logman.exe start LsaAudit -p {DAA76F6A-2D11-4399-A646-1D62B7380F15} 0xffffff -o .\logs\LsaAudit.etl -ets
+logman.exe start LsaDs -p {169EC169-5B77-4A3E-9DB6-441799D5CACB} 0xffffff -o .\logs\LsaDs.etl -ets
+logman.exe start KerbComm -p {60A7AB7A-BC57-43E9-B78A-A1D516577AE3} 0xffffff -o .\logs\KerbComm.etl -ets
+logman.exe start KerbClientShared -p {FACB33C4-4513-4C38-AD1E-57C1F6828FC0} 0xffffffff -o .\logs\KerbClientShared.etl -ets
+logman.exe start NtlmShared -p {AC69AE5B-5B21-405F-8266-4424944A43E9} 0xffffffff -o .\logs\NtlmShared.etl -ets
+logman.exe start LsaIso -p {366B218A-A5AA-4096-8131-0BDAFCC90E93} 0xffffffff -o .\logs\LsaIso.etl -ets
+logman.exe start kerb -p {6B510852-3583-4e2d-AFFE-A67F9F223438} %KerbDebugFlags% -o .\logs\kerb.etl -ets
+logman.exe start kdc -p {1BBA8B19-7F31-43c0-9643-6E911F79A06B} %KdcDebugFlags% -o .\logs\kdc.etl -ets
+logman.exe start kps -p {97A38277-13C0-4394-A0B2-2A70B465D64F} %KpsDebugFlags% -o .\logs\kps.etl -ets
+logman.exe start ntlm -p {5BBB6C18-AA45-49b1-A15F-085F7ED0AA90} %NtlmDebugFlags% -o .\logs\ntlm.etl -ets
+logman.exe start negoexts -p {5AF52B0D-E633-4ead-828A-4B85B8DAAC2B} %NegoExtsDebugFlags% -o .\logs\negoexts.etl -ets
+reg add HKLM\SYSTEM\CurrentControlSet\Control\Lsa\NegoExtender\Parameters /v InfoLevel /t REG_DWORD /d %NegoExtsDebugFlags% /f
+logman.exe start pku2u -p {2A6FAF47-5449-4805-89A3-A504F3E221A6} %Pku2uDebugFlags% -o .\logs\pku2u.etl -ets
+reg add HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Pku2u\Parameters /v InfoLevel /t REG_DWORD /d %Pku2uDebugFlags% /f
+logman.exe start ssl -p {37D2C3CD-C5D4-4587-8531-4696C44244C8} %SslDebugFlags% -o .\logs\ssl.etl -ets
+logman.exe start digest -p {FB6A424F-B5D6-4329-B9B5-A975B3A93EAD} %DigestDebugFlags% -o .\logs\digest.etl -ets
+logman.exe start credssp -p {6165F3E2-AE38-45D4-9B23-6B4818758BD9} %CredsspDebugFlags% -o .\logs\credssp.etl -ets
+reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA /v SPMInfoLevel /t REG_DWORD /d 0x40141F /f
+reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LogToFile /t REG_DWORD /d 1 /f
+reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA /v NegEventMask /t REG_DWORD /d 0xF /f
+nltest /dbflag:0x2000FFFF
+logman.exe start dpapis -p {EA3F84FC-03BB-540e-B6AA-9664F81A31FB} %DpapiSrvDebugFlags% -o .\logs\dpapis.etl -ets
+logman.exe start idstore -p {82c7d3df-434d-44fc-a7cc-453a8075144e} %IdstoreDebugFlags% -o .\logs\idstore.etl -ets
+logman.exe start idcommon -p {B1108F75-3252-4b66-9239-80FD47E06494} %IdcommonDebugFlags% -o .\logs\idcommon.etl -ets
+logman.exe start livessp -p {C10B942D-AE1B-4786-BC66-052E5B4BE40E} %LivesspDebugFlags% 5 -o .\logs\livessp.etl -ets
+logman.exe start wlidsvc -p {3F8B9EF5-BBD2-4C81-B6C9-DA3CDB72D3C5} %WlidsvcDebugFlags% 5 -o .\logs\wlidsvc.etl -ets
+logman.exe start idlisten -p {D93FE84A-795E-4608-80EC-CE29A96C8658} %IdlistenDebugFlags% -o .\logs\idlisten.etl -ets
+logman.exe start basecsp -p {133A980D-035D-4E2D-B250-94577AD8FCED} %BaseCspDebugFlags% -o .\logs\basecsp.etl -ets
+logman.exe start vault -p {7FDD167C-79E5-4403-8C84-B7C0BB9923A1} %VaultDebugFlags% -o .\logs\vault.etl -ets
+logman.exe start bcrypt -p {A74EFE00-14BE-4ef9-9DA9-1484D5473302} %BcryptDebugFlags% -o .\logs\bcrypt.etl -ets
+logman.exe start ncrypt -p {A74EFE00-14BE-4ef9-9DA9-1484D5473301} %NcryptDebugFlags% -o .\logs\ncrypt.etl -ets
+logman.exe start cryptsp -p {A74EFE00-14BE-4ef9-9DA9-1484D5473305} %CryptspDebugFlags% -o .\logs\cryptsp.etl -ets
+wevtutil.exe set-log Microsoft-Windows-CAPI2/Operational /enabled:true
+wevtutil.exe clear-log Microsoft-Windows-CAPI2/Operational
+wevtutil.exe set-log Microsoft-Windows-Kerberos/Operational /enabled:true
+wevtutil.exe clear-log Microsoft-Windows-Kerberos/Operational
+wevtutil.exe set-log Microsoft-Windows-WebAuth/Operational /enabled:true
+wevtutil.exe clear-log Microsoft-Windows-WebAuth/Operational
+wevtutil.exe clear-log Microsoft-Windows-CertPoleEng/Operational
+wevtutil.exe set-log Microsoft-Windows-CertPoleEng/Operational /enabled:true
+wevtutil.exe clear-log Microsoft-Windows-IdCtrls/Operational
+wevtutil.exe set-log Microsoft-Windows-IdCtrls/Operational /enabled:true
+wevtutil.exe clear-log "Microsoft-Windows-User Control Panel"/Operational
+wevtutil.exe set-log "Microsoft-Windows-User Control Panel"/Operational /enabled:true
+wevtutil.exe set-log Microsoft-Windows-Authentication/AuthenticationPolicyFailures-DomainController /enabled:true
+REM wevtutil.exe clear-log Microsoft-Windows-Authentication/AuthenticationPolicyFailures-DomainController
+wevtutil.exe set-log Microsoft-Windows-Authentication/ProtectedUser-Client /enabled:true
+REM wevtutil.exe clear-log Microsoft-Windows-Authentication/ProtectedUser-Client
+wevtutil.exe set-log Microsoft-Windows-Authentication/ProtectedUserFailures-DomainController /enabled:true
+REM wevtutil.exe clear-log Microsoft-Windows-Authentication/ProtectedUserFailures-DomainController
+wevtutil.exe set-log Microsoft-Windows-Authentication/ProtectedUserSuccesses-DomainController /enabled:true
+REM wevtutil.exe clear-log Microsoft-Windows-Authentication/ProtectedUserSuccesses-DomainController
+
+logman.exe start webplatform -p {2A3C6602-411E-4DC6-B138-EA19D64F5BBA} %WebAuthDebugFlags% 5 -o .\logs\webplatform.etl -ets
+logman.exe start webauth -p {EF98103D-8D3A-4BEF-9DF2-2156563E64FA} %WebAuthDebugFlags% 5 -o .\logs\webauth.etl -ets
+logman.exe start winhttp -p {B3A7698A-0C45-44DA-B73D-E181C9B5C8E6} %WinHttpDebugFlags% 5 -o .\logs\winhttp.etl -ets
+logman.exe start wininet -p {4E749B6A-667D-4c72-80EF-373EE3246B08} %WininetDebugFlags% 5 -o .\logs\wininet.etl -ets
+logman.exe start httpsys -p {20F61733-57F1-4127-9F48-4AB7A9308AE2} %HttpSysDebugFlags% 5 -o .\logs\httpsys.etl -ets
+logman.exe start cloudap -p {EC3CA551-21E9-47D0-9742-1195429831BB} %CloudAPFlags% -o .\logs\cloudAP.etl -ets
+logman.exe start aad -p {4DE9BC9C-B27A-43C9-8994-0915F1A5E24F} 0xffffff -o .\logs\aad.etl -ets
+
+REM Smartcard and cred provider stuff
+logman create trace "smartcard_credprov" -ow -o .\logs\smartcard_credprov.etl -p {DBA0E0E0-505A-4AB6-AA3F-22F6F743B480} 0xffffffffffffffff 0xff -nb 16 16 -bs 1024 -mode Circular -f bincirc -max 4096 -ets
+logman update trace "smartcard_credprov" -p {0D79589E-98D3-4E62-A504-51B0AF9CE798} 0xffffffffffffffff 0xff -ets
+logman update trace "smartcard_credprov" -p "Microsoft-Windows-CertificateServicesClient-CredentialRoaming" 0xffffffffffffffff 0xff -ets
+logman update trace "smartcard_credprov" -p {DBA0E0E0-505A-4AB6-AA3F-22F6F743B480} 0xffffffffffffffff 0xff -ets
+logman update trace "smartcard_credprov" -p {0D79589E-98D3-4E62-A504-51B0AF9CE798} 0xffffffffffffffff 0xff -ets
+logman update trace "smartcard_credprov" -p "Microsoft-Windows-CredentialProviders" 0xffffffffffffffff 0xff -ets
+logman update trace "smartcard_credprov" -p {4B812E8E-9DFC-56FC-2DD2-68B683917260} 0xffffffffffffffff 0xff -ets
+
+REM netsh wfp capture start file=.\logs\wfpdiag.cab
+netsh trace start traceFile=.\logs\netmon.etl capture=yes
+
+REM pre-blue LSA tracing
+reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA /v SPMInfoLevel /t REG_DWORD /d 0x40141F /f
+reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LogToFile /t REG_DWORD /d 1 /f
+reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA /v NegEventMask /t REG_DWORD /d 0xF /f
+
