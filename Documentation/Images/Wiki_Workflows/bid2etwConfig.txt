@@ -1,0 +1,890 @@
+' Usage:
+'   <this script file> Start|Stop TraceName [options]
+'   <this script file> Config [options]
+'
+' Command line switches
+'
+'   Start     Start a trace
+'   Stop      Stop a trace
+'   Config    msdadiag/ETW Configuration
+'   TraceName Unique name to specify a trace
+'
+' Options
+'
+'   -Setup                 Setup registry key BidInterface
+'   -Mofcomp               Generate Mof file and run Mofcomp
+'   -Cleanup               Cleanup registry key BidInterface
+'   -m <ModuleName>        Defines a module name to trace
+'   -c <custom flag>       Set customized flag if needed (default 0x000FFFFF)
+'   -o <output folder>     Specify output folder
+'   -a <application file>  Specify full path of the application file to trace
+'   -WowMode BOTH|ONLY     Specify trace under wow6432 environment
+'   -MaxFile <size>        Maximum file size in MB (default 1GB)
+'   -FileMode <mode>       How to generate log files (default Circular) (see http://msdn.microsoft.com/en-us/library/aa364080(vs.85).aspx for options). Circular or NewFile.
+'   -?                     Print usage information
+'
+' Updated 9/22/2016 to support MSODBCSQL11 and MSODBCSQL13 by MALCOLMS
+' Updated 6/16/2017 to fix MOFCOMP routine to handle trace provider friendly names that contain a "."
+'
+
+Option Explicit
+
+' version and Date
+Const g_FILENAME = "bid2etwConfig.vbs"
+Const g_VERSION = "2.00.000"
+Const g_VERSIONDATE = "03/21/2014"
+
+Const HKEY_LOCAL_MACHINE = &H80000002
+Const BID_LOADER_KEY = "Software\Microsoft\BidInterface\Loader"
+
+Const WOWMODE_NONE = 1
+Const WOWMODE_ONLY = 2
+Const WOWMODE_BOTH = 3
+
+Dim g_objFSO
+Dim g_objShell ' Wscript.Shell
+
+Dim g_Is64Proc
+Dim g_Wow6432Mode
+Dim g_TraceAll
+Dim g_HelpRequested
+Dim g_DoSetup
+Dim g_DoMofcomp
+Dim g_DoCleanup
+Dim g_RunMode
+Dim g_TraceFlags
+Dim g_TraceName
+Dim g_AppPath
+Dim g_OutputDir
+Dim g_FileMode
+Dim g_MaxFile
+
+Class BidModules
+    public ControlID
+    public Bid2EtwID
+    public NickName
+    public VerString
+End Class
+
+ReDim g_BidModules(0)   ' initialized in InitializeGlobals, add more modules there if needed
+ReDim g_TraceModules(0) ' modules we need to trace
+
+'   Executing the main function
+    Main
+
+'---------------------------------------------------------------------------------------------
+' Function:  Main
+'            The following subroutines and functions provide the core functionality
+'---------------------------------------------------------------------------------------------
+Sub Main
+    Dim strAux, i
+    Dim objShExec, objCtrlFile
+    Dim objShOut
+    
+    ' initialize fso and shell object, other functions are free to use them then
+    InitializeGlobals
+    strAux = GetArguments()
+    If strAux <> "" Then
+        QuitWithError "Errors found reading external arguments: " & Chr(13) & Chr(10) & strAux & Chr(13) & Chr(10)
+    End If
+    
+    If g_HelpRequested Then
+        PrintUsage
+        WScript.Quit (512)
+    End If
+    
+    ' validate various settings from commandline arguments
+    ValidateSettings
+
+    ' check if the output directory is valid, only START mode need output folder
+    If (g_RunMode = "START" OR g_RunMode = "CONFIG") AND NOT g_objFSO.FolderExists(g_OutputDir) Then
+        CreateDirectory(g_OutputDir)
+    End If
+    
+    If g_DoSetup Then
+        DoSetup
+    End If
+    
+    If g_DoCleanup Then
+        DoCleanup
+    End If
+    
+    If g_DoMofcomp Then
+        DoMofcomp
+    End If
+
+    If g_RunMode = "START" Then
+        'Generate control file
+        Set objCtrlFile = g_objFSO.CreateTextFile(g_OutputDir & "\ctrl.guid", True)
+        GenerateCtrlFile objCtrlFile
+        objCtrlFile.Close
+
+        'Execute logman to do the real work
+        Set objShOut = g_objFSO.CreateTextFile(g_OutputDir & "\logmanstart.out", True)
+        objShOut.WriteLine "Executing logman start on " & GetDateTimeStamp
+
+        Dim fileSpec
+        if LCASE(g_FileMode) = "circular" Then
+            fileSpec = "\Out.etl"
+			g_FileMode = "Preallocate+Circular"
+        Else
+            fileSpec = "\Out%d.etl"
+        End If
+        strAux = "logman start " & g_TraceName & " -pf """ & g_OutputDir & "\ctrl.guid"" -o """ & g_OutputDir & fileSpec & """ -bs 1024 -nb 1024 1024 -mode " & g_FileMode & " -max " & g_MaxFile & " -ets"
+        objShOut.WriteLine strAux
+        'WScript.Echo strAux
+        WScript.Echo "----------------------------------------------------------------"
+        objShOut.WriteLine "----------------------------------------------------------------"
+
+        Set objShExec = g_objShell.Exec(strAux)
+        strAux = objShExec.StdOut.ReadAll
+        
+        objShOut.Write(strAux)
+        WScript.Echo strAux
+        
+        WScript.Echo "----------------------------------------------------------------"
+        WScript.Echo "Execute ""logman query " & g_TraceName & " -ets"" to query the status of the trace"
+        objShOut.WriteLine "----------------------------------------------------------------"
+        objShOut.WriteLine "logman start execution completes on " & GetDateTimeStamp
+
+        objShOut.Close
+    ElseIf g_RunMode = "STOP" Then
+'       Set objShOut = g_objFSO.CreateTextFile(g_OutputDir & "\logmanstop.out", True)
+'       objShOut.WriteLine "Executing logman stop on " & GetDateTimeStamp
+
+        strAux = "logman stop " & g_TraceName & " -ets"
+        'objShOut.WriteLine strAux
+        'WScript.Echo strAux
+        WScript.Echo "----------------------------------------------------------------"
+        'objShOut.WriteLine "----------------------------------------------------------------"
+
+        Set objShExec = g_objShell.Exec(strAux)
+        strAux = objShExec.StdOut.ReadAll
+        
+'       objShOut.Write(strAux)
+        WScript.Echo strAux
+
+        WScript.Echo "----------------------------------------------------------------"
+        WScript.Echo "logman stop execution completes on " & GetDateTimeStamp
+'       objShOut.WriteLine "----------------------------------------------------------------"
+'       objShOut.WriteLine "logman stop execution completes on " & GetDateTimeStamp
+
+        If g_DoCleanup Then
+            DoCleanup
+        End If
+    End If
+
+End Sub
+' --------------------------------------------------------------------------------------------
+
+'---------------------------------------------------------------------------------------------
+' Function: InitializeGlobals
+'
+'  This function has all globals initialization to defaultvalues
+'  Mostly of what is here was before in the common code
+'
+'---------------------------------------------------------------------------------------------
+Sub InitializeGlobals
+
+    Dim procArch, rawValues, i, j
+    
+    ' add a line below with the format "Control GUID","Event GUID","NickName","Version String",
+    ' to take a new module, note that Event GUID should be Control GUID's data1 + 1 ( mof file
+    ' implication ), MSDADIAG.ETW should always be the first one, don't add duplications
+    
+    rawValues = Array( _
+        "{8B98D3F2-3CC6-0B9C-6651-9649CCE5C752}","{8B98D3F3-3CC6-0B9C-6651-9649CCE5C752}","MSDADIAG","ETW", _
+        "{04C8A86F-3369-12F8-4769-24E484A9E725}","{04C8A870-3369-12F8-4769-24E484A9E725}","ADODB","1",      _
+        "{7EA56435-3F2F-3F63-A829-F0B35B5CAD41}","{7EA56436-3F2F-3F63-A829-F0B35B5CAD41}","ADOMD","1",      _
+        "{24722B88-DF97-4FF6-E395-DB533AC42A1E}","{24722B89-DF97-4FF6-E395-DB533AC42A1E}","BCP","1",        _
+        "{ED303448-5479-CA3F-5686-E020BA4F47F9}","{ED303449-5479-CA3F-5686-E020BA4F47F9}","BCP10","1",      _
+        "{BD568F20-FCCD-B948-054E-DB3421115D61}","{BD568F21-FCCD-B948-054E-DB3421115D61}","DBNETLIB","1",   _
+        "{76DBA919-5A36-FC80-2CAD-3185532B7CB1}","{76DBA91A-5A36-FC80-2CAD-3185532B7CB1}","MSADCE","1",     _
+        "{101C0E21-EBBA-A60A-EC3D-58797788928A}","{101C0E22-EBBA-A60A-EC3D-58797788928A}","MSADCF","1",     _ 
+        "{5C6CE734-1B3E-705E-C2AB-B272D99AAF8F}","{5C6CE735-1B3E-705E-C2AB-B272D99AAF8F}","MSADCO","1",     _
+        "{13CD7F92-5BAA-8C7C-3D72-B69FAC139A46}","{13CD7F93-5BAA-8C7C-3D72-B69FAC139A46}","MSADDS","1",     _
+        "{6C770D53-0441-AFD4-DCAB-1D89155FECFC}","{6C770D54-0441-AFD4-DCAB-1D89155FECFC}","MSADOX","1",     _
+        "{F02A5DAC-6DB2-F77F-F6A8-6404FE697B7D}","{F02A5DAD-6DB2-F77F-F6A8-6404FE697B7D}","MSDAORA","1",    _
+        "{64A552E0-6C60-B907-E59C-10F1DFF76B0D}","{64A552E1-6C60-B907-E59C-10F1DFF76B0D}","MSDAPRST","1",   _
+        "{564F1E24-FC86-28E1-74F8-5CA0D950BEE0}","{564F1E25-FC86-28E1-74F8-5CA0D950BEE0}","MSDAREM","1",    _
+        "{CEB7253C-BB96-9DFE-51D1-53D966D0CF8B}","{CEB7253D-BB96-9DFE-51D1-53D966D0CF8B}","MSDART","1",     _
+        "{B6501BA0-C61A-C4E6-6FA2-A4E7F8C8E7A0}","{B6501BA1-C61A-C4E6-6FA2-A4E7F8C8E7A0}","MSDASQL","1",    _
+        "{87B93A44-1F73-EC83-7261-2DFC972D9B1E}","{87B93A45-1F73-EC83-7261-2DFC972D9B1E}","MSDATL3","1",    _
+        "{F34765F6-A1BE-4B9D-1400-B8A12921F704}","{F34765F7-A1BE-4B9D-1400-B8A12921F704}","ODBC","1",       _
+        "{932B59F1-90C2-D8BA-0956-3975C344AE2B}","{932B59F2-90C2-D8BA-0956-3975C344AE2B}","ODBCBCP","1",    _
+        "{0DD082C4-66F2-271F-74BA-2BF1F9F65C66}","{0DD082C5-66F2-271F-74BA-2BF1F9F65C66}","OLEDB","1",      _
+        "{74A75B02-36D8-EDE6-D10E-95B691503408}","{74A75B03-36D8-EDE6-D10E-95B691503408}","RowsetHelper","1",   _
+        "{FC9F92E6-D521-9C9A-1D8C-D8980B9978A9}","{FC9F92E7-D521-9C9A-1D8C-D8980B9978A9}","SQLBROWSER","1",     _
+        "{C5BFFE2E-9D87-D568-A09E-08FC83D0C7C2}","{C5BFFE2F-9D87-D568-A09E-08FC83D0C7C2}","SQLOLEDB","1",   _
+        "{BA798F36-2325-EC5B-ECF8-76958A2AF9B5}","{BA798F37-2325-EC5B-ECF8-76958A2AF9B5}","SQLNCLI","1",        _
+        "{A9377239-477A-DD22-6E21-75912A95FD08}","{A937723A-477A-DD22-6E21-75912A95FD08}","SQLNCLI10","1",      _
+        "{2DA81B52-908E-7DB6-EF81-76856BB47C4F}","{2DA81B53-908E-7DB6-EF81-76856BB47C4F}","SQLNCLI11","1",      _
+        "{EE7FB59C-D3E8-9684-AEAC-B214EFD91B31}","{EE7FB59D-D3E8-9684-AEAC-B214EFD91B31}","MSOLEDBSQL","1",      _
+	"{AB6D5EEB-0132-74AB-C5F5-B23E1644DADA}","{AB6D5EEC-0132-74AB-C5F5-B23E1644DADA}","SQLSERVER.SNI", "1", _
+	"{48D59D84-105B-00FA-6B49-03462F696737}","{48D59D85-105B-00FA-6B49-03462F696737}","SQLSERVER.SNI10","1", 	_
+	"{B2A28C42-A7C2-1563-97CC-3BE49FDA19F9}","{B2A28C43-A7C2-1563-97CC-3BE49FDA19F9}","SQLSERVER.SNI11","1", 	_
+	"{5BD84A98-C66F-1694-6E42-B18A6243602B}","{5BD84A98-C66F-1694-6E42-B18A6243602B}","SQLSERVER.SNI12","1", 	_
+        "{4B647745-F438-0A42-F870-5DBD29949C99}","{4B647746-F438-0A42-F870-5DBD29949C99}","SQLSRV32","1",       _
+        "{edafc39f-b768-36db-8a5b-24a02176bfa9}","{edafc3a0-b768-36db-8a5b-24a02176bfa9}","MSODBCSQL11","1",       _
+        "{06debc35-76ab-2719-2abe-e7e57f1dad2c}","{06debc36-76ab-2719-2abe-e7e57f1dad2c}","MSODBCSQL13","1",       _
+        "{053A11C4-BC2B-F7CE-4A10-9D2602643DA0}","{053A11C5-BC2B-F7CE-4A10-9D2602643DA0}","MSODBCSQL17","1",       _
+        "{914ABDE2-171E-C600-3348-C514171DE148}","{914ABDE3-171E-C600-3348-C514171DE148}","System.Data","1",    _
+        "{DCD90923-4953-20C2-8708-01976FB15287}","{DCD90924-4953-20C2-8708-01976FB15287}","System.Data.OracleClient","1", _
+        "{C9996FA5-C06F-F20C-8A20-69B3BA392315}","{C9996FA6-C06F-F20C-8A20-69B3BA392315}","System.Data.SNI","1", _
+	"{A68D8BB7-4F92-9A7A-D50B-CEC0F44C4808}","{A68D8BB8-4F92-9A7A-D50B-CEC0F44C4808}","System.Data.Entity","1", _
+        "{172E580D-9BEF-D154-EABB-83429A6F3718}","{172E580E-9BEF-D154-EABB-83429A6F3718}","SQLJDBC_XA","1" _
+        )
+
+    j = CInt((UBound(rawValues) + 1) / 4)
+    Redim g_BidModules(j - 1)
+
+    For i = 0 to UBound(g_BidModules)
+        Set g_BidModules(i) = new BidModules
+        g_BidModules(i).ControlID = rawValues(i*4)
+        g_BidModules(i).Bid2EtwID = rawValues(i*4+1)
+        g_BidModules(i).NickName  = rawValues(i*4+2)
+        g_BidModules(i).VerString = rawValues(i*4+3)
+    Next
+
+'   For i = 0 to UBound(g_BidModules)
+'       WScript.Echo g_BidModules(i).ControlID
+'       WScript.Echo g_BidModules(i).Bid2EtwID
+'       WScript.Echo g_BidModules(i).NickName 
+'       WScript.Echo g_BidModules(i).VerString
+'   Next
+
+    ' by default MSDADIAG.ETW should be always in the MOF file
+    g_TraceModules(0) = 0
+
+    Set g_objShell  = CreateObject("Wscript.shell")
+    Set g_objFSO    = CreateObject("Scripting.FileSystemObject")
+
+    g_Is64Proc      = FALSE
+    g_Wow6432Mode   = WOWMODE_NONE
+    g_TraceAll      = TRUE
+    g_HelpRequested = FALSE
+    g_DoSetup       = FALSE
+    g_DoMofcomp     = FALSE
+    g_DoCleanup     = FALSE
+    g_RunMode       = ""
+    g_TraceFlags    = "0x00000007"
+    g_TraceName     = ""
+    g_AppPath       = ":Path"
+    g_OutputDir     = Left(WScript.ScriptFullname, Len(WScript.ScriptFullname)-Len(WScript.ScriptName)) & "Output_On_" & GetDateTimeStamp()
+    g_MaxFile       = "1000"
+    g_FileMode      = "Circular"
+    
+    procArch = g_objShell.Environment("SYSTEM")("PROCESSOR_ARCHITECTURE")
+    
+    If UCase(procArch) = "AMD64" Then
+        g_Is64Proc = TRUE
+    Elseif UCase(procArch) = "IA64" Then
+        g_Is64Proc = TRUE
+    Elseif UCase(procArch) = "X86" Then
+        g_Is64Proc = FALSE
+    Else
+        WScript.Echo "warning: unknown PROCESSOR_ARCHITECTURE [" & procArch & "], default to x86"
+    End If  
+    
+End Sub
+' --------------------------------------------------------------------------------------------
+
+'---------------------------------------------------------------------------------------------
+' Function:  GetArguments
+'
+'            Reading the parameters provided by the user in the command line
+'
+'            Returns: A string with error messages found during parsing the parameters
+'            
+'---------------------------------------------------------------------------------------------
+Function GetArguments()
+
+    dim objArgs
+    dim ArgsCount
+    dim strMsgErr
+    dim Lf ' Cr & Line Feed
+    dim strAux ' temporary string
+    dim x ' arguments counter
+    dim i,n
+
+
+    strMsgErr = ""
+    Lf = Chr(13) & Chr(10)
+
+    Set objArgs = Wscript.Arguments
+    ArgsCount = objArgs.count
+
+    strAux = ""
+    if ArgsCount>0 Then
+        WScript.Echo "Command line arguments used were: "
+        For i=0 to ArgsCount-1
+            strAux = strAux & CStr(objArgs(i)) & " "
+        Next
+    Else
+        WScript.Echo "Command line arguments empty."
+    End If
+    WScript.Echo strAux
+
+    If ArgsCount > 0 Then
+        x = 0
+        while x<ArgsCount
+            If UCase(objArgs(x)) = "START" Then
+                g_RunMode = "START"
+                If x >= ArgsCount-1 Then
+                    strMsgErr = strMsgErr & Lf & "Expecting Trace Name after START switch"
+                Else
+                    x = x + 1
+                    strAux = objArgs(x)
+                    If Left(strAux,1) = "-"  Then
+                        strMsgErr = strMsgErr & Lf & "No valid Trace Name specified after START switch"
+                    Else
+                        g_TraceName = strAux
+                    End If
+                End If
+            Elseif UCase(objArgs(x)) = "STOP" Then
+                g_RunMode = "STOP"
+                If x >= ArgsCount-1 Then
+                    strMsgErr = strMsgErr & Lf & "Expecting Trace Name after STOP switch"
+                Else
+                    x = x + 1
+                    strAux = objArgs(x)
+                    If Left(strAux,1) = "-"  Then
+                        strMsgErr = strMsgErr & Lf & "No valid Trace Name specified after STOP switch"
+                    Else
+                        g_TraceName = strAux
+                    End If
+                End If
+            Elseif UCase(objArgs(x)) = "CONFIG" Then
+                g_RunMode = "CONFIG"
+                If x >= ArgsCount-1 Then
+                    strMsgErr = strMsgErr & Lf & "Expecting Configuration Options after CONFIG switch"
+                End If
+            Elseif UCase(objArgs(x)) = "-SETUP" Then
+                g_DoSetup = TRUE
+            Elseif UCase(objArgs(x)) = "-A" Then
+                If x >= ArgsCount-1 Then
+                    strMsgErr = strMsgErr & Lf & "Expecting application path after -A switch"
+                Else
+                    x = x + 1
+                    strAux = objArgs(x)
+                    If Left(strAux,1) = "-"  Then
+                        strMsgErr = strMsgErr & Lf & "No valid directory or UNC full path was specified after the '-A' switch."
+                    Else
+                        g_AppPath = objArgs(x)
+                    End If
+                End If
+            Elseif UCase(objArgs(x)) = "-M" Then
+                If x >= ArgsCount-1 Then
+                    strMsgErr = strMsgErr & Lf & "Expecting module name after -M switch"
+                Else
+                    x = x + 1
+                    For i = 1 to UBound(g_BidModules)
+                        If UCase(g_BidModules(i).NickName) = UCase(objArgs(x)) OR _ 
+                           UCase(g_BidModules(i).NickName & "." & g_BidModules(i).VerString) = UCase(objArgs(x)) Then
+                            n = UBound(g_TraceModules)+1
+                            ReDim Preserve g_TraceModules(n)
+                            g_TraceModules(n) = i
+                            Exit For
+                        End If
+                    Next
+                    If UCase(objArgs(x)) = UCase(g_BidModules(0).NickName) Then
+                        strMsgErr = strMsgErr & Lf & "It's not necessary to enable " & g_BidModules(0).NickName
+                    ElseIf i = UBound(g_BidModules) + 1 Then
+                        strMsgErr = strMsgErr & Lf & "Unknown module name: " & objArgs(x)
+                    End If
+                End If
+            Elseif UCase(objArgs(x)) = "-C" Then
+                If x >= ArgsCount-1 Then
+                    strMsgErr = strMsgErr & Lf & "Expecting custom flags after -C switch"
+                Else
+                    x = x + 1
+                    g_TraceFlags = objArgs(x)
+                End If
+            Elseif UCase(objArgs(x)) = "-O" Then
+                If x >= ArgsCount-1 Then
+                    strMsgErr = strMsgErr & Lf & "Expecting output folder after -O switch"
+                Else
+                    x = x + 1
+                    strAux = objArgs(x)
+                    If Left(strAux,1) = "-"  Then
+                        strMsgErr = strMsgErr & Lf & "No valid directory or UNC path was specified after the '-o' switch."
+                    Else
+                        g_OutPutDir = objArgs(x)
+                    End If
+                End If
+            Elseif UCase(objArgs(x)) = "-WOWMODE" Then
+                If x >= ArgsCount-1 Then
+                    strMsgErr = strMsgErr & Lf & "Expecting output folder after -O switch"
+                Else
+                    x = x + 1
+                    strAux = objArgs(x)
+                    If UCase(strAux) = "BOTH"  Then
+                        If g_Is64Proc Then
+                            g_Wow6432Mode = WOWMODE_BOTH
+                        End If
+                    Elseif UCase(strAux) = "ONLY" Then
+                        If g_Is64Proc Then
+                            g_Wow6432Mode = WOWMODE_ONLY
+                        End If
+                    Else
+                        strMsgErr = strMsgErr & Lf & "Specify BOTH or ONLY after the '-WOW' switch."
+                    End If
+                End If
+            Elseif UCase(objArgs(x)) = "-CLEANUP" Then
+                g_DoCleanup = TRUE
+            Elseif UCase(objArgs(x)) = "-MOFCOMP" Then
+                g_DoMofcomp = TRUE
+            Elseif UCase(objArgs(x)) = "-FILEMODE" Then
+                If x >= ArgsCount-1 Then
+                    strMsgErr = strMsgErr & Lf & "Expected logging mode after -FileMode"
+                Else
+                    x = x + 1
+                    g_FileMode = objArgs(x)
+                End If
+            Elseif UCase(objArgs(x)) = "-MAXFILE" Then
+                If x >= ArgsCount-1 Then
+                    strMsgErr = strMsgErr & Lf & "Expected file size after -MaxFile"
+                Else
+                    x = x + 1
+                    g_MaxFile = objArgs(x)
+                End If
+            Elseif objArgs(x) = "-?" Then
+                g_HelpRequested = TRUE
+            Else
+                strMsgErr = strMsgErr & Lf & "Invalid command line parameter: [" & objArgs(x) & "]"
+            End If
+
+            x = x + 1
+        Wend
+    Else 'No arguments were typed, display the usage info . . .
+        g_HelpRequested = TRUE
+    End If
+
+    GetArguments = strMsgErr
+End Function
+'---------------------------------------------------------------------------------------------
+
+'---------------------------------------------------------------------------------------------
+' Function:  ValidateSettings
+'   
+'   Validates all Settings
+'       Initializes globals that depend on settings
+'
+'
+'---------------------------------------------------------------------------------------------
+Sub ValidateSettings()
+    Dim i,n, j
+    Dim strErr
+    Dim strAux
+    Dim Lf ' CR Line Feed
+
+    Lf = Chr(13) & Chr(10)
+
+    If g_RunMode = "" Then
+        strAux = "Please specify START, STOP or CONFIG."
+        QuitWithError strAux
+    End If
+    
+    If g_RunMode = "START" Then
+        If g_DoCleanup Then
+            QuitWithError "START mode doesn't accept -cleanup switch"
+        End If
+    End If
+    
+    If g_RunMode = "STOP" Then
+        If UBound(g_TraceModules) Then
+            QuitWithError "STOP mode doesn't accept -m switch"
+        End If
+
+        If g_DoSetup Then
+            QuitWithError "STOP mode doesn't accept -setup switch"
+        End If
+        
+        If g_DoMofcomp Then
+            QuitWithError "STOP mode doesn't accept -mofcomp switch"
+        End If
+    End If
+End Sub
+'---------------------------------------------------------------------------------------------
+
+'---------------------------------------------------------------------------------------------
+' Function:  CreateDirectory()
+'            This is the code used to create a directory on the file system or the network
+'            It checks to make sure you have proper permissions and displays/logs an error
+'            if you don't.
+'---------------------------------------------------------------------------------------------
+Sub CreateDirectory(strDirectory)
+
+    On Error Resume Next
+
+    Dim oFile
+    Set oFile = g_objFSO.CreateFolder(strDirectory)
+
+    If err.number = -2147024784 Then 'The disk is full!
+        QuitWithError "Could not create the " & strDirectory & " directory because the drive is full.  Please free up some disk space and try running ADPlus again!"
+    ElseIf err.number = 76 Then 'Specified a subdirectory below a share that does not exist or path with more than one subdirectory that does not exist!
+        QuitWithError "Could not create the " & strDirectory & " directory.  If you are using the '-o' switch and specifying a UNC path, please ensure that the share and any sub-directories below the share you specified actually exist!"
+    ElseIf err.number = 52 Then 'The share does not exist or can not connect to the UNC path.
+        QuitWithError "Could not create the " & strDirectory & " directory.  If you are using the '-o' switch and specifying a UNC path, please ensure that the UNC path you specified exists and that you are able to connect to it!"
+    ElseIf err.number <> 0 and err.number <> 58 Then 'Permissions problem
+        QuitWithError "Could not create the " & strDirectory & " directory.  Please verify that you have permissions to create this directory and try running ADPlus again!"
+    End If  
+    
+    Set oFile = nothing
+    On Error GoTo 0
+
+End Sub
+'---------------------------------------------------------------------------------------------
+
+'---------------------------------------------------------------------------------------------
+' Function:  GetDateTimeStamp
+'            This function is responsible for getting the unique Date / Time stamp used for 
+'            creating unique directory / file names.
+'            To Change the names of the output directories, edit them below.
+'---------------------------------------------------------------------------------------------
+Function GetDateTimeStamp()
+
+    Dim AMorPM
+    Dim Seconds
+    Dim Minutes
+    Dim Hours
+    Dim theDay
+    Dim theMonth
+
+    Hours = Hour(Now)
+    Minutes = Minute(Now)
+    Seconds = Second(Now)
+    theDay = Day(Now)
+    theMonth = Month(Now)
+    AMorPM = Right(Now(),2)
+    
+    If Len(Hours) = 1 Then Hours = "0" & Hours
+    If Len(Minutes) = 1 Then Minutes = "0" & Minutes
+    If Len(Seconds) = 1 Then Seconds = "0" & Seconds
+    If Len(theDay) = 1 Then theDay = "0" & theDay
+    If Len(theMonth) = 1 Then theMonth = "0" & theMonth
+    
+    GetDateTimeStamp = theMonth & "-" & theDay & "-" & Year(Now) & "__Time_" & Hours & "-" & Minutes & "-" & Seconds & AMorPM
+
+End Function
+'---------------------------------------------------------------------------------------------
+
+'---------------------------------------------------------------------------------------------
+' Function: GenerateMofFile
+'
+'  Generate a Mof file
+'
+'---------------------------------------------------------------------------------------------
+Sub GenerateMofFile(fsoMof)
+    Dim i
+    
+    fsoMof.WriteLine "#pragma autorecover"
+    fsoMof.WriteLine "#pragma classflags(""forceupdate"")"
+    fsoMof.WriteLine "#pragma namespace (""\\\\.\\Root\\WMI"")"
+
+    If UBound(g_TraceModules) = 0 Then
+        For i = 0 To UBound(g_BidModules)
+            AppendModuleToMofFile fsoMof, g_BidModules(i)
+        Next
+    Else
+        For i = 0 To UBound(g_TraceModules)
+            AppendModuleToMofFile fsoMof, g_BidModules(g_TraceModules(i))
+        Next
+    End If
+End Sub
+'---------------------------------------------------------------------------------------------
+
+'---------------------------------------------------------------------------------------------
+' Function: GenerateMofFile
+'
+'  Generate a Mof file
+'
+'---------------------------------------------------------------------------------------------
+Sub AppendModuleToMofFile(fsoMof, bidModule)
+    fsoMof.WriteLine ""
+    fsoMof.WriteLine "["
+    fsoMof.WriteLine " dynamic: ToInstance,"
+    fsoMof.WriteLine " Description(""" & bidModule.NickName & "." & bidModule.VerString & """),"
+    fsoMof.WriteLine " Guid(""" & bidModule.ControlID & """),"
+    fsoMof.WriteLine " locale(""MS\\0x409"")"
+    fsoMof.WriteLine "]"
+    fsoMof.WriteLine ""
+    fsoMof.WriteLine "class Bid2Etw_" & Replace(bidModule.NickName, ".", "_") & "_" & bidModule.VerString & " : EventTrace"
+    fsoMof.WriteLine "{"
+    fsoMof.WriteLine "};"
+    fsoMof.WriteLine ""
+    fsoMof.WriteLine "["
+    fsoMof.WriteLine " dynamic: ToInstance,"
+    fsoMof.WriteLine " Description(""" & bidModule.NickName & "." & bidModule.VerString & """),"
+    fsoMof.WriteLine " Guid(""" & bidModule.Bid2EtwID & """),"
+    fsoMof.WriteLine " DisplayName(""" & bidModule.NickName & """),"
+    fsoMof.WriteLine " locale(""MS\\0x409"")"
+    fsoMof.WriteLine "]"
+    fsoMof.WriteLine ""
+    fsoMof.WriteLine "class Bid2Etw_" & Replace(bidModule.NickName, ".", "_") & "_" & bidModule.VerString & "_Trace : Bid2Etw_" & Replace(bidModule.NickName, ".", "_") & "_" & bidModule.VerString
+    fsoMof.WriteLine "{"
+    fsoMof.WriteLine "};"
+    fsoMof.WriteLine ""
+    fsoMof.WriteLine "["
+    fsoMof.WriteLine " dynamic: ToInstance,"
+    fsoMof.WriteLine " Description("""  & bidModule.NickName & "." & bidModule.VerString & " formatted output (A)""),"
+    fsoMof.WriteLine " EventType(17),"
+    fsoMof.WriteLine " EventTypeName(""TextA""),"
+    fsoMof.WriteLine " locale(""MS\\0x409"")"
+    fsoMof.WriteLine "]"
+    fsoMof.WriteLine ""
+    fsoMof.WriteLine "class Bid2Etw_" & Replace(bidModule.NickName, ".", "_") & "_" & bidModule.VerString & "_Trace_TextA : Bid2Etw_" & Replace(bidModule.NickName, ".", "_") & "_" & bidModule.VerString & "_Trace"
+    fsoMof.WriteLine "{"
+    fsoMof.WriteLine "    ["
+    fsoMof.WriteLine "     WmiDataId(1),"
+    fsoMof.WriteLine "     Description(""Module ID""),"
+    fsoMof.WriteLine "     read"
+    fsoMof.WriteLine "    ]"
+    fsoMof.WriteLine "    uint32 ModID;"
+    fsoMof.WriteLine ""
+    fsoMof.WriteLine "    ["
+    fsoMof.WriteLine "     WmiDataId(2),"
+    fsoMof.WriteLine "     Description(""Text StringA""),"
+    fsoMof.WriteLine "     extension(""RString""),"
+    fsoMof.WriteLine "     read"
+    fsoMof.WriteLine "    ]"
+    fsoMof.WriteLine "    object msgStr;"
+    fsoMof.WriteLine "};"
+    fsoMof.WriteLine ""
+    fsoMof.WriteLine "["
+    fsoMof.WriteLine " dynamic: ToInstance,"
+    fsoMof.WriteLine " Description(""" & bidModule.NickName & "." & bidModule.VerString & " formatted output (W)""),"
+    fsoMof.WriteLine " EventType(18),"
+    fsoMof.WriteLine " EventTypeName(""TextW""),"
+    fsoMof.WriteLine " locale(""MS\\0x409"")"
+    fsoMof.WriteLine "]"
+    fsoMof.WriteLine ""
+    fsoMof.WriteLine "class Bid2Etw_" & Replace(bidModule.NickName, ".", "_") & "_" & bidModule.VerString & "_Trace_TextW : Bid2Etw_" & Replace(bidModule.NickName, ".", "_") & "_" & bidModule.VerString & "_Trace"
+    fsoMof.WriteLine "{"
+    fsoMof.WriteLine "    ["
+    fsoMof.WriteLine "     WmiDataId(1),"
+    fsoMof.WriteLine "     Description(""Module ID""),"
+    fsoMof.WriteLine "     read"
+    fsoMof.WriteLine "    ]"
+    fsoMof.WriteLine "    uint32 ModID;"
+    fsoMof.WriteLine ""
+    fsoMof.WriteLine "    ["
+    fsoMof.WriteLine "     WmiDataId(2),"
+    fsoMof.WriteLine "     Description(""Text StringW""),"
+    fsoMof.WriteLine "     extension(""RWString""),"
+    fsoMof.WriteLine "     read"
+    fsoMof.WriteLine "    ]"
+    fsoMof.WriteLine "    object msgStr;"
+    fsoMof.WriteLine "};"
+    fsoMof.WriteLine ""
+    
+End Sub
+' --------------------------------------------------------------------------------------------
+
+'---------------------------------------------------------------------------------------------
+' Function: GenerateCtrlFile
+'
+'  Generate a Control file
+'
+'---------------------------------------------------------------------------------------------
+Sub GenerateCtrlFile(fsoCtrl)
+    Dim i
+    If UBound(g_TraceModules) = 0 Then
+        For i = 0 to UBound(g_BidModules)
+            fsoCtrl.WriteLine g_BidModules(i).ControlID & "  " & g_TraceFlags & "  0   " & g_BidModules(i).NickName & "." & g_BidModules(i).VerString
+        Next
+    Else
+        For i = 0 to UBound(g_TraceModules)
+            fsoCtrl.WriteLine g_BidModules(g_TraceModules(i)).ControlID & "  " & g_TraceFlags & "  0   " & g_BidModules(g_TraceModules(i)).NickName & "." & g_BidModules(g_TraceModules(i)).VerString
+        Next
+    End If
+End Sub
+' --------------------------------------------------------------------------------------------
+
+'---------------------------------------------------------------------------------------------
+' Function: SetupLoaderKey
+'
+'  Setup Loader key in registry (either wow or native)
+'
+'---------------------------------------------------------------------------------------------
+Sub SetupLoaderKey(objReg)
+    Dim i, strLoader
+    
+    i = objReg.GetStringValue(HKEY_LOCAL_MACHINE, BID_LOADER_KEY, g_AppPath, strLoader)
+
+    If NOT (i = 0 AND UCase(strLoader) = "MSDADIAG.DLL") Then
+        If i = 0 Then
+            QuitWithError "MSDADIAG.DLL is not configured as the BID trace provider, current value is: " & strLoader
+        End If
+
+        ' try to create key first
+        i = objReg.CreateKey(HKEY_LOCAL_MACHINE, BID_LOADER_KEY)
+        If i <> 0 Then
+            QuitWithError "Failed to create key " & BID_LOADER_KEY & " (" & i & ")"
+        Else
+            i = objReg.SetStringValue(HKEY_LOCAL_MACHINE, BID_LOADER_KEY, g_AppPath, "MsdaDiag.DLL")
+            If i <> 0 Then
+                QuitWithError "Failed to write string value " & g_AppPath & " (" & i & ")"
+            End If
+        End If
+    End If
+End Sub
+' --------------------------------------------------------------------------------------------
+
+'---------------------------------------------------------------------------------------------
+' Function: DoSetup
+'
+'    Initial setup work
+'    1) setup value HKLM\Software\Microsoft\BidInterface\Loader\:Path
+'    2) generate mof file, run mofcomp and generate control file
+'
+'---------------------------------------------------------------------------------------------
+Sub DoSetup
+    Dim objReg
+    
+    Dim objCtx, objLocator, objServices, objInparams, objOutparams
+
+    If Not g_Wow6432Mode = WOWMODE_ONLY Then
+        Set objReg=GetObject("winmgmts:{impersonationLevel=impersonate}!\\.\root\default:StdRegProv")
+        
+        SetupLoaderKey(objReg)
+    End If
+    
+    If Not g_Wow6432Mode = WOWMODE_NONE Then
+        Set objCtx = CreateObject("WbemScripting.SWbemNamedValueSet")
+        objCtx.Add "__ProviderArchitecture", 32
+        Set objLocator = CreateObject("WbemScripting.SWbemLocator")
+        Set objServices = objLocator.ConnectServer("","root\default","","",,,,objCtx)
+        Set objReg = objServices.Get("StdRegProv") 
+
+        SetupLoaderKey(objReg)
+    End If
+End Sub
+
+Sub DoMofcomp
+    Dim strAux
+    Dim objShExec
+    Dim objMofFile
+    Dim objShOut
+
+    ' generate mof file
+    Set objMofFile = g_objFSO.CreateTextFile(g_OutputDir & "\trace.mof", True)
+    
+    GenerateMofFile objMofFile
+        
+    objMofFile.Close
+    
+    ' Run mofcomp to compile the mof file
+    Set objShOut = g_objFSO.CreateTextFile(g_OutputDir & "\mofcomp.out", True)
+    
+    objShOut.WriteLine ""
+    WScript.Echo ""
+    objShOut.WriteLine "Executing mofcomp on " & GetDateTimeStamp
+    WScript.Echo "Executing mofcomp on " & GetDateTimeStamp
+    
+    strAux = "mofcomp """ & g_OutputDir & "\trace.mof"""
+    
+    objShOut.WriteLine strAux
+    WScript.Echo strAux
+    objShOut.WriteLine "----------------------------------------------------------------"
+    WScript.Echo "----------------------------------------------------------------"
+
+    Set objShExec = g_objShell.Exec(strAux)
+    
+    strAux = objShExec.StdOut.ReadAll
+    
+    objShOut.WriteLine ""
+    WScript.Echo ""
+    objShOut.Write(strAux)
+    WScript.Echo strAux
+
+    objShOut.WriteLine ""
+    WScript.Echo ""
+    objShOut.WriteLine "----------------------------------------------------------------"
+    WScript.Echo "----------------------------------------------------------------"
+    objShOut.WriteLine "mofcomp execution completes on " & GetDateTimeStamp
+    WScript.Echo "mofcomp execution completes on " & GetDateTimeStamp
+    
+    objShOut.Close
+End Sub
+'---------------------------------------------------------------------------------------------
+
+'---------------------------------------------------------------------------------------------
+' Function:  DoCleanup
+'            This is the code used to clean up the BidInterface registry key.
+'---------------------------------------------------------------------------------------------
+Sub DoCleanup
+    Dim objReg, i
+    
+    Dim objCtx, objLocator, objServices, objInparams, objOutparams
+
+    If Not g_Wow6432Mode = WOWMODE_ONLY Then
+        Set objReg=GetObject("winmgmts:{impersonationLevel=impersonate}!\\.\root\default:StdRegProv")
+        
+        i = objReg.DeleteValue(HKEY_LOCAL_MACHINE, BID_LOADER_KEY, g_AppPath)
+        
+        If i <> 0 Then
+            WScript.Echo "Failed to delete value " & g_AppPath & " (" & i & ")"
+        End If
+    End If
+    
+    If Not g_Wow6432Mode = WOWMODE_NONE Then
+        Set objCtx = CreateObject("WbemScripting.SWbemNamedValueSet")
+        objCtx.Add "__ProviderArchitecture", 32
+        Set objLocator = CreateObject("WbemScripting.SWbemLocator")
+        Set objServices = objLocator.ConnectServer("","root\default","","",,,,objCtx)
+        Set objReg = objServices.Get("StdRegProv") 
+
+        i = objReg.DeleteValue(HKEY_LOCAL_MACHINE, BID_LOADER_KEY, g_AppPath)
+        
+        If i <> 0 Then
+            WScript.Echo "Failed to delete value " & g_AppPath & " (" & i & ")"
+        End If
+    End If
+End Sub
+'---------------------------------------------------------------------------------------------
+
+'---------------------------------------------------------------------------------------------
+' Function:  PrintUsage
+'            This is the code used to print the usage information.
+'---------------------------------------------------------------------------------------------
+Sub PrintUsage()
+    Wscript.Echo ""
+    Wscript.Echo " " & g_FILENAME & " (" & g_VERSION & ") Usage Information"
+    Wscript.Echo ""
+    Wscript.Echo "   " & g_FILENAME & " Start|Stop TraceName [options]"
+    Wscript.Echo "   " & g_FILENAME & " Config [options]"
+    Wscript.Echo ""
+    Wscript.Echo " Command line switches"
+    Wscript.Echo ""
+    Wscript.Echo "   Start     Start a trace"
+    Wscript.Echo "   Stop      Stop a trace"
+    Wscript.Echo "   Config    msdadiag/ETW Configuration"
+    Wscript.Echo "   TraceName Unique name to specify a trace"
+    Wscript.Echo ""
+    Wscript.Echo " Options"
+    Wscript.Echo "   -Setup                 Setup registry key BidInterface"
+    Wscript.Echo "   -Cleanup               Cleanup registry key BidInterface"
+    Wscript.Echo "   -Mofcomp               Generate Mof file and run Mofcomp"
+    Wscript.Echo "   -m <ModuleName>        Defines a module name to trace"
+    Wscript.Echo "   -c <custom flag>       Set customized flag if needed (default 0x00000007)"
+    Wscript.Echo "   -o <output folder>     Specify output folder"
+    Wscript.Echo "   -a <application file>  Specify full path of the application file to trace"
+    Wscript.Echo "   -WowMode BOTH|ONLY     Specify trace under wow6432 environment"
+    Wscript.Echo "   -MaxFile <size>        Maximum file size in MB (default 1GB)"
+    Wscript.Echo "   -FileMode <mode>       How to generate log files (default Circular) (see http://msdn.microsoft.com/en-us/library/aa364080(vs.85).aspx for options) Circular or Newfile"
+    Wscript.Echo "   -?                     Print usage information"
+End Sub
+'---------------------------------------------------------------------------------------------
+
+'---------------------------------------------------------------------------------------------
+' Function:  QuitWithError
+'
+'            Terminates the script due to an error
+'
+'---------------------------------------------------------------------------------------------
+Sub QuitWithError(ErrMsg)
+    WScript.Echo ErrMsg
+    WScript.Quit (512)
+End Sub
+'---------------------------------------------------------------------------------------------

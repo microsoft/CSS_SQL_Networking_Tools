@@ -1,0 +1,101 @@
+logman.exe stop KerbClientShared -ets
+logman.exe stop NtlmShared -ets
+logman.exe stop LsaIso -ets
+logman.exe stop LsaTrace -ets
+logman.exe stop LsaAudit -ets
+logman.exe stop LsaDs -ets
+logman.exe stop KerbComm -ets
+logman.exe stop kerb -ets
+logman.exe stop kdc -ets
+logman.exe stop kps -ets
+logman.exe stop ntlm -ets
+logman.exe stop negoexts -ets
+reg delete HKLM\SYSTEM\CurrentControlSet\Control\Lsa\NegoExtender\Parameters /v InfoLevel /f
+logman.exe stop pku2u -ets
+reg delete HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Pku2u\Parameters /v InfoLevel /f
+logman.exe stop ssl -ets
+logman.exe stop digest -ets
+logman.exe stop credssp -ets
+reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v SPMInfoLevel /f
+reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LogToFile /f
+reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v NegEventMask /f
+nltest /dbflag:0x0
+logman.exe stop dpapis -ets
+logman.exe stop idstore -ets
+logman.exe stop idcommon -ets
+logman.exe stop livessp -ets
+logman.exe stop wlidsvc -ets
+logman.exe stop idlisten -ets
+logman.exe stop basecsp -ets
+logman.exe stop vault -ets
+logman.exe stop bcrypt -ets
+logman.exe stop ncrypt -ets
+logman.exe stop cryptsp -ets
+wevtutil.exe set-log Microsoft-Windows-CAPI2/Operational /enabled:false
+wevtutil.exe export-log Microsoft-Windows-CAPI2/Operational .\logs\capi2.evtx /overwrite:true
+wevtutil.exe set-log Microsoft-Windows-Kerberos/Operational /enabled:false
+wevtutil.exe export-log Microsoft-Windows-Kerberos/Operational .\logs\kerb.evtx /overwrite:true
+wevtutil.exe set-log Microsoft-Windows-WebAuth/Operational /enabled:false
+wevtutil.exe export-log Microsoft-Windows-WebAuth/Operational .\logs\webauth.evtx /overwrite:true
+wevtutil.exe set-log Microsoft-Windows-CertPoleEng/Operational /enabled:false
+wevtutil.exe export-log Microsoft-Windows-CertPoleEng/Operational .\logs\certpoleng.evtx /overwrite:true
+wevtutil.exe set-log Microsoft-Windows-IdCtrls/Operational /enabled:false
+wevtutil.exe export-log Microsoft-Windows-IdCtrls/Operational .\logs\idctrls.evtx /overwrite:true
+wevtutil.exe set-log "Microsoft-Windows-User Control Panel"/Operational /enabled:false
+wevtutil.exe export-log "Microsoft-Windows-User Control Panel"/Operational .\logs\usercontrolpanel.evtx /overwrite:true
+wevtutil.exe set-log Microsoft-Windows-Authentication/AuthenticationPolicyFailures-DomainController /enabled:false
+wevtutil.exe export-log Microsoft-Windows-Authentication/AuthenticationPolicyFailures-DomainController .\logs\AP_Fail.evtx /overwrite:true
+wevtutil.exe set-log Microsoft-Windows-Authentication/ProtectedUser-Client /enabled:false
+wevtutil.exe export-log Microsoft-Windows-Authentication/ProtectedUser-Client .\logs\PU_Client.evtx /overwrite:true
+wevtutil.exe set-log Microsoft-Windows-Authentication/ProtectedUserFailures-DomainController /enabled:false
+wevtutil.exe export-log Microsoft-Windows-Authentication/ProtectedUserFailures-DomainController .\logs\PU_Fail.evtx /overwrite:true
+wevtutil.exe set-log Microsoft-Windows-Authentication/ProtectedUserSuccesses-DomainController /enabled:false
+wevtutil.exe export-log Microsoft-Windows-Authentication/ProtectedUserSuccesses-DomainController .\logs\PU_Success.evtx /overwrite:true
+wevtutil.exe export-log "Directory Service" ".\logs\Directory Service.evtx" /overwrite:true
+wevtutil.exe export-log Microsoft-Windows-SmartCard-Audit/Authentication .\logs\SmartCard-Audit.evtx /overwrite:true
+wevtutil.exe export-log Microsoft-Windows-SmartCard-DeviceEnum/Operational .\logs\SmartCard-DeviceEnum.evtx /overwrite:true
+wevtutil.exe export-log Microsoft-Windows-SmartCard-TPM-VCard-Module/Operational .\logs\SmartCard-TPM.evtx /overwrite:true
+
+logman.exe stop webplatform -ets
+logman.exe stop webauth -ets
+logman.exe stop winhttp -ets
+logman.exe stop wininet -ets
+logman.exe stop httpsys -ets
+logman.exe stop cloudap -ets
+logman.exe stop aad -ets
+
+certutil.exe -silent -store my > .\logs\machine-store.txt
+certutil.exe -silent -user -store my > .\logs\user-store.txt
+Certutil.exe -v -silent -store "Homegroup Machine Certificates" > .\logs\homegroup-machine-store.txt
+
+cmdkey.exe /list > .\logs\credman.txt
+klist.exe > .\logs\klist.txt
+klist.exe -li 3e7 > .\logs\klist_LocalSystem.txt
+
+REM Smartcard and cred provider stuff
+logman stop "smartcard_credprov" -ets
+
+REM netsh wfp capture stop
+netsh trace stop
+copy /y %windir%\debug\netlogon.log .\logs
+copy /y %windir%\system32\lsass.log .\logs
+copy /y %windir%\debug\netsetup.log .\logs
+reg query "HKLM\Software\Microsoft\IdentityStore" /s > .\logs\idstore_config.txt
+reg query "HKLM\Software\Microsoft\IdentityCRL" /s >> .\logs\idstore_config.txt
+reg query "HKEY_USERS\.Default\Software\Microsoft\IdentityCRL" /s >> .\logs\idstore_config.txt
+set > .\logs\env.txt
+reg query "HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion" /v BuildLabEx > .\logs\build.txt
+wmic datafile where "name='%SystemDrive%\\Windows\\System32\\kerberos.dll' or name='%SystemDrive%\\Windows\\System32\\kdcsvc.dll' or name='%SystemDrive%\\Windows\\System32\\msv1_0.dll' or name='%SystemDrive%\\Windows\\System32\\negoexts.dll' or name='%SystemDrive%\\Windows\\System32\\pku2u.dll' or name='%SystemDrive%\\Windows\\System32\\schannel.dll' or name='%SystemDrive%\\Windows\\System32\\wdigest.dll' or name='%SystemDrive%\\Windows\\System32\\tspkg.dll' or name='%SystemDrive%\\Windows\\System32\\dpapisrv.dll' or name='%SystemDrive%\\Windows\\System32\\idstore.dll' or name='%SystemDrive%\\Windows\\System32\\livessp.dll' or name='%SystemDrive%\\Windows\\System32\\wlidsvc.dll' or name='%SystemDrive%\\Windows\\System32\\idlisten.dll' or name='%SystemDrive%\\Windows\\System32\\basecsp.dll' or name='%SystemDrive%\\Windows\\System32\\scksp.dll' or name='%SystemDrive%\\Windows\\System32\\vaultsvc.dll' or name='%SystemDrive%\\Windows\\System32\\vault.dll' or name='%SystemDrive%\\Windows\\System32\\bcrypt.dll' or name='%SystemDrive%\\Windows\\System32\\bcryptprimitives.dll' or name='%SystemDrive%\\Windows\\System32\\ncrypt.dll' or name='%SystemDrive%\\Windows\\System32\\ncryptprov.dll' or name='%SystemDrive%\\Windows\\System32\\cryptsp.dll' or name='%SystemDrive%\\Windows\\System32\\rsaenh.dll' or name='%SystemDrive%\\Windows\\System32\\winhttp.dll' or name='%SystemDrive%\\Windows\\System32\\wininet.dll'" get Filename, Version | more >> .\logs\build.txt
+
+wmic qfe list > .\logs\qfes_installed.txt
+
+REM pre-blue LSA tracing stop
+reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v SPMInfoLevel /f
+reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LogToFile /f
+reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v NegEventMask /f
+
+@echo off
+@echo ===============
+@echo ACTION REQUIRED
+@echo ===============
+@echo Please share .\logs\* for analysis
