@@ -65,11 +65,11 @@ namespace SQLNA
         public ulong totalBytes = 0;    //               - set in ParseEthernetFrame
         public long startTick = 0;      //               - set in ParseEthernetFrame
         public long endTick = 0;        //               - set in ParseEthernetFrame
-        public int ackCount = 0;        //               - accumulated in ParseTCPFrame
-        public int pushCount = 0;       //               - accumulated in ParseTCPFrame
-        public int resetCount = 0;      //               - accumulated in ParseTCPFrame
-        public int synCount = 0;        //               - accumulated in ParseTCPFrame
-        public int finCount = 0;        //               - accumulated in ParseTCPFrame
+        public int ackCount = 0;        //               - accumulated in ParseTCPFrame - can be in combination with other flags
+        public int pushCount = 0;       //               - accumulated in ParseTCPFrame - can be in combination with other flags
+        public int resetCount = 0;      //               - accumulated in ParseTCPFrame - can be in combination with other flags
+        public int synCount = 0;        //               - accumulated in ParseTCPFrame - can be in combination with other flags
+        public int finCount = 0;        //               - accumulated in ParseTCPFrame - can be in combination with other flags
         public int smpSynCount = 0;     //               - accumulated in ParseTCPFrame
         public int smpAckCount = 0;     //               - accumulated in ParseTCPFrame
         public int smpFinCount = 0;     //               - accumulated in ParseTCPFrame

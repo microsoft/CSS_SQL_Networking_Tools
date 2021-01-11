@@ -21,16 +21,16 @@ namespace SQLNA
 
         enum  DNSReturnCodes
         {
-            NOERROR  = 0,    //No error; successful update.
-            FORMERR  = 1,    //Format error; DNS server did not understand the update request / S
-            SERVFAIL = 2,    //DNS server encountered an internal error, such as a forwarding timeout
-            NXDOMAIN = 3,    //A name that should exist does not exist / Name Error (NETMON)
-            NOTIMP   = 4,      //DNS server does not support the specified Operation code / Not Implemented (NETMON)
-            REFUSED  = 5,     //DNS server refuses to perform the update / Refused (NETMON)
-            YXDOMAIN = 6,    //A name that should not exist does exist
-            YXRRSet  = 7,     //A resource record set that should not exist does exist
-            NXRRSET  = 8,     //A resource record set that should exist does not exist
-            NOTAUTH  = 9,     //DNS server is not authoritative for the zone named in the Zone section;
+            NOERROR  =  0,    //No error; successful update.
+            FORMERR  =  1,    //Format error; DNS server did not understand the update request / S
+            SERVFAIL =  2,    //DNS server encountered an internal error, such as a forwarding timeout
+            NXDOMAIN =  3,    //A name that should exist does not exist / Name Error (NETMON)
+            NOTIMP   =  4,    //DNS server does not support the specified Operation code / Not Implemented (NETMON)
+            REFUSED  =  5,    //DNS server refuses to perform the update / Refused (NETMON)
+            YXDOMAIN =  6,    //A name that should not exist does exist
+            YXRRSet  =  7,    //A resource record set that should not exist does exist
+            NXRRSET  =  8,    //A resource record set that should exist does not exist
+            NOTAUTH  =  9,    //DNS server is not authoritative for the zone named in the Zone section;
             NOTZONE  = 10,    //A name used in the Prerequisite or Update sections is not within the zone specified by the Zone section;
 		    Reserved = 15
           }

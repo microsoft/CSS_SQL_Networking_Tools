@@ -28,6 +28,7 @@ namespace SQLNA
         public ArrayList DNSResponses = new ArrayList();              // problem DNS responses
         public int DNSRequestCount = 0;                               // total number of DNS Requests
         public ArrayList KerbResponses = new ArrayList();
+        public ArrayList DomainControllers = new ArrayList();
         public ArrayList[] conversationIndex = new ArrayList[65536];  // short-cut to look-up conversations
         public ArrayList BadChecksumFrames = new ArrayList();         // sample of frames with bad checksum; to determine where trace was taken
 
@@ -146,7 +147,7 @@ namespace SQLNA
             return null;
         }
 
-        public SQLServer FindSQLServer(uint IP, ulong IPHi, ulong IPLo, ushort Port, bool isIPV6)  // these should normall be destination values
+        public SQLServer FindSQLServer(uint IP, ulong IPHi, ulong IPLo, ushort Port, bool isIPV6)  // these should normally be destination values
         {
             // search for existing SQL Server and return it - can use foreach loop as this is not called often and there are a small number of entries
             foreach (SQLServer s in sqlServers)
@@ -177,6 +178,41 @@ namespace SQLNA
             s2.sqlIPLo = IPLo;
             SSRPRequests.Add(s2);
             return s2;
+        }
+
+        public DomainController GetDomainController(uint IP, ulong IPHi, ulong IPLo, bool isIPV6)
+        {
+            // search for existing DomainController and return it - can use foreach loop as this is not called often and there are a small number of entries
+            foreach (DomainController d in DomainControllers)
+            {
+                if (d.isIPV6 == isIPV6 && d.IP == IP && d.IPHi == IPHi && d.IPLo == IPLo)
+                {
+                    return d;
+                }
+            }
+
+            // not found - create new DomainController and return it
+            DomainController d2 = new DomainController();
+            d2.IP = IP;
+            d2.IPHi = IPHi;
+            d2.IPLo = IPLo;
+            DomainControllers.Add(d2);
+            return d2;
+        }
+
+        public DomainController FindDomainController(ConversationData c)
+        {
+            // search for existing Domain Controllerr and return it - can use foreach loop as this is not called often and there are a small number of entries
+            foreach (DomainController d in DomainControllers)
+            {
+                if (d.isIPV6 == c.isIPV6 &&
+                    ((d.IP == c.sourceIP && d.IPHi == c.sourceIPHi && d.IPLo == c.sourceIPLo) ||
+                     (d.IP == c.destIP && d.IPHi == c.destIPHi && d.IPLo == c.destIPLo)))
+                {
+                    return d;
+                }
+            }
+            return null;
         }
 
     }

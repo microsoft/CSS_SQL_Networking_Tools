@@ -29,8 +29,8 @@ namespace SQLNA
         public static bool outputConversationList = false;   // enables a section in the main report that is normally suppressed
         public static string filterFormat = "";              // blank | N | W   if N or W, replace the Client IP and Port in reports with a filter string in either NETMON or WireShark format
 
-        public const string VERSION_NUMBER = "1.5.1670.0";
-        public const string UPDATE_DATE = "2021/01/31";
+        public const string VERSION_NUMBER = "1.5.1680.0";
+        public const string UPDATE_DATE = "2021/03/31";
         public const string GITHUB_PROJECT_URL = "https://github.com/microsoft/CSS_SQL_Networking_Tools";
 
         static void Main(string[] args)
@@ -199,6 +199,11 @@ namespace SQLNA
                 T.start("Parsing Kerberos frames");
                 //CurrentActivity = "analyzing data.";
                 KerberosParser.Process(Trace);
+                T.stop();
+
+                T.start("Locating Domain Controllers");
+                //CurrentActivity = "analyzing data.";
+                DomainControllerParser.Process(Trace);
                 T.stop();
 
                 //Analysis
