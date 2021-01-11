@@ -100,6 +100,21 @@ namespace SQLNA
         public ArrayList conversations = new ArrayList(1024);  // pre-size to moderate starting amount - SQL may have few or many conversations
     }
 
+    class DomainController                                         // constructed in DomainControllerParser
+    {
+        public uint IP = 0;
+        public ulong IPHi = 0;
+        public ulong IPLo = 0;
+        public ushort MSRPCPort = 0;
+        public bool isIPV6 = false;
+        public bool hasKerbPort88 = false;
+        public bool hasDNSPort53 = false;
+        public bool hasLDAPPort389 = false;
+        public bool hasMSRPCPort = false;
+        public bool hasLoginFailures = false;
+        public ArrayList conversations = new ArrayList(1024);  // pre-size to moderate starting amount - The DC may have few or many conversations
+    }
+
     public class ResetConnectionData
     {
         public string clientIP = null;

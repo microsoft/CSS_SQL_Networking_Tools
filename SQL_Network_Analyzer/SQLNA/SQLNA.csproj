@@ -89,6 +89,7 @@
     <Compile Include="CommandLineParser.cs" />
     <Compile Include="ConversationData.cs" />
     <Compile Include="DNS.cs" />
+    <Compile Include="DomainControllerParser.cs" />
     <Compile Include="ETLFileReader.cs" />
     <Compile Include="FrameData.cs" />
     <Compile Include="Kerberos.cs" />

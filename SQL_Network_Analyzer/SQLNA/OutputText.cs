@@ -26,6 +26,7 @@ namespace SQLNA
             if (Program.outputConversationList) DisplaySucessfullLoginReport(Trace);  // optional section; must be explicitly requested
             DisplayResetConnections(Trace);
             DisplayLoginErrors(Trace);
+            DisplayDomainControllerLoginErrors(Trace);
             DisplayAttentions(Trace);
             DisplayTLSIssues(Trace);
             DisplayRedirectedConnections(Trace);
@@ -791,6 +792,176 @@ namespace SQLNA
             if (hasError == false)
             {
                 Program.logMessage("No login timeouts were found.");
+                Program.logMessage();
+            }
+        }
+
+        private static void DisplayDomainControllerLoginErrors(NetworkTrace Trace)
+        {
+            bool hasError = false;
+            long firstTick = 0;
+            long lastTick = 0;
+
+            if (Trace.frames != null && Trace.frames.Count > 0)
+            {
+                firstTick = ((FrameData)Trace.frames[0]).ticks;
+                lastTick = ((FrameData)Trace.frames[Trace.frames.Count - 1]).ticks;
+            }
+
+            foreach (DomainController d in Trace.DomainControllers)
+            {
+                d.hasLoginFailures = false;
+
+                List<FailedConnectionData> TimeoutRecords = new List<FailedConnectionData>();
+
+                // initialize graph object
+                TextGraph g = new TextGraph();
+                g.startTime = new DateTime(firstTick);
+                g.endTime = new DateTime(lastTick);
+                g.SetGraphWidth(150);
+                g.fAbsoluteScale = true;
+                g.SetCutoffValues(1, 3, 9, 27, 81);
+
+                string dcIP = (d.isIPV6) ? utility.FormatIPV6Address(d.IPHi, d.IPLo) : utility.FormatIPV4Address(d.IP);
+
+                foreach (ConversationData c in d.conversations)
+                {
+                    if (c.isUDP == false)  // only check TCP conversations
+                    {
+                        bool hasLoginFailure = false;
+                        // failure = all frames are SYN packets and no ACK+SYN 
+                        if (c.synCount == c.frames.Count && c.ackCount == 0) hasLoginFailure = true;
+                        // push flags, fin flags indicate success
+                        //if (c.pushCount > 0 || c.finCount > 0) hasLoginFailures = false;
+
+                        if (hasLoginFailure)
+                        {
+                            d.hasLoginFailures = true;
+                            hasError = true;
+
+                            FailedConnectionData td = new FailedConnectionData();
+
+                            td.clientIP = (c.isIPV6) ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP);
+                            td.sourcePort = c.sourcePort;
+                            td.isIPV6 = c.isIPV6;
+                            td.lastFrame = ((FrameData)c.frames[c.frames.Count - 1]).frameNo;
+                            td.firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
+                            td.lastFile = Trace.files.IndexOf(((FrameData)(c.frames[c.frames.Count - 1])).file);
+                            td.endTicks = ((FrameData)c.frames[c.frames.Count - 1]).ticks;
+                            td.startOffset = ((FrameData)c.frames[0]).ticks - firstTick;
+                            td.endOffset = td.endTicks - firstTick;
+                            td.duration = td.endOffset - td.startOffset;
+                            td.frames = c.frames.Count;
+
+                            TimeoutRecords.Add(td);
+
+                            g.AddData(new DateTime(td.endTicks), 1.0); // for graphing
+                        }
+                    }
+                }
+
+                if (d.hasLoginFailures)
+                {
+
+                    Program.logMessage("The following conversations with Domain Controller " + ((d.isIPV6) ? utility.FormatIPV6Address(d.IPHi, d.IPLo) : utility.FormatIPV4Address(d.IP)) + " failed to connect:\r\n");
+                    ReportFormatter rf = new ReportFormatter();
+
+                    switch (Program.filterFormat)
+                    {
+                        case "N":
+                            {
+                                rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R");
+                                break;
+                            }
+                        case "W":
+                            {
+                                rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R");
+                                break;
+                            }
+                        default:
+                            {
+                                rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R");
+                                break;
+                            }
+                    }
+
+                    var OrderedRows = from row in TimeoutRecords orderby row.endOffset ascending select row;
+
+                    foreach (var row in OrderedRows)
+                    {
+                        switch (Program.filterFormat)
+                        {
+                            case "N":  // list client IP and port as a NETMON filter string
+                                {
+                                    rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                                     (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                     row.lastFrame.ToString(),
+                                                     (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                     (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                     new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                     row.frames.ToString(),
+                                                     (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"));
+                                    break;
+                                }
+                            case "W":  // list client IP and port as a WireShark filter string
+                                {
+                                    rf.SetcolumnData((row.isIPV6 ? "ipv6" : "ip") + ".addr==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
+                                                     (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                     row.lastFrame.ToString(),
+                                                     (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                     (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                     new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                     row.frames.ToString(),
+                                                     (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"));
+                                    break;
+                                }
+                            default:  // list client IP and port as separate columns
+                                {
+                                    rf.SetcolumnData(row.clientIP,
+                                                     row.sourcePort.ToString(),
+                                                     (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                     row.lastFrame.ToString(),
+                                                     (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                     (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                     new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                     row.frames.ToString(),
+                                                     (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"));
+                                    break;
+                                }
+                        }
+                    }
+
+                    Program.logMessage(rf.GetHeaderText());
+                    Program.logMessage(rf.GetSeparatorText());
+
+                    for (int i = 0; i < rf.GetRowCount(); i++)
+                    {
+                        Program.logMessage(rf.GetDataText(i));
+                    }
+
+                    Program.logMessage();
+
+                    //
+                    // Display graph
+                    //
+
+                    Program.logMessage("    Distribution of failed Domain Controller connections.");
+                    Program.logMessage();
+                    g.ProcessData();
+                    Program.logMessage("    " + g.GetLine(0));
+                    Program.logMessage("    " + g.GetLine(1));
+                    Program.logMessage("    " + g.GetLine(2));
+                    Program.logMessage("    " + g.GetLine(3));
+                    Program.logMessage("    " + g.GetLine(4));
+                    Program.logMessage("    " + g.GetLine(5));
+
+                    Program.logMessage();
+                }
+            }
+
+            if (hasError == false)
+            {
+                Program.logMessage("No Domain Controller connection failures were found.");
                 Program.logMessage();
             }
         }
