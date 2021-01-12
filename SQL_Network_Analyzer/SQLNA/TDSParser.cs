@@ -748,6 +748,7 @@ namespace SQLNA
             if (major == 3 && minor == 1) return "TLS 1.0";
             if (major == 3 && minor == 2) return "TLS 1.1";
             if (major == 3 && minor == 3) return "TLS 1.2";
+            if (major == 3 && minor == 4) return "TLS 1.3";  // appears in a different token in the ClientHello packet
             return $"SSL {major}.{minor}";
         }
 

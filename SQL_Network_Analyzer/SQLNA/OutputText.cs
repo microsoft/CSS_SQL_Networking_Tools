@@ -23,6 +23,7 @@ namespace SQLNA
             DisplayFileStatistics(Trace);
             DisplayTrafficStatistics(Trace);
             DisplaySQLServerSummary(Trace);
+            DisplayDomainControllerSummary(Trace);
             if (Program.outputConversationList) DisplaySucessfullLoginReport(Trace);  // optional section; must be explicitly requested
             DisplayResetConnections(Trace);
             DisplayLoginErrors(Trace);
@@ -265,6 +266,79 @@ namespace SQLNA
             else // no SQL Servers found
             {
                 Program.logMessage("There were no SQL Servers found in the network trace.");
+            }
+
+            Program.logMessage();
+        }
+
+        private static void DisplayDomainControllerSummary(NetworkTrace Trace)
+        {
+            if (Trace.DomainControllers != null && Trace.DomainControllers.Count > 0)
+            {
+                Program.logMessage("The following Domain Controllers were visible in the network trace:\r\n");
+
+                ReportFormatter rf = new ReportFormatter();
+                rf.SetColumnNames("IP Address:L",
+                                   "Files:R",
+                                   "Clients:R",
+                                   "Conversations:R",
+                                   "Kerb Conv:R",
+                                   "DNS Conv:R",
+                                   "LDAP Conv:R",
+                                   "MSRPC Conv:R",
+                                   "MSRPC Port:R",
+                                   "Frames:R",
+                                   "Bytes:R");
+
+                foreach (DomainController d in Trace.DomainControllers)
+                {
+                    ulong totalBytes = 0;
+                    int totalFrames = 0;
+                    ArrayList clientIPs = new ArrayList();
+                    string IPAddress = null;  // client IP address
+                    string IP = (d.isIPV6) ? utility.FormatIPV6Address(d.IPHi, d.IPLo) : utility.FormatIPV4Address(d.IP);
+                    int firstFile = 0;
+                    if (d.conversations.Count > 0) firstFile = Trace.files.IndexOf(((FrameData)(((ConversationData)d.conversations[0]).frames[0])).file);
+                    int lastFile = 0;
+
+                    foreach (ConversationData c in d.conversations)
+                    {
+                        totalBytes += c.totalBytes;
+                        totalFrames += c.frames.Count;
+                        if (c.isIPV6)
+                            IPAddress = utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo);
+                        else
+                            IPAddress = utility.FormatIPV4Address(c.sourceIP);
+                        if (clientIPs.IndexOf(IPAddress) == -1) clientIPs.Add(IPAddress);
+                        int lastConvFile = Trace.files.IndexOf(((FrameData)(c.frames[c.frames.Count - 1])).file);
+                        if (lastConvFile > lastFile) lastFile = lastConvFile;  // the last conversation may not end last, so we have to check
+                    }
+
+                    rf.SetcolumnData(IP,
+                         (d.conversations.Count == 0 ? "NO TRAFFIC" : ((firstFile == lastFile) ? firstFile.ToString() : firstFile + "-" + lastFile)),
+                         clientIPs.Count.ToString(),
+                         d.conversations.Count.ToString(),
+                         d.KerbPort88Count.ToString(),
+                         d.DNSPort53Count.ToString(),
+                         d.LDAPPort389Count.ToString(),
+                         d.MSRPCPortCount.ToString(),
+                         (d.hasMultipleMSRPCPorts ? "Multiple" : (d.MSRPCPort == 0 ? "None" : d.MSRPCPort.ToString())),
+                         totalFrames.ToString(),
+                         totalBytes.ToString("#,##0"));
+                }
+
+                Program.logMessage(rf.GetHeaderText());
+                Program.logMessage(rf.GetSeparatorText());
+
+                for (int i = 0; i < rf.GetRowCount(); i++)
+                {
+                    Program.logMessage(rf.GetDataText(i));
+                }
+
+            }
+            else // no Domain Controllers found
+            {
+                Program.logMessage("There were no Domain Controllers found in the network trace.");
             }
 
             Program.logMessage();
@@ -843,6 +917,7 @@ namespace SQLNA
 
                             td.clientIP = (c.isIPV6) ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP);
                             td.sourcePort = c.sourcePort;
+                            td.destPort = c.destPort;
                             td.isIPV6 = c.isIPV6;
                             td.lastFrame = ((FrameData)c.frames[c.frames.Count - 1]).frameNo;
                             td.firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
@@ -870,17 +945,17 @@ namespace SQLNA
                     {
                         case "N":
                             {
-                                rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R");
+                                rf.SetColumnNames("DC port:R", "NETMON Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R");
                                 break;
                             }
                         case "W":
                             {
-                                rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R");
+                                rf.SetColumnNames("DC port:R", "WireShark Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R");
                                 break;
                             }
                         default:
                             {
-                                rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R");
+                                rf.SetColumnNames("DC port:R", "Client Address:L", "Port:R", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R");
                                 break;
                             }
                     }
@@ -893,7 +968,8 @@ namespace SQLNA
                         {
                             case "N":  // list client IP and port as a NETMON filter string
                                 {
-                                    rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                    rf.SetcolumnData(row.destPort.ToString(),
+                                                     (row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
                                                      (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
                                                      row.lastFrame.ToString(),
                                                      (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -905,7 +981,8 @@ namespace SQLNA
                                 }
                             case "W":  // list client IP and port as a WireShark filter string
                                 {
-                                    rf.SetcolumnData((row.isIPV6 ? "ipv6" : "ip") + ".addr==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
+                                    rf.SetcolumnData(row.destPort.ToString(),
+                                                     (row.isIPV6 ? "ipv6" : "ip") + ".addr==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
                                                      (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
                                                      row.lastFrame.ToString(),
                                                      (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -917,7 +994,8 @@ namespace SQLNA
                                 }
                             default:  // list client IP and port as separate columns
                                 {
-                                    rf.SetcolumnData(row.clientIP,
+                                    rf.SetcolumnData(row.destPort.ToString(), 
+                                                     row.clientIP,
                                                      row.sourcePort.ToString(),
                                                      (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
                                                      row.lastFrame.ToString(),

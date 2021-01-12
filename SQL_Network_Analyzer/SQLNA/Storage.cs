@@ -107,11 +107,12 @@ namespace SQLNA
         public ulong IPLo = 0;
         public ushort MSRPCPort = 0;
         public bool isIPV6 = false;
-        public bool hasKerbPort88 = false;
-        public bool hasDNSPort53 = false;
-        public bool hasLDAPPort389 = false;
-        public bool hasMSRPCPort = false;
+        public int KerbPort88Count = 0;
+        public int DNSPort53Count = 0;
+        public int LDAPPort389Count = 0;
+        public int MSRPCPortCount = 0;
         public bool hasLoginFailures = false;
+        public bool hasMultipleMSRPCPorts = false;
         public ArrayList conversations = new ArrayList(1024);  // pre-size to moderate starting amount - The DC may have few or many conversations
     }
 
@@ -138,6 +139,7 @@ namespace SQLNA
     {
         public string clientIP = null;
         public ushort sourcePort = 0;
+        public ushort destPort = 0;
         public bool isIPV6 = false;
         public int frames = 0;
         public uint lastFrame = 0;
