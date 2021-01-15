@@ -1579,7 +1579,7 @@ namespace SQLNA
 
                 ReportFormatter rf = new ReportFormatter();
                 rf.SetColumnNames("Client Address:L",
-                                  "Rquested Name:L",
+                                  "Requested Name:L",
                                   "Error Message:L",
                                   "DateTime:L", 
                                   "File#:R", 
@@ -1655,7 +1655,7 @@ namespace SQLNA
 
             if (RequestsWithNoResponse > 0)
             {
-                Program.logMessage("There were " + RequestsWithNoResponse + " Kerberos TGS requests that were not responed to. They may have happened after the trace ended.");
+                Program.logMessage("There were " + RequestsWithNoResponse + " Kerberos TGS requests that were not responded to. They may have happened after the trace ended.");
                 Program.logMessage();
             }
 
