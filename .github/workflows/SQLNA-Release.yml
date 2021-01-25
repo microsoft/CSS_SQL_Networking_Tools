@@ -18,9 +18,9 @@ jobs:
         run: mkdir _build
       - name: Build It
         working-directory: ${{env.GITHUB_WORKSPACE}}
-        run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} ${{env.SOLUTION_FILE_PATH}} /p:RunCodeAnalysis=False /p:DeleteExistingFiles=True /p:PublishUrl="../_build"
+        run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} ${{env.SOLUTION_FILE_PATH}} /p:RunCodeAnalysis=False /p:DeleteExistingFiles=True /p:PublishUrl="..\_build"
       - name: Upload Artifact
         uses: actions/upload-artifact@v1.0.0
         with:
           name: SQLNA.EXE
-          path: "./_build"
+          path: ".\_build"
