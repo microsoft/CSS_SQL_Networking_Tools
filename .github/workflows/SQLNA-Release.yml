@@ -23,4 +23,4 @@ jobs:
         uses: actions/upload-artifact@v1.0.0
         with:
           name: SQLNA.EXE
-          path: ".\_build"
+          path: "build"
