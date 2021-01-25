@@ -14,8 +14,6 @@ jobs:
           fetch-depth: 0
       - name: Add MSBuild to PATH
         uses: microsoft/setup-msbuild@v1
-      - name: Create Build Directory
-        run: mkdir _build
       - name: Build It
         working-directory: ${{env.GITHUB_WORKSPACE}}
         run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} ${{env.SOLUTION_FILE_PATH}} /p:RunCodeAnalysis=False /p:DeleteExistingFiles=True
@@ -23,4 +21,4 @@ jobs:
         uses: actions/upload-artifact@v1.0.0
         with:
           name: SQLNA.EXE
-          path: "SQLNA\\bin\\Debug"
+          path: "SQL_Network_Analyzer\\SQLNA\\bin\\Debug"
