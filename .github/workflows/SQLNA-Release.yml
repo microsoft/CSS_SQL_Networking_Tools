@@ -29,6 +29,6 @@ jobs:
           GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
         with:
           upload_url: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/1.5.1683.0
-          asset_path: ./SQL_Network_Analyzer/SQLNA/bin/Debug/SQLNA.EXE
+          asset_path: ./SQL_Network_Analyzer/SQLNA/bin/Debug/SQLNA.exe
           asset_name: SQLNA.EXE
           asset_content_type: application/octet-stream
