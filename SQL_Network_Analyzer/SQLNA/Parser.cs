@@ -863,12 +863,12 @@ namespace SQLNA
                 //
                 // Determine whether the TCP client port has rolled around and this should be a new conversation
                 //
-                // The rule is if we see a SYN packet, then if there is a RESET or FIN packet already in the conversation, and is it older than 20 seconds. If so, then new conversation.
+                // The rule is if we see a SYN packet, then if there is a RESET or FIN packet already in the conversation, and is it older than 10 seconds. If so, then new conversation.
                 //
                 if (NextProtocol == 6) // TCP
                 {
                     f.flags = b[offset + HeaderLength + 13];
-                    if ((f.flags & (byte)TCPFlag.SYN) != 0 && (c.finCount > 0 || (c.resetCount > 0) && (f.ticks - ((FrameData)(c.frames[c.frames.Count - 1])).ticks) > 20 * utility.TICKS_PER_SECOND))
+                    if ((f.flags & (byte)TCPFlag.SYN) != 0 && (c.finCount > 0 || (c.resetCount > 0) && (f.ticks - ((FrameData)(c.frames[c.frames.Count - 1])).ticks) > 10 * utility.TICKS_PER_SECOND))
                     {
                         ConversationData cOld = c;
                         c = new ConversationData();
@@ -991,12 +991,12 @@ namespace SQLNA
                 //
                 // Determine whether the TCP client port has rolled around and this should be a new conversation
                 //
-                // The rule is if we see a SYN packet, then is there a RESET or FIN packet already in the conversation, and is it older than 20 seconds. If so, then new conversation.
+                // The rule is if we see a SYN packet, then is there a RESET or FIN packet already in the conversation, and is it older than 10 seconds. If so, then new conversation.
                 //
                 if (NextProtocol == 6) // TCP
                 {
                     f.flags = b[offset + HeaderLength + 13];
-                    if ((f.flags & (byte)TCPFlag.SYN) != 0 && (c.finCount > 0 || (c.resetCount > 0) && (f.ticks - ((FrameData)(c.frames[c.frames.Count - 1])).ticks) > 20 * utility.TICKS_PER_SECOND))
+                    if ((f.flags & (byte)TCPFlag.SYN) != 0 && (c.finCount > 0 || (c.resetCount > 0) && (f.ticks - ((FrameData)(c.frames[c.frames.Count - 1])).ticks) > 10 * utility.TICKS_PER_SECOND))
                     {
                         ConversationData cOld = c;
                         c = new ConversationData();
