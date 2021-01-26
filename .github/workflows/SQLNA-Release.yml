@@ -16,4 +16,19 @@ jobs:
         uses: microsoft/setup-msbuild@v1
       - name: Build It
         working-directory: ${{env.GITHUB_WORKSPACE}}
-        run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} ${{env.SOLUTION_FILE_PATH}}
+        run: msbuild /m /p:Configuration=${{env.BUILD_CONFIGURATION}} ${{env.SOLUTION_FILE_PATH}} /p:RunCodeAnalysis=False /p:DeleteExistingFiles=True
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v1.0.0
+        with:
+          name: SQLNA.EXE
+          path: "SQL_Network_Analyzer\\SQLNA\\bin\\Debug"
+      - name: Upload Release Asset
+        id: upload-release-asset 
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{secrets.GITHUB_TOKEN}}
+        with:
+          upload_url: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/releases/download/1.5.1683.0
+          asset_path: ./SQL_Network_Analyzer/SQLNA/bin/Debug/SQLNA.exe
+          asset_name: SQLNA.EXE
+          asset_content_type: application/octet-stream
