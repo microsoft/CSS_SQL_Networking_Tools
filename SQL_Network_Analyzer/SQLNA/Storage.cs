@@ -152,6 +152,7 @@ namespace SQLNA
         public long duration = 0;
         public string loginProgress = null;
         public uint keepAliveCount = 0;
+        public bool hasDiffieHellman = false;
         public bool hasNullNTLMCreds = false;
         public bool LateLoginAck = false;
         public uint Error;

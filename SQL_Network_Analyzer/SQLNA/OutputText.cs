@@ -548,7 +548,7 @@ namespace SQLNA
                     else // if (ResetRecords.Count > 0)
                     {
                         // all reset records were due to MARS connections
-                        Program.logMessage($"All {ignoredMARSConnections} reset connections were due to the MARS connections MARS connection closing sequence and were benign.");
+                        Program.logMessage($"All {ignoredMARSConnections} reset connections were due to the MARS connection closing sequence and were benign.");
                         Program.logMessage();
                     }
                     
@@ -737,6 +737,7 @@ namespace SQLNA
                             td.loginProgress = c.loginFlags;
                             td.rawRetransmits = c.rawRetransmits;
                             td.keepAliveCount = c.keepAliveCount;
+                            td.hasDiffieHellman = c.hasDiffieHellman;
                             td.hasNullNTLMCreds = c.hasNullNTLMCreds;
                             td.LateLoginAck = c.hasLateLoginAck;
                             td.Error = c.Error;
@@ -756,17 +757,17 @@ namespace SQLNA
                     {
                         case "N":
                             {
-                                rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Login Progress:L", "Keep-Alives:R", "Retransmits:R", "NullCreds:R", "LoginAck:L", "Error:L");
+                                rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Login Progress:L", "Keep-Alives:R", "Retransmits:R", "DHE:R", "NullCreds:R", "LoginAck:L", "Error:L");
                                 break;
                             }
                         case "W":
                             {
-                                rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Login Progress:L", "Keep-Alives:R", "Retransmits:R", "NullCreds:R", "LoginAck:L", "Error:L");
+                                rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Login Progress:L", "Keep-Alives:R", "Retransmits:R", "DHE:R", "NullCreds:R", "LoginAck:L", "Error:L");
                                 break;
                             }
                         default:
                             {
-                                rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Login Progress:L", "Keep-Alives:R", "Retransmits:R", "NullCreds:R", "LoginAck:L", "Error:L");
+                                rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Login Progress:L", "Keep-Alives:R", "Retransmits:R", "NullCreds:R", "DHE:R", "LoginAck:L", "Error:L");
                                 break;
                             }
                     }
@@ -790,6 +791,7 @@ namespace SQLNA
                                                      row.loginProgress,
                                                      row.keepAliveCount.ToString(),
                                                      row.rawRetransmits.ToString(),
+                                                     row.hasDiffieHellman ? "Yes" : "",
                                                      row.hasNullNTLMCreds ? "Yes" : "",
                                                      row.LateLoginAck ? "Late" : "",
                                                      row.Error == 0 ? "" : $"Error {row.Error}, State {row.ErrorState}: {row.ErrorMsg}");
@@ -808,6 +810,7 @@ namespace SQLNA
                                                      row.loginProgress,
                                                      row.keepAliveCount.ToString(),
                                                      row.rawRetransmits.ToString(),
+                                                     row.hasDiffieHellman ? "Yes" : "",
                                                      row.hasNullNTLMCreds ? "Yes" : "",
                                                      row.LateLoginAck ? "Late" : "",
                                                      row.Error == 0 ? "" : $"Error {row.Error}, State {row.ErrorState}: {row.ErrorMsg}");
@@ -827,6 +830,7 @@ namespace SQLNA
                                                      row.loginProgress,
                                                      row.keepAliveCount.ToString(),
                                                      row.rawRetransmits.ToString(),
+                                                     row.hasDiffieHellman ? "Yes" : "",
                                                      row.hasNullNTLMCreds ? "Yes" : "",
                                                      row.LateLoginAck ? "Late" : "",
                                                      row.Error == 0 ? "" : $"Error {row.Error}, State {row.ErrorState}: {row.ErrorMsg}");

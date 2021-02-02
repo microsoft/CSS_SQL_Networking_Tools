@@ -48,6 +48,7 @@ namespace SQLNA
         public bool hasNullNTLMCreds = false;       //   - set in ProcessTDS
         public bool hasIntegratedSecurity = false;  //   - set in ProcessTDS
         public bool hasPostLoginResponse = false;   //   - set in ProcessTDS   - this contains the ENVCHANGE token - login was a success
+        public bool hasDiffieHellman = false;       //   - set in ProcessTDS
         public int SPID = 0;
         public string clientVersion = null;         //   - set in GetClientPreloginInfo
         public string serverVersion = null;         //   - set in ProcessTDS

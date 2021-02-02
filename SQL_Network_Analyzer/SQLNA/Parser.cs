@@ -18,7 +18,7 @@ namespace SQLNA
     //     Selects the appropriate file parser
     //     Gets the timestamp of the first frame
     // Sorts timestamps and opens the files in timestamp order regardless of filename
-    // Selects the appropriate file parser and reads each fram
+    // Selects the appropriate file parser and reads each frame
     // If the frame type is Ethernet, parses the frame
     // If the address type is IPV4 or IPV6, parses it, and reads any shim protocols
     // If the protocol type is TCP or UDP, parses it

@@ -134,24 +134,31 @@ namespace SQLNA
 
                     switch (tdsPayLoad[i])
                     {
-                        case 0: // Client TDS Version - getting this from LoginACK, now
-                            //majorVersion = utility.ReadUInt16(tdsPayLoad, 8 + offset);
-                            //minorVersion = utility.B2UInt16(tdsPayLoad, 8 + offset + 2);
-                            //levelVersion = utility.B2UInt16(tdsPayLoad, 8 + offset + 4);
-                            //conv.serverVersion = majorVersion.ToString() + "." + minorVersion.ToString() + "." + levelVersion.ToString();
-                            //break;
+                        case 0:
+                            {
+                                // Client TDS Version - getting this from LoginACK, now - obsolete code path
+                                //majorVersion = utility.ReadUInt16(tdsPayLoad, 8 + offset);
+                                //minorVersion = utility.B2UInt16(tdsPayLoad, 8 + offset + 2);
+                                //levelVersion = utility.B2UInt16(tdsPayLoad, 8 + offset + 4);
+                                //conv.serverVersion = majorVersion.ToString() + "." + minorVersion.ToString() + "." + levelVersion.ToString();
+                                break;
+                            }
                         case 1: // encyption options. 
-                            byte encrypt = tdsPayLoad[8 + offset];
-                            conv.isEncrypted = (encrypt == 1 || encrypt == 3) ? true : false;  // if the server says YES or NO, then that's that
-                            break;
+                            {
+                                byte encrypt = tdsPayLoad[8 + offset];
+                                conv.isEncrypted = (encrypt == 1 || encrypt == 3) ? true : false;  // if the server says YES or NO, then that's that
+                                break;
+                            }
                         case 2:  // we don't care
                         case 3:  // we don't care
                             {
                                 break;
                             }
                         case 4:
-                            conv.isMARSEnabled = (tdsPayLoad[8 + offset] == 1) ? true : false;  // if the server says YES or NO, then that's that
-                            break;
+                            {
+                                conv.isMARSEnabled = (tdsPayLoad[8 + offset] == 1) ? true : false;  // if the server says YES or NO, then that's that
+                                break;
+                            }
                         default:
                             break;
                     }
@@ -298,10 +305,21 @@ namespace SQLNA
                                         }
                                         else if (handshakeType == 2) // Server Hello -- do we sometimes hit here, or is it just in the TDS RESPONSE version of this logic
                                         {
-                                            Program.logDiagnostic($"TDS:Prelogin Server Hello packet seen at frame {fd.frameNo}.");
+                                            //Program.logDiagnostic($"TDS:Prelogin Server Hello packet seen at frame {fd.frameNo}.");
                                             c.hasServerSSL = true;
-                                            c.tlsVersionServer = translateSSLVersion(sslMajorVersion, sslMinorVersion);
+                                            c.tlsVersionServer = translateSSLVersion(sslMajorVersion, sslMinorVersion);                                       
                                             if (sslMajorVersion != 3 || sslMinorVersion != 3) c.hasLowTLSVersion = true;  // mark anything other than TLS 1.2
+                                            byte skipLength = fd.payload[13 + 3 + 2 + 4 + 28 + 1];
+                                            byte cipherHi = fd.payload[13 + 3 + 2 + 4 + 28 + 1 + skipLength + 1];
+                                            byte cipherLo = fd.payload[13 + 3 + 2 + 4 + 28 + 1 + skipLength + 2];
+                                            if (sslMajorVersion == 3 && sslMinorVersion == 0)  // SSL 3.0
+                                            {
+                                                if (translateSsl3CipherSuite(cipherHi, cipherLo).StartsWith("SSL_DHE")) c.hasDiffieHellman = true;
+                                            }
+                                            else if (sslMajorVersion == 3 && sslMinorVersion < 4)  // TLS 1.0, 1.1, 1.2  (Maj.Min = 3.1, 3.2, 3.3)
+                                            {
+                                                if (translateTlsCipherSuite(cipherHi, cipherLo).StartsWith("TLS_DHE")) c.hasDiffieHellman = true;
+                                            }
                                             if (fd.isFromClient)
                                                 tdsServerSource++;   // looks like SQL is on the sourceIP side - need to switch later
                                             else
@@ -418,7 +436,7 @@ namespace SQLNA
                                     // process error responses
                                     if (fd.payload[8] == (byte)TDSTokenType.ERROR)
                                     {
-                                        c.Error = utility.ReadUInt32(fd.payload,11);
+                                        c.Error = utility.ReadUInt32(fd.payload, 11);
                                         c.ErrorState = fd.payload[15];
                                         int ErrorLen = (int)fd.payload[17];
                                         c.ErrorMsg = utility.ReadUnicodeString(fd.payload, 19, ErrorLen);
@@ -442,6 +460,17 @@ namespace SQLNA
                                             c.hasServerSSL = true;
                                             c.tlsVersionServer = translateSSLVersion(sslMajorVersion, sslMinorVersion);
                                             if (sslMajorVersion != 3 || sslMinorVersion != 3) c.hasLowTLSVersion = true;  // mark anything other than TLS 1.2
+                                            byte skipLength = fd.payload[13 + 3 + 2 + 4 + 28 + 1];
+                                            byte cipherHi = fd.payload[13 + 3 + 2 + 4 + 28 + 1 + skipLength + 1];
+                                            byte cipherLo = fd.payload[13 + 3 + 2 + 4 + 28 + 1 + skipLength + 2];
+                                            if (sslMajorVersion == 3 && sslMinorVersion == 0)  // SSL 3.0
+                                            {
+                                                if (translateSsl3CipherSuite(cipherHi, cipherLo).StartsWith("SSL_DHE")) c.hasDiffieHellman = true;
+                                            }
+                                            else if (sslMajorVersion == 3 && sslMinorVersion < 4)  // TLS 1.0, 1.1, 1.2  (Maj.Min = 3.1, 3.2, 3.3)
+                                            {
+                                                if (translateTlsCipherSuite(cipherHi, cipherLo).StartsWith("TLS_DHE")) c.hasDiffieHellman = true;
+                                            }
                                             if (fd.isFromClient)
                                                 tdsServerSource++;   // looks like SQL is on the sourceIP side - need to switch later
                                             else
@@ -449,10 +478,10 @@ namespace SQLNA
                                         }
                                     }
                                     else if ((fd.payloadLength > 19) &&
-                                                (fd.payload[8] == (byte)TDSTokenType.SSPI) &&                    // NTLM Challenge message
+                                                (fd.payload[8] == (byte)TDSTokenType.SSPI) &&                     // NTLM Challenge message
                                                 (utility.ReadAnsiString(fd.payload, 11, 7) == "NTLMSSP") &&       // NTLM signature
-                                                (fd.payload[18] == 0) &&                                         // null terminated
-                                                (fd.payload[19] == 2))                                           // type = Challenge Message
+                                                (fd.payload[18] == 0) &&                                          // null terminated
+                                                (fd.payload[19] == 2))                                      // type = Challenge Message
                                     {
                                         c.hasNTLMChallenge = true;
                                         if (fd.isFromClient == false && c.hasApplicationData == false && c.hasPostLoginResponse == false) switchClientServer++;
@@ -500,7 +529,7 @@ namespace SQLNA
                                                 offset = tokenOffset(fd.payload, (byte)TDSTokenType.ENVCHANGE, offset + tokenLength + 3);
                                             }
                                         }
-                                        catch (IndexOutOfRangeException ex)
+                                        catch (IndexOutOfRangeException)
                                         {
                                             Program.logDiagnostic("Index out of range exception in file " + trace.files.IndexOf(fd.file) + ", frame " + fd.frameNo + " parsing LoginAck token.");
                                             if (tdsEOM && tdsLength > fd.payloadLength) // truncated packet
@@ -530,7 +559,7 @@ namespace SQLNA
                                 }
                         } // end switch
                     } // end try
-                    catch (IndexOutOfRangeException ex)
+                    catch (IndexOutOfRangeException)
                     {
                         Program.logDiagnostic("Index out of range exception in file " + trace.files.IndexOf(fd.file) + ", frame " + fd.frameNo + ".");
                     }
@@ -752,5 +781,258 @@ namespace SQLNA
             return $"SSL {major}.{minor}";
         }
 
+        public static string translateSsl3CipherSuite(byte cipherHi, byte cipherLo)
+        {
+            int code = (int)cipherHi * 256 + cipherLo;
+            switch (code)
+            {
+                case 0x0000: return "SSL_NULL_WITH_NULL_NULL               { 0x00, 0x00 }";
+                case 0x0001: return "SSL_RSA_WITH_NULL_MD5                 { 0x00, 0x01 }";
+                case 0x0002: return "SSL_RSA_WITH_NULL_SHA                 { 0x00, 0x02 }";
+                case 0x0003: return "SSL_RSA_EXPORT_WITH_RC4_40_MD5        { 0x00, 0x03 }";
+                case 0x0004: return "SSL_RSA_WITH_RC4_128_MD5              { 0x00, 0x04 }";
+                case 0x0005: return "SSL_RSA_WITH_RC4_128_SHA              { 0x00, 0x05 }";
+                case 0x0006: return "SSL_RSA_EXPORT_WITH_RC2_CBC_40_MD5    { 0x00, 0x06 }";
+                case 0x0007: return "SSL_RSA_WITH_IDEA_CBC_SHA             { 0x00, 0x07 }";
+                case 0x0008: return "SSL_RSA_EXPORT_WITH_DES40_CBC_SHA     { 0x00, 0x08 }";
+                case 0x0009: return "SSL_RSA_WITH_DES_CBC_SHA              { 0x00, 0x09 }";
+                case 0x000A: return "SSL_RSA_WITH_3DES_EDE_CBC_SHA         { 0x00, 0x0A }";
+                case 0x000B: return "SSL_DH_DSS_EXPORT_WITH_DES40_CBC_SHA  { 0x00, 0x0B }";
+                case 0x000C: return "SSL_DH_DSS_WITH_DES_CBC_SHA           { 0x00, 0x0C }";
+                case 0x000D: return "SSL_DH_DSS_WITH_3DES_EDE_CBC_SHA      { 0x00, 0x0D }";
+                case 0x000E: return "SSL_DH_RSA_EXPORT_WITH_DES40_CBC_SHA  { 0x00, 0x0E }";
+                case 0x000F: return "SSL_DH_RSA_WITH_DES_CBC_SHA           { 0x00, 0x0F }";
+                case 0x0010: return "SSL_DH_RSA_WITH_3DES_EDE_CBC_SHA      { 0x00, 0x10 }";
+                case 0x0011: return "SSL_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA { 0x00, 0x11 }";
+                case 0x0012: return "SSL_DHE_DSS_WITH_DES_CBC_SHA          { 0x00, 0x12 }";
+                case 0x0013: return "SSL_DHE_DSS_WITH_3DES_EDE_CBC_SHA     { 0x00, 0x13 }";
+                case 0x0014: return "SSL_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA { 0x00, 0x14 }";
+                case 0x0015: return "SSL_DHE_RSA_WITH_DES_CBC_SHA          { 0x00, 0x15 }";
+                case 0x0016: return "SSL_DHE_RSA_WITH_3DES_EDE_CBC_SHA     { 0x00, 0x16 }";
+                case 0x0017: return "SSL_DH_anon_EXPORT_WITH_RC4_40_MD5    { 0x00, 0x17 }";
+                case 0x0018: return "SSL_DH_anon_WITH_RC4_128_MD5          { 0x00, 0x18 }";
+                case 0x0019: return "SSL_DH_anon_EXPORT_WITH_DES40_CBC_SHA { 0x00, 0x19 }";
+                case 0x001A: return "SSL_DH_anon_WITH_DES_CBC_SHA          { 0x00, 0x1A }";
+                case 0x001B: return "SSL_DH_anon_WITH_3DES_EDE_CBC_SHA     { 0x00, 0x1B }";
+                case 0x001C: return "SSL_FORTEZZA_DMS_WITH_NULL_SHA        { 0X00, 0x1C }";
+                case 0x001D: return "SSL_FORTEZZA_DMS_WITH_FORTEZZA_CBC_SHA{ 0x00, 0x1D }";
+                case 0x001E: return "SSL_FORTEZZA_KEA_WITH_RC4_128_SHA	   { 0x00, 0x1E }";
+                case 0x00FF: return "TLS_EMPTY_RENEGOTIATION_INFO_SCSV     { 0x00, 0xFF }";    //RFC 5746 sec 3.3
+            }
+            // not in list
+            return $"{cipherHi.ToString("X2")} {cipherLo.ToString("X2")}";
+        }
+
+        public static string translateTlsCipherSuite(byte cipherHi, byte cipherLo)
+        {
+            int code = (int)cipherHi * 256 + cipherLo;
+            switch (code)
+            {
+                case 0x0000: return "TLS_NULL_WITH_NULL_NULL                 { 0x00, 0x00 }";
+                case 0x0001: return "TLS_RSA_WITH_NULL_MD5                   { 0x00, 0x01 }";
+                case 0x0002: return "TLS_RSA_WITH_NULL_SHA                   { 0x00, 0x02 }";
+                case 0x0003: return "TLS_RSA_EXPORT_WITH_RC4_40_MD5          { 0x00, 0x03 }";
+                case 0x0004: return "TLS_RSA_WITH_RC4_128_MD5                { 0x00, 0x04 }";
+                case 0x0005: return "TLS_RSA_WITH_RC4_128_SHA                { 0x00, 0x05 }";
+                case 0x0006: return "TLS_RSA_EXPORT_WITH_RC2_CBC_40_MD5      { 0x00, 0x06 }";
+                case 0x0007: return "TLS_RSA_WITH_IDEA_CBC_SHA               { 0x00, 0x07 }";
+                case 0x0008: return "TLS_RSA_EXPORT_WITH_DES40_CBC_SHA       { 0x00, 0x08 }";
+                case 0x0009: return "TLS_RSA_WITH_DES_CBC_SHA                { 0x00, 0x09 }";
+                case 0x000A: return "TLS_RSA_WITH_3DES_EDE_CBC_SHA           { 0x00, 0x0A }";
+                case 0x000B: return "TLS_DH_DSS_EXPORT_WITH_DES40_CBC_SHA    { 0x00, 0x0B }";
+                case 0x000C: return "TLS_DH_DSS_WITH_DES_CBC_SHA             { 0x00, 0x0C }";
+                case 0x000D: return "TLS_DH_DSS_WITH_3DES_EDE_CBC_SHA        { 0x00, 0x0D }";
+                case 0x000E: return "TLS_DH_RSA_EXPORT_WITH_DES40_CBC_SHA    { 0x00, 0x0E }";
+                case 0x000F: return "TLS_DH_RSA_WITH_DES_CBC_SHA             { 0x00, 0x0F }";
+                case 0x0010: return "TLS_DH_RSA_WITH_3DES_EDE_CBC_SHA        { 0x00, 0x10 }";
+                case 0x0011: return "TLS_DHE_DSS_EXPORT_WITH_DES40_CBC_SHA   { 0x00, 0x11 }";
+                case 0x0012: return "TLS_DHE_DSS_WITH_DES_CBC_SHA            { 0x00, 0x12 }";
+                case 0x0013: return "TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA       { 0x00, 0x13 }";
+                case 0x0014: return "TLS_DHE_RSA_EXPORT_WITH_DES40_CBC_SHA   { 0x00, 0x14 }";
+                case 0x0015: return "TLS_DHE_RSA_WITH_DES_CBC_SHA            { 0x00, 0x15 }";
+                case 0x0016: return "TLS_DHE_RSA_WITH_3DES_EDE_CBC_SHA       { 0x00, 0x16 }";
+                case 0x0017: return "TLS_DH_anon_EXPORT_WITH_RC4_40_MD5      { 0x00, 0x17 }";
+                case 0x0018: return "TLS_DH_anon_WITH_RC4_128_MD5            { 0x00, 0x18 }";
+                case 0x0019: return "TLS_DH_anon_EXPORT_WITH_DES40_CBC_SHA   { 0x00, 0x19 }";
+                case 0x001A: return "TLS_DH_anon_WITH_DES_CBC_SHA            { 0x00, 0x1A }";
+                case 0x001B: return "TLS_DH_anon_WITH_3DES_EDE_CBC_SHA       { 0x00, 0x1B }";
+                case 0x001E: return "TLS_KRB5_WITH_DES_CBC_SHA               { 0x00, 0x1E }";
+                case 0x001F: return "TLS_KRB5_WITH_3DES_EDE_CBC_SHA          { 0x00, 0x1F }";
+                case 0x0020: return "TLS_KRB5_WITH_RC4_128_SHA               { 0x00, 0x20 }";
+                case 0x0021: return "TLS_KRB5_WITH_IDEA_CBC_SHA              { 0x00, 0x21 }";
+                case 0x0022: return "TLS_KRB5_WITH_DES_CBC_MD5               { 0x00, 0x22 }";
+                case 0x0023: return "TLS_KRB5_WITH_3DES_EDE_CBC_MD5          { 0x00, 0x23 }";
+                case 0x0024: return "TLS_KRB5_WITH_RC4_128_MD5               { 0x00, 0x24 }";
+                case 0x0025: return "TLS_KRB5_WITH_IDEA_CBC_MD5              { 0x00, 0x25 }";
+                case 0x0026: return "TLS_KRB5_EXPORT_WITH_DES_CBC_40_SHA     { 0x00, 0x26 }";
+                case 0x0027: return "TLS_KRB5_EXPORT_WITH_RC2_CBC_40_SHA     { 0x00, 0x27 }";
+                case 0x0028: return "TLS_KRB5_EXPORT_WITH_RC4_40_SHA         { 0x00, 0x28 }";
+                case 0x0029: return "TLS_KRB5_EXPORT_WITH_DES_CBC_40_MD5     { 0x00, 0x29 }";
+                case 0x002A: return "TLS_KRB5_EXPORT_WITH_RC2_CBC_40_MD5     { 0x00, 0x2A }";
+                case 0x002B: return "TLS_KRB5_EXPORT_WITH_RC4_40_MD5         { 0x00, 0x2B }";
+                case 0x002C: return "TLS_PSK_WITH_NULL_SHA                   { 0x00, 0x2C }";
+                case 0x002D: return "TLS_DHE_PSK_WITH_NULL_SHA               { 0x00, 0x2D }";
+                case 0x002E: return "TLS_RSA_PSK_WITH_NULL_SHA               { 0x00, 0x2E }";
+                case 0x002F: return "TLS_RSA_WITH_AES_128_CBC_SHA            { 0x00, 0x2F }";
+                case 0x0030: return "TLS_DH_DSS_WITH_AES_128_CBC_SHA         { 0x00, 0x30 }";
+                case 0x0031: return "TLS_DH_RSA_WITH_AES_128_CBC_SHA         { 0x00, 0x31 }";
+                case 0x0032: return "TLS_DHE_DSS_WITH_AES_128_CBC_SHA        { 0x00, 0x32 }";
+                case 0x0033: return "TLS_DHE_RSA_WITH_AES_128_CBC_SHA        { 0x00, 0x33 }";
+                case 0x0034: return "TLS_DH_anon_WITH_AES_128_CBC_SHA        { 0x00, 0x34 }";
+                case 0x0035: return "TLS_RSA_WITH_AES_256_CBC_SHA            { 0x00, 0x35 }";
+                case 0x0036: return "TLS_DH_DSS_WITH_AES_256_CBC_SHA         { 0x00, 0x36 }";
+                case 0x0037: return "TLS_DH_RSA_WITH_AES_256_CBC_SHA         { 0x00, 0x37 }";
+                case 0x0038: return "TLS_DHE_DSS_WITH_AES_256_CBC_SHA        { 0x00, 0x38 }";
+                case 0x0039: return "TLS_DHE_RSA_WITH_AES_256_CBC_SHA        { 0x00, 0x39 }";
+                case 0x003A: return "TLS_DH_anon_WITH_AES_256_CBC_SHA        { 0x00, 0x3A }";
+                case 0x003B: return "TLS_RSA_WITH_NULL_SHA256                { 0x00, 0x3B }";
+                case 0x003C: return "TLS_RSA_WITH_AES_128_CBC_SHA256         { 0x00, 0x3C }";
+                case 0x003D: return "TLS_RSA_WITH_AES_256_CBC_SHA256         { 0x00, 0x3D }";
+                case 0x003E: return "TLS_DH_DSS_WITH_AES_128_CBC_SHA256      { 0x00, 0x3E }";
+                case 0x003F: return "TLS_DH_RSA_WITH_AES_128_CBC_SHA256      { 0x00, 0x3F }";
+                case 0x0040: return "TLS_DHE_DSS_WITH_AES_128_CBC_SHA256     { 0x00, 0x40 }";
+                case 0x0041: return "TLS_RSA_WITH_CAMELLIA_128_CBC_SHA       { 0x00, 0x41 }";
+                case 0x0042: return "TLS_DH_DSS_WITH_CAMELLIA_128_CBC_SHA    { 0x00, 0x42 }";
+                case 0x0043: return "TLS_DH_RSA_WITH_CAMELLIA_128_CBC_SHA    { 0x00, 0x43 }";
+                case 0x0044: return "TLS_DHE_DSS_WITH_CAMELLIA_128_CBC_SHA   { 0x00, 0x44 }";
+                case 0x0045: return "TLS_DHE_RSA_WITH_CAMELLIA_128_CBC_SHA   { 0x00, 0x45 }";
+                case 0x0046: return "TLS_DH_anon_WITH_CAMELLIA_128_CBC_SHA   { 0x00, 0x46 }";
+                case 0x0047: return "TLS_RSA_WITH_CAMELLIA_256_CBC_SHA       { 0x00, 0x47 }";
+                case 0x0048: return "TLS_DH_DSS_WITH_CAMELLIA_256_CBC_SHA    { 0x00, 0x48 }";
+                case 0x0049: return "TLS_DH_RSA_WITH_CAMELLIA_256_CBC_SHA    { 0x00, 0x49 }";
+                case 0x004A: return "TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA   { 0x00, 0x4A }";
+                case 0x004B: return "TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA   { 0x00, 0x4B }";
+                case 0x004C: return "TLS_DH_anon_WITH_CAMELLIA_256_CBC_SHA   { 0x00, 0x4C }";
+                case 0x0061: return "TLS_NTRU_NSS_WITH_RC4_128_SHA           { 0x00, 0x61 }";
+                case 0x0062: return "TLS_NTRU_NSS_WITH_3DES_EDE_CBC_SHA      { 0x00, 0x62 }";
+                case 0x0063: return "TLS_NTRU_NSS_WITH_AES_128_CBC_SHA       { 0x00, 0x63 }";
+                case 0x0064: return "TLS_NTRU_NSS_WITH_AES_256_CBC_SHA       { 0x00, 0x64 }";
+                case 0x0065: return "TLS_NTRU_RSA_WITH_RC4_128_SHA           { 0x00, 0x65 }";
+                case 0x0066: return "TLS_NTRU_RSA_WITH_3DES_EDE_CBC_SHA      { 0x00, 0x66 }";
+                case 0x0067: return "TLS_DHE_RSA_WITH_AES_128_CBC_SHA256     { 0x00, 0x67 }";
+                case 0x0068: return "TLS_DH_DSS_WITH_AES_256_CBC_SHA256      { 0x00, 0x68 }";
+                case 0x0069: return "TLS_DH_RSA_WITH_AES_256_CBC_SHA256      { 0x00, 0x69 }";
+                case 0x006A: return "TLS_DHE_DSS_WITH_AES_256_CBC_SHA256     { 0x00, 0x6A }";
+                case 0x006B: return "TLS_DHE_RSA_WITH_AES_256_CBC_SHA256     { 0x00, 0x6B }";
+                case 0x006C: return "TLS_DH_anon_WITH_AES_128_CBC_SHA256     { 0x00, 0x6C }";
+                case 0x006D: return "TLS_DH_anon_WITH_AES_256_CBC_SHA256     { 0x00, 0x6D }";
+                case 0x0084: return "TLS_RSA_WITH_CAMELLIA_256_CBC_SHA       { 0x00, 0x84 }";
+                case 0x0085: return "TLS_DH_DSS_WITH_CAMELLIA_256_CBC_SHA    { 0x00, 0x85 }";
+                case 0x0086: return "TLS_DH_RSA_WITH_CAMELLIA_256_CBC_SHA    { 0x00, 0x86 }";
+                case 0x0087: return "TLS_DHE_DSS_WITH_CAMELLIA_256_CBC_SHA   { 0x00, 0x87 }";
+                case 0x0088: return "TLS_DHE_RSA_WITH_CAMELLIA_256_CBC_SHA   { 0x00, 0x88 }";
+                case 0x0089: return "TLS_DH_anon_WITH_CAMELLIA_256_CBC_SHA   { 0x00, 0x89 }";
+                case 0x008A: return "TLS_PSK_WITH_RC4_128_SHA                { 0x00, 0x8A }";
+                case 0x008B: return "TLS_PSK_WITH_3DES_EDE_CBC_SHA           { 0x00, 0x8B }";
+                case 0x008C: return "TLS_PSK_WITH_AES_128_CBC_SHA            { 0x00, 0x8C }";
+                case 0x008D: return "TLS_PSK_WITH_AES_256_CBC_SHA            { 0x00, 0x8D }";
+                case 0x008E: return "TLS_DHE_PSK_WITH_RC4_128_SHA            { 0x00, 0x8E }";
+                case 0x008F: return "TLS_DHE_PSK_WITH_3DES_EDE_CBC_SHA       { 0x00, 0x8F }";
+                case 0x0090: return "TLS_DHE_PSK_WITH_AES_128_CBC_SHA        { 0x00, 0x90 }";
+                case 0x0091: return "TLS_DHE_PSK_WITH_AES_256_CBC_SHA        { 0x00, 0x91 }";
+                case 0x0092: return "TLS_RSA_PSK_WITH_RC4_128_SHA            { 0x00, 0x92 }";
+                case 0x0093: return "TLS_RSA_PSK_WITH_3DES_EDE_CBC_SHA       { 0x00, 0x93 }";
+                case 0x0094: return "TLS_RSA_PSK_WITH_AES_128_CBC_SHA        { 0x00, 0x94 }";
+                case 0x0095: return "TLS_RSA_PSK_WITH_AES_256_CBC_SHA        { 0x00, 0x95 }";
+                case 0x0096: return "TLS_RSA_WITH_SEED_CBC_SHA               { 0x00, 0x96 }";
+                case 0x0097: return "TLS_DH_DSS_WITH_SEED_CBC_SHA            { 0x00, 0x97 }";
+                case 0x0098: return "TLS_DH_RSA_WITH_SEED_CBC_SHA            { 0x00, 0x98 }";
+                case 0x0099: return "TLS_DHE_DSS_WITH_SEED_CBC_SHA           { 0x00, 0x99 }";
+                case 0x009A: return "TLS_DHE_RSA_WITH_SEED_CBC_SHA           { 0x00, 0x9A }";
+                case 0x009B: return "TLS_DH_anon_WITH_SEED_CBC_SHA           { 0x00, 0x9B }";
+                case 0x009C: return "TLS_RSA_WITH_AES_128_GCM_SHA256         { 0x00, 0x9C }";
+                case 0x009D: return "TLS_RSA_WITH_AES_256_GCM_SHA384         { 0x00, 0x9D }";
+                case 0x009E: return "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256     { 0x00, 0x9E }";
+                case 0x009F: return "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384     { 0x00, 0x9F }";
+                case 0x00A0: return "TLS_DH_RSA_WITH_AES_128_GCM_SHA256      { 0x00, 0xA0 }";
+                case 0x00A1: return "TLS_DH_RSA_WITH_AES_256_GCM_SHA384      { 0x00, 0xA1 }";
+                case 0x00A2: return "TLS_DHE_DSS_WITH_AES_128_GCM_SHA256     { 0x00, 0xA2 }";
+                case 0x00A3: return "TLS_DHE_DSS_WITH_AES_256_GCM_SHA384     { 0x00, 0xA3 }";
+                case 0x00A4: return "TLS_DH_DSS_WITH_AES_128_GCM_SHA256      { 0x00, 0xA4 }";
+                case 0x00A5: return "TLS_DH_DSS_WITH_AES_256_GCM_SHA384      { 0x00, 0xA5 }";
+                case 0x00A6: return "TLS_DH_anon_WITH_AES_128_GCM_SHA256     { 0x00, 0xA6 }";
+                case 0x00A7: return "TLS_DH_anon_WITH_AES_256_GCM_SHA384     { 0x00, 0xA7 }";
+                case 0x00A8: return "TLS_PSK_WITH_AES_128_GCM_SHA256         { 0x00, 0xA8 }";
+                case 0x00A9: return "TLS_PSK_WITH_AES_256_GCM_SHA384         { 0x00, 0xA9 }";
+                case 0x00AA: return "TLS_DHE_PSK_WITH_AES_128_GCM_SHA256     { 0x00, 0xAA }";
+                case 0x00AB: return "TLS_DHE_PSK_WITH_AES_256_GCM_SHA384     { 0x00, 0xAB }";
+                case 0x00AC: return "TLS_RSA_PSK_WITH_AES_128_GCM_SHA256     { 0x00, 0xAC }";
+                case 0x00AD: return "TLS_RSA_PSK_WITH_AES_256_GCM_SHA384     { 0x00, 0xAD }";
+                case 0x00AE: return "TLS_PSK_WITH_AES_128_CBC_SHA256         { 0x00, 0xAE }";
+                case 0x00AF: return "TLS_PSK_WITH_AES_256_CBC_SHA384         { 0x00, 0xAF }";
+                case 0x00B0: return "TLS_PSK_WITH_NULL_SHA256                { 0x00, 0xB0 }";
+                case 0x00B1: return "TLS_PSK_WITH_NULL_SHA384                { 0x00, 0xB1 }";
+                case 0x00B2: return "TLS_DHE_PSK_WITH_AES_128_CBC_SHA256     { 0x00, 0xB2 }";
+                case 0x00B3: return "TLS_DHE_PSK_WITH_AES_256_CBC_SHA384     { 0x00, 0xB3 }";
+                case 0x00B4: return "TLS_DHE_PSK_WITH_NULL_SHA256            { 0x00, 0xB4 }";
+                case 0x00B5: return "TLS_DHE_PSK_WITH_NULL_SHA384            { 0x00, 0xB5 }";
+                case 0x00B6: return "TLS_RSA_PSK_WITH_AES_128_CBC_SHA256     { 0x00, 0xB6 }";
+                case 0x00B7: return "TLS_RSA_PSK_WITH_AES_256_CBC_SHA384     { 0x00, 0xB7 }";
+                case 0x00B8: return "TLS_RSA_PSK_WITH_NULL_SHA256            { 0x00, 0xB8 }";
+                case 0x00B9: return "TLS_RSA_PSK_WITH_NULL_SHA384            { 0x00, 0xB9 }";
+                case 0xC001: return "TLS_ECDH_ECDSA_WITH_NULL_SHA            { 0xC0, 0x01 }";
+                case 0xC002: return "TLS_ECDH_ECDSA_WITH_RC4_128_SHA         { 0xC0, 0x02 }";
+                case 0xC003: return "TLS_ECDH_ECDSA_WITH_3DES_EDE_CBC_SHA    { 0xC0, 0x03 }";
+                case 0xC004: return "TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA     { 0xC0, 0x04 }";
+                case 0xC005: return "TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA     { 0xC0, 0x05 }";
+                case 0xC006: return "TLS_ECDHE_ECDSA_WITH_NULL_SHA           { 0xC0, 0x06 }";
+                case 0xC007: return "TLS_ECDHE_ECDSA_WITH_RC4_128_SHA        { 0xC0, 0x07 }";
+                case 0xC008: return "TLS_ECDHE_ECDSA_WITH_3DES_EDE_CBC_SHA   { 0xC0, 0x08 }";
+                case 0xC009: return "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA    { 0xC0, 0x09 }";
+                case 0xC00A: return "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA    { 0xC0, 0x0A }";
+                case 0xC00B: return "TLS_ECDH_RSA_WITH_NULL_SHA              { 0xC0, 0x0B }";
+                case 0xC00C: return "TLS_ECDH_RSA_WITH_RC4_128_SHA           { 0xC0, 0x0C }";
+                case 0xC00D: return "TLS_ECDH_RSA_WITH_3DES_EDE_CBC_SHA      { 0xC0, 0x0D }";
+                case 0xC00E: return "TLS_ECDH_RSA_WITH_AES_128_CBC_SHA       { 0xC0, 0x0E }";
+                case 0xC00F: return "TLS_ECDH_RSA_WITH_AES_256_CBC_SHA       { 0xC0, 0x0F }";
+                case 0xC010: return "TLS_ECDHE_RSA_WITH_NULL_SHA             { 0xC0, 0x10 }";
+                case 0xC011: return "TLS_ECDHE_RSA_WITH_RC4_128_SHA          { 0xC0, 0x11 }";
+                case 0xC012: return "TLS_ECDHE_RSA_WITH_3DES_EDE_CBC_SHA     { 0xC0, 0x12 }";
+                case 0xC013: return "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA      { 0xC0, 0x13 }";
+                case 0xC014: return "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA      { 0xC0, 0x14 }";
+                case 0xC015: return "TLS_ECDH_anon_WITH_NULL_SHA             { 0xC0, 0x15 }";
+                case 0xC016: return "TLS_ECDH_anon_WITH_RC4_128_SHA          { 0xC0, 0x16 }";
+                case 0xC017: return "TLS_ECDH_anon_WITH_3DES_EDE_CBC_SHA     { 0xC0, 0x17 }";
+                case 0xC018: return "TLS_ECDH_anon_WITH_AES_128_CBC_SHA      { 0xC0, 0x18 }";
+                case 0xC019: return "TLS_ECDH_anon_WITH_AES_256_CBC_SHA      { 0xC0, 0x19 }";
+                case 0xC01A: return "TLS_SRP_SHA_WITH_3DES_EDE_CBC_SHA       { 0xC0, 0x1A }";
+                case 0xC01B: return "TLS_SRP_SHA_RSA_WITH_3DES_EDE_CBC_SHA   { 0xC0, 0x1B }";
+                case 0xC01C: return "TLS_SRP_SHA_DSS_WITH_3DES_EDE_CBC_SHA   { 0xC0, 0x1C }";
+                case 0xC01D: return "TLS_SRP_SHA_WITH_AES_128_CBC_SHA        { 0xC0, 0x1D }";
+                case 0xC01E: return "TLS_SRP_SHA_RSA_WITH_AES_128_CBC_SHA    { 0xC0, 0x1E }";
+                case 0xC01F: return "TLS_SRP_SHA_DSS_WITH_AES_128_CBC_SHA    { 0xC0, 0x1F }";
+                case 0xC020: return "TLS_SRP_SHA_WITH_AES_256_CBC_SHA        { 0xC0, 0x20 }";
+                case 0xC021: return "TLS_SRP_SHA_RSA_WITH_AES_256_CBC_SHA    { 0xC0, 0x21 }";
+                case 0xC022: return "TLS_SRP_SHA_DSS_WITH_AES_256_CBC_SHA    { 0xC0, 0x22 }";
+                case 0xC023: return "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256 { 0xC0, 0x23 }";
+                case 0xC024: return "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384 { 0xC0, 0x24 }";
+                case 0xC025: return "TLS_ECDH_ECDSA_WITH_AES_128_CBC_SHA256  { 0xC0, 0x25 }";
+                case 0xC026: return "TLS_ECDH_ECDSA_WITH_AES_256_CBC_SHA384  { 0xC0, 0x26 }";
+                case 0xC027: return "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256   { 0xC0, 0x27 }";
+                case 0xC028: return "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384   { 0xC0, 0x28 }";
+                case 0xC029: return "TLS_ECDH_RSA_WITH_AES_128_CBC_SHA256    { 0xC0, 0x29 }";
+                case 0xC02A: return "TLS_ECDH_RSA_WITH_AES_256_CBC_SHA384    { 0xC0, 0x2A }";
+                case 0xC02B: return "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256 { 0xC0, 0x2B }";
+                case 0xC02C: return "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384 { 0xC0, 0x2C }";
+                case 0xC02D: return "TLS_ECDH_ECDSA_WITH_AES_128_GCM_SHA256  { 0xC0, 0x2D }";
+                case 0xC02E: return "TLS_ECDH_ECDSA_WITH_AES_256_GCM_SHA384  { 0xC0, 0x2E }";
+                case 0xC02F: return "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256   { 0xC0, 0x2F }";
+                case 0xC030: return "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384   { 0xC0, 0x30 }";
+                case 0xC031: return "TLS_ECDH_RSA_WITH_AES_128_GCM_SHA256    { 0xC0, 0x31 }";
+                case 0xC032: return "TLS_ECDH_RSA_WITH_AES_256_GCM_SHA384    { 0xC0, 0x32 }";
+                case 0xC033: return "TLS_ECDHE_PSK_WITH_RC4_128_SHA          { 0xC0, 0x33 }";
+                case 0xC034: return "TLS_ECDHE_PSK_WITH_3DES_EDE_CBC_SHA     { 0xC0, 0x34 }";
+                case 0xC035: return "TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA      { 0xC0, 0x35 }";
+                case 0xC036: return "TLS_ECDHE_PSK_WITH_AES_256_CBC_SHA      { 0xC0, 0x36 }";
+                case 0xC037: return "TLS_ECDHE_PSK_WITH_AES_128_CBC_SHA256   { 0xC0, 0x37 }";
+                case 0xC038: return "TLS_ECDHE_PSK_WITH_AES_256_CBC_SHA384   { 0xC0, 0x38 }";
+                case 0xC039: return "TLS_ECDHE_PSK_WITH_NULL_SHA             { 0xC0, 0x39 }";
+                case 0xC03A: return "TLS_ECDHE_PSK_WITH_NULL_SHA256          { 0xC0, 0x3A }";
+                case 0xC03B: return "TLS_ECDHE_PSK_WITH_NULL_SHA384          { 0xC0, 0x3B }";
+                case 0x00FF: return "TLS_EMPTY_RENEGOTIATION_INFO_SCSV       { 0x00, 0xFF }";
+            }
+            // not in list
+            return $"{cipherHi.ToString("X2")} {cipherLo.ToString("X2")}";
+        }
     }
 }
