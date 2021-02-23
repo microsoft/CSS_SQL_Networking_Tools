@@ -132,20 +132,25 @@ namespace SQLNA
                 foreach (FrameData f in Trace.BadChecksumFrames)
                 {
                     ConversationData c = f.conversation;
+                    IPAddressMACAddress a = new IPAddressMACAddress();
                     if (f.isFromClient)
                     {
-                        Addresses.Add(c.isIPV6 ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP));
+                        a.IPAddress = (c.isIPV6 ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP));
+                        a.MACAddress = c.sourceMAC.ToString("X12");
                     }
                     else
                     {
-                        Addresses.Add(c.isIPV6 ? utility.FormatIPV6Address(c.destIPHi, c.destIPLo) : utility.FormatIPV4Address(c.destIP));
+                        a.IPAddress = (c.isIPV6 ? utility.FormatIPV6Address(c.destIPHi, c.destIPLo) : utility.FormatIPV4Address(c.destIP));
+                        a.MACAddress = c.destMAC.ToString("X12");
                     }
+                    Addresses.Add(a);
                 }
 
-                var GroupedRows = from row in Addresses.ToArray()
-                                  group row by row into g
+                var GroupedRows = from row in (Addresses.ToArray())
+                                  let row2 = (IPAddressMACAddress)row
+                                  group row2 by row2.IPAddress into g
                                   orderby g.Count() descending
-                                  select new { Address = g.Key, AddrCount = g.Count() };
+                                  select new { Address = g.Key, MAC = g.First().MACAddress, AddrCount = g.Count() };
 
                 if (GroupedRows.Count() == 1)
                 {
@@ -155,7 +160,7 @@ namespace SQLNA
                 {
                     foreach(var row in GroupedRows)
                     {
-                        Program.logMessage($"Trace was probably taken on this IP address: {row.Address}, ({row.AddrCount * 10}%)");
+                        Program.logMessage($"Trace was probably taken on this IP address: {row.Address}, MAC Addr {row.MAC}, ({row.AddrCount * 10}%)");
                     }
                 }
                                

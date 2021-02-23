@@ -227,7 +227,7 @@ namespace SQLNA
     }
 
     //
-    // Used for ephemaral ports report
+    // Used for ephemeral ports report
     //
 
     public class IPRecord
@@ -254,5 +254,12 @@ namespace SQLNA
             return (IP == c.sourceIP && IPHi == c.sourceIPHi && IPLo == c.sourceIPLo);
         }
     }
+
+    public class IPAddressMACAddress
+    {
+        public string IPAddress = "";
+        public string MACAddress = "";
+    }
+     
 
 }
