@@ -1,0 +1,359 @@
+----------------------------------------------------------------------- Start of Report ------------------------------------------------------------------------
+
+SQL Server Connectivity Check v1.0.0.1055
+by the Microsoft CSS SQL Networking Team
+
+This report contains the following sections:
+1. Computer, Domain, Disk Space, Network Adapters.
+2. Client Drivers, SQL Aliases, and Local Security for client connectivity.
+3. SQL Server Processes of Interest, Service Account Properties, Service Principal Names, SPN Issues, and Suggested SPNs.
+
+
+--------------------------------------------------------------------- Computer Information ---------------------------------------------------------------------
+
+NETBIOS Name:               CON2012
+FQDN:                       CON2012.MEGACORP.TEST
+DNS Suffix:                 MEGACORP.TEST
+
+Windows Name and Edition:   Windows Server 2012 R2 Standard
+Windows Version:            Microsoft Windows NT 6.2.9200.0
+Windows Build:              9600
+Windows Release ID:         
+64-Bit System:              True
+.NET 4.x version:           4.8.03761
+.NET 2.x/3.x version:       3.5.30729.4926 (SP1)
+Clustered:                  False
+IIS Running:                False
+
+Computer Role:              Member Server
+Domain/Workgroup:           MEGACORP.TEST
+Joined to Domain:           True
+Connected to Domain:        True
+Expanded Domain Name:       DC=MEGACORP,DC=TEST
+
+Domain Name:                MEGACORP.TEST
+Domain Mode:                Unknown
+Parent Domain:              
+Root Domain:                MEGACORP.TEST
+Forest Domain:              MEGACORP.TEST
+Forest Mode:                Unknown
+
+There do not appear to be any other domains in this organization.
+
+Program Files Folder:       C:\Program Files
+Common Files Folder:        C:\Program Files\Common Files
+Program Files (x86) Folder: C:\Program Files (x86)
+Common Files (x86) Folder:  C:\Program Files (x86)\Common Files
+
+Disk Drives:
+
+    Drive  Type       Format        Capacity     Bytes Free  % Free  Status
+    -----  ---------  ------  --------------  -------------  ------  ------
+    A:\    Removable                                                       
+    C:\    Fixed      NTFS    53,684,989,952  6,620,991,488     12%        
+    D:\    CDRom                                                           
+
+Network Settings:
+
+TCPMaxDataRetransmissions:  
+TCPChimney:                 disabled
+RSS:                        enabled
+TCPA:                       disabled
+Min Ephemeral Port:         49152
+Max Ephemeral Port:         65535
+TCP Timed Wait Delay:       
+Syn Attack Protect:         
+
+No DNS aliases found for this machine.
+
+The following IP addresses are associated with this machine:
+
+    Address Family  Address                     
+    --------------  ----------------------------
+    InterNetworkV6  fe80::5850:d09e:b61f:f8ce%12
+    InterNetwork    192.168.2.107               
+
+Network Adapters:
+
+Name:                       Microsoft Hyper-V Network Adapter
+Adapter Type:               Ethernet 802.3
+Driver Date:                6-21-2006
+Speed:                      10 GB/s
+Speed/Duplex:               
+Flow Control:               
+RSS:                        Disabled (0)
+NIC Teaming:                False
+
+Offloading: IPv4 Checksum Offload (*IPChecksumOffloadIPv4): Rx & Tx Enabled (3)
+Offloading: IPSec Offload (*IPsecOffloadV2): Auth Header and ESP Enabled (3)
+Offloading: Large Send Offload Version 2 (IPv4) (*LsoV2IPv4): Enabled (1)
+Offloading: Large Send Offload Version 2 (IPv6) (*LsoV2IPv6): Enabled (1)
+Offloading: TCP Checksum Offload (IPv4) (*TCPChecksumOffloadIPv4): Rx & Tx Enabled (3)
+Offloading: TCP Checksum Offload (IPv6) (*TCPChecksumOffloadIPv6): Rx & Tx Enabled (3)
+Offloading: UDP Checksum Offload (IPv4) (*UDPChecksumOffloadIPv4): Rx & Tx Enabled (3)
+Offloading: UDP Checksum Offload (IPv6) (*UDPChecksumOffloadIPv6): Rx & Tx Enabled (3)
+
+Warning: Network driver may be out of date.
+
+
+------------------------------------------------------------ Client Security and Driver Information ------------------------------------------------------------
+
+Security Settings:
+
+Crash on Audit Fail:        0
+Disable Loopback Check:     0
+Back Connection Host Names: 
+Max Kerberos Token Size:    48000
+Kerberos Logging Level:     0
+Kerberos local Encryption:  0 (RC4_HMAC_MD5)
+
+Warning: NTLM callbacks should fail. Neither DisableLoopbackCheck nor BackConnectionHostNames is set.
+
+    Client/Server  TLS Version  Setting            Registry             
+    -------------  -----------  -----------------  ---------------------
+    Client         SSL 2.0      DisabledByDefault  True  (0x00000001) ok
+    Client         SSL 2.0      Enabled            False (0x00000000) ok
+    Client         SSL 3.0      DisabledByDefault                       
+    Client         SSL 3.0      Enabled                                 
+    Client         TLS 1.0      DisabledByDefault                       
+    Client         TLS 1.0      Enabled                                 
+    Client         TLS 1.1      DisabledByDefault                       
+    Client         TLS 1.1      Enabled                                 
+    Client         TLS 1.2      DisabledByDefault                       
+    Client         TLS 1.2      Enabled                                 
+    Server         SSL 2.0      DisabledByDefault                       
+    Server         SSL 2.0      Enabled                                 
+    Server         SSL 3.0      DisabledByDefault                       
+    Server         SSL 3.0      Enabled                                 
+    Server         TLS 1.0      DisabledByDefault                       
+    Server         TLS 1.0      Enabled                                 
+    Server         TLS 1.1      DisabledByDefault                       
+    Server         TLS 1.1      Enabled                                 
+    Server         TLS 1.2      DisabledByDefault                       
+    Server         TLS 1.2      Enabled                                 
+
+Cipher Suite Protcol Order:
+
+    Registry List                                 Policy List                            
+    --------------------------------------------  ---------------------------------------
+    TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_P256    TLS_AES_256_GCM_SHA384                 
+    TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_P384    TLS_AES_128_GCM_SHA256                 
+    TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256_P256    TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384
+    TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256_P384    TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256
+    TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA_P256       TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384  
+    TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA_P384       TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256  
+    TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA_P256       TLS_DHE_RSA_WITH_AES_256_GCM_SHA384    
+    TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA_P384       TLS_DHE_RSA_WITH_AES_128_GCM_SHA256    
+    TLS_DHE_RSA_WITH_AES_256_GCM_SHA384           TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384
+    TLS_DHE_RSA_WITH_AES_128_GCM_SHA256           TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256
+    TLS_DHE_RSA_WITH_AES_256_CBC_SHA              TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384  
+    TLS_DHE_RSA_WITH_AES_128_CBC_SHA              TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256  
+    TLS_RSA_WITH_AES_256_GCM_SHA384               TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA   
+    TLS_RSA_WITH_AES_128_GCM_SHA256               TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA   
+    TLS_RSA_WITH_AES_256_CBC_SHA256               TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA     
+    TLS_RSA_WITH_AES_128_CBC_SHA256               TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA     
+    TLS_RSA_WITH_AES_256_CBC_SHA                  TLS_RSA_WITH_AES_256_GCM_SHA384        
+    TLS_RSA_WITH_AES_128_CBC_SHA                  TLS_RSA_WITH_AES_128_GCM_SHA256        
+    TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384_P384  TLS_RSA_WITH_AES_256_CBC_SHA256        
+    TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256_P256  TLS_RSA_WITH_AES_128_CBC_SHA256        
+    TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256_P384  TLS_RSA_WITH_AES_256_CBC_SHA           
+    TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384_P384  TLS_RSA_WITH_AES_128_CBC_SHA           
+    TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256_P256  TLS_RSA_WITH_3DES_EDE_CBC_SHA          
+    TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256_P384  TLS_RSA_WITH_NULL_SHA256               
+    TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA_P256     TLS_RSA_WITH_NULL_SHA                  
+    TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA_P384     TLS_PSK_WITH_AES_256_GCM_SHA384        
+    TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA_P256     TLS_PSK_WITH_AES_128_GCM_SHA256        
+    TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA_P384     TLS_PSK_WITH_AES_256_CBC_SHA384        
+    TLS_DHE_DSS_WITH_AES_256_CBC_SHA256           TLS_PSK_WITH_AES_128_CBC_SHA256        
+    TLS_DHE_DSS_WITH_AES_128_CBC_SHA256           TLS_PSK_WITH_NULL_SHA384               
+    TLS_DHE_DSS_WITH_AES_256_CBC_SHA              TLS_PSK_WITH_NULL_SHA256               
+    TLS_DHE_DSS_WITH_AES_128_CBC_SHA                                                     
+    TLS_RSA_WITH_3DES_EDE_CBC_SHA                                                        
+    TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA                                                    
+    TLS_RSA_WITH_RC4_128_SHA                                                             
+    TLS_RSA_WITH_RC4_128_MD5                                                             
+    TLS_RSA_WITH_NULL_SHA256                                                             
+    TLS_RSA_WITH_NULL_SHA                                                                
+    SSL_CK_RC4_128_WITH_MD5                                                              
+    SSL_CK_DES_192_EDE3_CBC_WITH_MD5                                                     
+
+Diffie-Hellman algorithm version: 1
+Diffie-Hellman cipher suites are enabled. Possible risk of intermittent TLS failures if the algorithm version is different between clients and servers.
+
+SQL Server OLE DB Providers and ODBC Drivers:
+
+ODBC traces are disabled.
+
+    Name                           Type    Version         Supported   TLS 1.2  TLS 1.3  MSF  GUID                                    Path                                                          
+    -----------------------------  ------  --------------  ----------  -------  -------  ---  --------------------------------------  --------------------------------------------------------------
+    SQLOLEDB                       OLE DB  6.3.9600.17415  Deprecated  No       No       No   {0C7FF16C-38E3-11d0-97AB-00C04FC2AD98}  C:\Program Files\Common Files\System\Ole DB\sqloledb.dll      
+    SQLOLEDB                       OLE DB  6.3.9600.17415  Deprecated  No       No       No   {0C7FF16C-38E3-11d0-97AB-00C04FC2AD98}  C:\Program Files (x86)\Common Files\System\Ole DB\sqloledb.dll
+    SQLNCLI11                      OLE DB  11.0.7507.2     Yes         Yes      No       No   {397C2819-8272-4532-AD3A-FB5E43BEAA39}  C:\windows\system32\sqlncli11.dll                             
+    SQLNCLI11                      OLE DB  11.0.7507.2     Yes         Yes      No       No   {397C2819-8272-4532-AD3A-FB5E43BEAA39}  C:\windows\SysWOW64\sqlncli11.dll                             
+    SQL Server                     ODBC    6.3.9600.17415  Deprecated  No       No       No                                           C:\windows\system32\SQLSRV32.dll                              
+    SQL Server Native Client 11.0  ODBC    11.0.7507.2     Yes         Yes      No       Yes                                          C:\windows\system32\sqlncli11.dll                             
+    ODBC Driver 11 for SQL Server  ODBC    12.0.6164.21    Yes         Yes      No       Yes                                          C:\windows\system32\msodbcsql11.dll                           
+    SQL Server                     ODBC    6.3.9600.17415  Deprecated  No       No       No                                           C:\windows\SysWOW64\SQLSRV32.dll                              
+    SQL Server Native Client 11.0  ODBC    11.0.7507.2     Yes         Yes      No       Yes                                          C:\windows\SysWOW64\sqlncli11.dll                             
+    ODBC Driver 11 for SQL Server  ODBC    12.0.6164.21    Yes         Yes      No       Yes                                          C:\windows\SysWOW64\msodbcsql11.dll                           
+
+Other OLE DB Providers and ODBC Drivers:
+
+    Name                                                    Type    Version         GUID                                    Path                                                                         
+    ------------------------------------------------------  ------  --------------  --------------------------------------  -----------------------------------------------------------------------------
+    MSOLAP                                                  OLE DB  12.0.6164.21    {E7B0C00E-8739-4a5a-B267-DCC873FC1E8D}  c:\Program Files\Microsoft Analysis Services\AS OLEDB\120\msolap120.dll      
+    MSOLAP                                                  OLE DB  12.0.6164.21    {E7B0C00E-8739-4a5a-B267-DCC873FC1E8D}  c:\Program Files (x86)\Microsoft Analysis Services\AS OLEDB\120\msolap120.dll
+    ADSDSOObject                                            OLE DB  6.3.9600.16384  {549365d0-ec26-11cf-8310-00aa00b505db}  C:\windows\system32\activeds.dll                                             
+    ADSDSOObject                                            OLE DB  6.3.9600.16384  {549365d0-ec26-11cf-8310-00aa00b505db}  C:\windows\SysWOW64\activeds.dll                                             
+    Microsoft Access-Treiber (*.mdb)                        ODBC    6.3.9600.17415                                          C:\windows\SysWOW64\odbcjt32.dll                                             
+    Driver do Microsoft Paradox (*.db )                     ODBC    6.3.9600.17415                                          C:\windows\SysWOW64\odbcjt32.dll                                             
+    Driver do Microsoft Excel(*.xls)                        ODBC    6.3.9600.17415                                          C:\windows\SysWOW64\odbcjt32.dll                                             
+    Microsoft Text Driver (*.txt; *.csv)                    ODBC    6.3.9600.17415                                          C:\windows\SysWOW64\odbcjt32.dll                                             
+    Driver da Microsoft para arquivos texto (*.txt; *.csv)  ODBC    6.3.9600.17415                                          C:\windows\SysWOW64\odbcjt32.dll                                             
+    Microsoft dBase-Treiber (*.dbf)                         ODBC    6.3.9600.17415                                          C:\windows\SysWOW64\odbcjt32.dll                                             
+    Microsoft Excel Driver (*.xls)                          ODBC    6.3.9600.17415                                          C:\windows\SysWOW64\odbcjt32.dll                                             
+    Driver do Microsoft dBase (*.dbf)                       ODBC    6.3.9600.17415                                          C:\windows\SysWOW64\odbcjt32.dll                                             
+    Microsoft Paradox-Treiber (*.db )                       ODBC    6.3.9600.17415                                          C:\windows\SysWOW64\odbcjt32.dll                                             
+    Microsoft ODBC for Oracle                               ODBC    6.3.9600.18264                                          C:\windows\SysWOW64\msorcl32.dll                                             
+    Microsoft Text-Treiber (*.txt; *.csv)                   ODBC    6.3.9600.17415                                          C:\windows\SysWOW64\odbcjt32.dll                                             
+    Microsoft Excel-Treiber (*.xls)                         ODBC    6.3.9600.17415                                          C:\windows\SysWOW64\odbcjt32.dll                                             
+    Microsoft Access Driver (*.mdb)                         ODBC    6.3.9600.17415                                          C:\windows\SysWOW64\odbcjt32.dll                                             
+    Driver do Microsoft Access (*.mdb)                      ODBC    6.3.9600.17415                                          C:\windows\SysWOW64\odbcjt32.dll                                             
+    Microsoft Paradox Driver (*.db )                        ODBC    6.3.9600.17415                                          C:\windows\SysWOW64\odbcjt32.dll                                             
+    Microsoft dBase Driver (*.dbf)                          ODBC    6.3.9600.17415                                          C:\windows\SysWOW64\odbcjt32.dll                                             
+
+No SQL Aliases were found on this machine.
+
+SQL Client Driver SNI Settings:
+
+    Client Name        Protocol Order  Force Encryption  Trust Server Cert  TCP Default Port  Keep-Alive Interval (ms)  Keep-Alive Retry Interval (ms)  32-bit
+    -----------------  --------------  ----------------  -----------------  ----------------  ------------------------  ------------------------------  ------
+    SNI11.0            sm tcp np                                                        1433                     30000                            1000        
+    SuperSocketNetLib  tcp np                                                           1433                                                                  
+    SNI11.0            sm tcp np                                                        1433                     30000                            1000     Yes
+    SuperSocketNetLib  tcp np                                                           1433                                                               Yes
+
+
+-------------------------------------------------------------------- SQL Server Information --------------------------------------------------------------------
+
+Services of Interest:
+
+    Name                    Instance  Description                                   PID  Service Account              Domain Account       Start Mode  Started  Status
+    ----------------------  --------  -------------------------------------------  ----  ---------------------------  -------------------  ----------  -------  ------
+    MSDTC                             Distributed Transaction Coordinator          3624  NT AUTHORITY\NetworkService  CON2012              Auto        True     OK    
+    MsDtsServer110                    SQL Server Integration Services 11.0            0  MEGACORP\SQL2012SVC          MEGACORP\SQL2012SVC  Auto        False    OK    
+    MsDtsServer120                    SQL Server Integration Services 12.0         1228  MEGACORP\SQL2014SVC          MEGACORP\SQL2014SVC  Auto        True     OK    
+    MSOLAP                  SQL2014   SQL Server Analysis Services (SQL2014)       1352  MEGACORP\SQL2014SVC          MEGACORP\SQL2014SVC  Auto        True     OK    
+    MSSQL                   SQL2014   SQL Server (SQL2014)                         1372  MEGACORP\SQL2014SVC          MEGACORP\SQL2014SVC  Auto        True     OK    
+    MSSQLSERVER                       SQL Server (MSSQLSERVER)                     1472  MEGACORP\SQL2012SVC          MEGACORP\SQL2012SVC  Auto        True     OK    
+    MSSQLServerOLAPService            SQL Server Analysis Services (MSSQLSERVER)      0  MEGACORP\SQL2012SVC          MEGACORP\SQL2012SVC  Auto        False    OK    
+    ReportServer                      SQL Server Reporting Services (MSSQLSERVER)     0  MEGACORP\SQL2012SVC          MEGACORP\SQL2012SVC  Auto        False    OK    
+    ReportServer            SQL2014   SQL Server Reporting Services (SQL2014)      1656  MEGACORP\SQL2014SVC          MEGACORP\SQL2014SVC  Auto        True     OK    
+    RpcSs                             Remote Procedure Call (RPC)                   660  NT AUTHORITY\NetworkService  CON2012              Auto        True     OK    
+    SQLAgent                SQL2014   SQL Server Agent (SQL2014)                      0  MEGACORP\SQL2014SVC          MEGACORP\SQL2014SVC  Manual      False    OK    
+    SQLBrowser                        SQL Server Browser                           1832  NT AUTHORITY\LOCALSERVICE    CON2012              Auto        True     OK    
+    SQLSERVERAGENT                    SQL Server Agent (MSSQLSERVER)                  0  NT Service\SQLSERVERAGENT    CON2012              Manual      False    OK    
+    SQLWriter                         SQL Server VSS Writer                        2012  LocalSystem                  CON2012              Auto        True     OK    
+    TermService                       Remote Desktop Services                      2932  NT Authority\NetworkService  CON2012              Manual      True     OK    
+
+Critical: SQL Server Integration Services 11.0 is set to automatically start but it is not running.
+Critical: SQL Server Analysis Services (MSSQLSERVER) is set to automatically start but it is not running.
+Critical: SQL Server Reporting Services (MSSQLSERVER) is set to automatically start but it is not running.
+Warning: SQL Server Agent (SQL2014) start mode is set to Manual.
+Warning: SQL Server Agent (MSSQLSERVER) start mode is set to Manual.
+
+Domain Service Account Properties:
+
+    Account     Domain               Type                   UAC  Sensitive  Trust for Del.  Const. Del.  Kerberos Encryption                           
+    ----------  -------------------  --------  ----------------  ---------  --------------  -----------  ----------------------------------------------
+    CON2012$    DC=MEGACORP,DC=TEST  Computer     4096 (0x1000)  False      False           False        RC4_HMAC_MD5+AES128_HMAC_SHA1+AES256_HMAC_SHA1
+    SQL2012SVC  MEGACORP             User      590336 (0x90200)  False      True            False        RC4_HMAC_MD5                                  
+    SQL2014SVC  MEGACORP             User       66048 (0x10200)  False      False           False        RC4_HMAC_MD5                                  
+
+Warning: CON2012$ must be trusted for delegation in order for Kerberos delegation to succeed.
+Warning: SQL2014SVC must be trusted for delegation in order for Kerberos delegation to succeed.
+Warning: There are no Service Principle Names associated with SQL2014SVC.
+
+No constrained delegation back-end service SPNs were found on any of the above accounts.
+
+The following Service Principal Names were found:
+
+    Account     SPN                                      Has Duplicates
+    ----------  ---------------------------------------  --------------
+    CON2012$    TERMSRV/CON2012                          False         
+    CON2012$    TERMSRV/CON2012.MEGACORP.TEST            False         
+    CON2012$    WSMAN/CON2012                            False         
+    CON2012$    WSMAN/CON2012.MEGACORP.TEST              False         
+    CON2012$    RestrictedKrbHost/CON2012                False         
+    CON2012$    HOST/CON2012                             False         
+    CON2012$    RestrictedKrbHost/CON2012.MEGACORP.TEST  False         
+    CON2012$    HOST/CON2012.MEGACORP.TEST               False         
+    SQL2012SVC  mssqlsvc/con2012.megacorp.test:1433      False         
+    SQL2012SVC  http/con2012.megacorp.test               False         
+    SQL2012SVC  http/con2012                             False         
+
+SQL Server Instances:
+Note: Only SQL 2008 and later are checked. There may be SQL 2000 instances.
+
+    Service Type  Instance Name  32-bit
+    ------------  -------------  ------
+    OLAP          MSSQLSERVER    False 
+    OLAP          SQL2014        False 
+    RS            MSSQLSERVER    False 
+    RS            SQL2014        False 
+    SQL           MSSQLSERVER    False 
+    SQL           SQL2014        False 
+
+Details for SQL Server Instance: MSSQLSERVER (Developer Edition)
+
+Version:                    11.0.7001.0 SP 4 Patch Level: 11.4.7507.2
+Clustered:                  False
+Always-On:                  False
+Certificate:                Self-generated certificate
+ForceEncryption:            False
+Hidden Instance:            False
+Extended Protection:        Off
+Shared Memory Enabled:      True
+Named Pipes Enabled:        True (\\.\pipe\sql\query)
+TCP Enabled:                True
+Listen on all IPs:          True
+Keep-Alive Interval (ms):   30000
+TCP Port(s):                1433
+Dynamic TCP Port(s):        
+Install Path:               c:\Program Files\Microsoft SQL Server\MSSQL11.MSSQLSERVER\MSSQL\Binn
+ERRORLOG Path:              C:\Program Files\Microsoft SQL Server\MSSQL11.MSSQLSERVER\MSSQL\Log\ERRORLOG
+Current Process ID:         1472
+Service Account:            MEGACORP\SQL2012SVC
+SPN Account:                MEGACORP\SQL2012SVC
+
+    Suggested SPN                        Exists  Status             
+    -----------------------------------  ------  -------------------
+    MSSQLSvc/CON2012.MEGACORP.TEST:1433  True    Okay               
+    MSSQLSvc/CON2012:1433                False   SPN does not exist.
+    MSSQLSvc/CON2012.MEGACORP.TEST       False   SPN does not exist.
+    MSSQLSvc/CON2012                     False   SPN does not exist.
+
+Details for SQL Server Instance: SQL2014 (Developer Edition)
+
+Version:                    12.0.6024.0 SP 3 Patch Level: 12.3.6164.21
+Clustered:                  False
+Always-On:                  False
+Certificate:                Self-generated certificate
+ForceEncryption:            False
+Hidden Instance:            False
+Extended Protection:        Off
+Shared Memory Enabled:      True
+Named Pipes Enabled:        False
+TCP Enabled:                False
+Install Path:               c:\Program Files\Microsoft SQL Server\MSSQL12.SQL2014\MSSQL\Binn
+ERRORLOG Path:              C:\Program Files\Microsoft SQL Server\MSSQL12.SQL2014\MSSQL\Log\ERRORLOG
+Current Process ID:         1372
+Service Account:            MEGACORP\SQL2014SVC
+SPN Account:                MEGACORP\SQL2014SVC
+
+    Suggested SPN                           Exists  Status             
+    --------------------------------------  ------  -------------------
+    MSSQLSvc/CON2012.MEGACORP.TEST:SQL2014  False   SPN does not exist.
+    MSSQLSvc/CON2012:SQL2014                False   SPN does not exist.
+
+------------------------------------------------------------------------ End of Report -------------------------------------------------------------------------
