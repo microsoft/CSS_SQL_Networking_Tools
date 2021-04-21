@@ -42,6 +42,7 @@ namespace SQLCheck
             s.WriteLine();
             s.WriteLine(SmartString.CenterText("SQL Server Information", fieldWidth));
             s.WriteLine();
+            ReportCertificate(ds, s);
             ReportService(ds, s);
             ReportSQLServer(ds, s);
             ReportFooter(s);
@@ -344,6 +345,34 @@ namespace SQLCheck
                 }
                 s.WriteLine();
             }
+        }
+
+        static void ReportCertificate(DataSet ds, TextWriter s)  // outputs a list of the local computer MY store
+        {
+            DataTable dtCertificate = ds.Tables["Certificate"];
+
+            s.WriteLine("Certificates in the Local Computer MY Store:");
+            s.WriteLine();
+
+            ReportFormatter rf = new ReportFormatter();
+            rf.SetColumnNames("Friendly Name:L", "CN:L", "SAN:L", "Thumbprint:L", "Server Cert:L", "Usage:L", "Private Key:L", "Not Before:L", "Not After:L", "Problem:L");
+            foreach (DataRow Certificate in dtCertificate.Rows)
+            {
+                rf.SetcolumnData(Certificate.GetString("FriendlyName"),
+                                 Certificate.GetString("CommonName"),
+                                 Certificate.GetString("SubjectAlternativeName"),
+                                 Certificate.GetString("ThumbPrint"),
+                                 Certificate.GetBoolean("ServerCert") ? "Yes" : "",
+                                 Certificate.GetString("KeySpec"),
+                                 Certificate.GetBoolean("HasPrivateKey") ? "Yes" : "",
+                                 Certificate.GetString("NotBefore"),
+                                 Certificate.GetString("NotAfter"),
+                                 Certificate.GetString("Message"));
+            }
+            s.WriteLine(rf.GetHeaderText());
+            s.WriteLine(rf.GetSeparatorText());
+            for (int i = 0; i < rf.GetRowCount(); i++) s.WriteLine(rf.GetDataText(i));
+            s.WriteLine();
         }
 
         static void ReportService(DataSet ds, TextWriter s)  // outputs computer and domain information

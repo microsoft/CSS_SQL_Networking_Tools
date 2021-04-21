@@ -12,6 +12,8 @@ using Microsoft.Win32;
 using System.Collections;
 using System.DirectoryServices;
 using System.Diagnostics;
+using System.Security.Cryptography.X509Certificates;
+using System.Security.Cryptography;
 
 namespace SQLCheck
 {
@@ -38,6 +40,7 @@ namespace SQLCheck
             CollectDatabaseDriver(ds);
             CollectSQLAlias(ds);
             CollectClientSNI(ds);
+            CollectCertificate(ds);
             CollectService(ds);
             CollectSPNAccount(ds);
             CollectSQLInstance(ds);   // dropped SQL 2000 and RS 2000
@@ -1239,6 +1242,84 @@ namespace SQLCheck
             }
         }
 
+        public static void CollectCertificate(DataSet ds)
+        {
+            DataRow Computer = ds.Tables["Computer"].Rows[0];
+            DataTable dtCertificate = ds.Tables["Certificate"];
+            DataRow Certificate = null;
+            X509Store store = null;
+
+            try
+            {
+                store =new X509Store(StoreName.My, StoreLocation.LocalMachine);
+                store.Open(OpenFlags.ReadOnly);
+
+                foreach (X509Certificate2 cert in store.Certificates)
+                {
+                    string msg = "";
+                    Certificate = dtCertificate.NewRow();
+
+                    Certificate["FriendlyName"] = cert.FriendlyName;
+                    Certificate["Issuer"] = cert.Issuer;
+                    Certificate["CommonName"] = cert.Subject;
+                    Certificate["ThumbPrint"] = cert.Thumbprint;
+                    Certificate["HasPrivateKey"] = cert.HasPrivateKey;
+                    if (cert.HasPrivateKey == false) msg += ", No private key";
+                    Certificate["NotBefore"] = cert.NotBefore.ToString();
+                    if (cert.NotBefore > DateTime.Now) msg += ", Future cert";
+                    Certificate["NotAfter"] = cert.NotAfter.ToString();
+                    if (cert.NotAfter < DateTime.Now) msg += ", Expired cert";
+                    Certificate["KeySize"] = cert.PublicKey.Key.KeySize;
+                    Certificate["SignatureAlgorithm"] = cert.SignatureAlgorithm.FriendlyName;
+
+                    dtCertificate.Rows.Add(Certificate);
+
+                    foreach (X509Extension extension in cert.Extensions)
+                    {
+                        AsnEncodedData asndata = new AsnEncodedData(extension.Oid, extension.RawData);
+                        switch (extension.Oid.FriendlyName)
+                        {
+                            case "Subject Alternative Name":
+                                Certificate["SubjectAlternativeName"] = asndata.Format(false);
+                                break;
+                            case "Key Usage":
+                                string keySpec = asndata.Format(false);
+                                Certificate["KeySpec"] = keySpec;
+                                if (keySpec.Contains("Key Encipherment") == false) msg += ", KeySpec!=1";
+                                break;
+                            case "Enhanced Key Usage":
+                                bool serverCert = asndata.Format(false).Contains("Server Authentication") ? true : false;
+                                Certificate["ServerCert"] = serverCert;
+                                if (serverCert == false) msg += ", Not server";
+                                break;
+                        }
+                    }
+                    Certificate["Message"] = msg.Length > 2 ? msg.Substring(2) : "";
+                    Certificate = null;
+                }
+                store.Close();
+                store = null;
+            }
+            catch (Exception ex)
+            {
+                string thumbPrint = "";
+                if (Certificate != null)
+                {
+                    thumbPrint = Certificate.GetString("ThumbPrint");
+                    Computer.LogException($"Error reading local computer certificate properties. ThumbPrint={thumbPrint}", ex);
+                }
+                else
+                {
+                    Computer.LogException("Error reading local computer certificate store.", ex);
+                }
+            }
+            finally
+            {
+                if (store != null) store.Close();
+            }
+
+        }
+
         public static void CollectService(DataSet ds)  // collects select services we are most interested in
         {
             string[] NamesOfInterest = { "IISADMIN", "MSDTC", "RpcSs", "termService", "W3SVC", "MsDtsServer", "MSSQL", "SQL", "ReportServer", "MSOLAP" };
@@ -1750,7 +1831,7 @@ namespace SQLCheck
                                                  System.Security.AccessControl.RegistryRights.ReadKey |
                                                  System.Security.AccessControl.RegistryRights.EnumerateSubKeys |
                                                  System.Security.AccessControl.RegistryRights.QueryValues);
-                    ProcessMSSQLServer(SQLInstance, SQLServer, MSSQLKey);
+                    ProcessMSSQLServer(ds, SQLInstance, SQLServer, MSSQLKey);
                     MSSQLKey.Close();
                     MSSQLKey = null;
                     setupKey = folderKey.OpenSubKey("Setup", RegistryKeyPermissionCheck.ReadSubTree,
@@ -1826,7 +1907,7 @@ namespace SQLCheck
             }
         }  // end CollectSQL
 
-        public static void ProcessMSSQLServer(DataRow SQLInstance, DataRow SQLServer, RegistryKey MSSQLServer)
+        public static void ProcessMSSQLServer(DataSet ds, DataRow SQLInstance, DataRow SQLServer, RegistryKey MSSQLServer)
         {
             RegistryKey currentVersion = null, SSNetLib = null, protocol = null, IPKey = null, startupParameters = null;
             string IPAddress = "", stringData = "";
@@ -1928,8 +2009,24 @@ namespace SQLCheck
                             }
                             else if (line != "")
                             {
+                                string msg = "";
                                 line = SmartString.GetBetween(line, @"[", @"]", false, true);  // auto trim the result
-                                SQLServer["Certificate"] = line;
+                                DataRow[] Certificates = ds.Tables["Certificate"].Select($"ThumbPrint='{line}'");
+                                if (Certificates.Length == 0)
+                                {
+                                    msg = " (no certs match the thumbprint)";
+                                }
+                                else if (Certificates.Length > 1)
+                                {
+                                    msg = " (multiple certs match the thumbprint)";
+                                }
+                                else
+                                {
+                                    DataRow Certificate = Certificates[0];
+                                    string problems = Certificate.GetString("Message");
+                                    if (problems != "") msg = $" (problems: {problems})";
+                                }
+                                SQLServer["Certificate"] = line + msg;  // thumbprint + problems, if any
                             }
                         }
                     }

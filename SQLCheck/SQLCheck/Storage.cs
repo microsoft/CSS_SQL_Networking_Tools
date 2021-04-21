@@ -56,7 +56,7 @@ namespace SQLCheck
             ds.Tables.Add(dt);
 
             //
-            // Related DOmain
+            // Related Domain
             //
 
             dt = new DataTable("RelatedDomain");
@@ -420,6 +420,29 @@ namespace SQLCheck
             dt.AddColumn("ParentID", "Integer");
             dt.AddColumn("SPNName", "String");
             dt.AddColumn("Exists", "Boolean");
+            dt.AddColumn("Message", "String");
+            ds.Tables.Add(dt);
+
+            //
+            // Certificate
+            //
+
+            dt = new DataTable("Certificate");
+            dt.AddColumn("ID", "Integer");
+            dt.Columns["ID"].AutoIncrement = true;
+            dt.AddColumn("ParentID", "Integer");
+            dt.AddColumn("FriendlyName", "String");
+            dt.AddColumn("Issuer", "String");
+            dt.AddColumn("CommonName", "String");
+            dt.AddColumn("SubjectAlternativeName", "String");
+            dt.AddColumn("ThumbPrint", "String");
+            dt.AddColumn("SignatureAlgorithm", "String");
+            dt.AddColumn("KeySize", "String");
+            dt.AddColumn("KeySpec", "String");
+            dt.AddColumn("ServerCert", "Boolean");
+            dt.AddColumn("HasPrivateKey", "Boolean");
+            dt.AddColumn("NotBefore", "String");
+            dt.AddColumn("NotAfter", "String");
             dt.AddColumn("Message", "String");
             ds.Tables.Add(dt);
 

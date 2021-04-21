@@ -310,18 +310,67 @@ namespace SQLNA
         //
         // .ETL NDIS Net Event                 -> Ethernet/Wifi
         // Link Type: NDIS Net Event (.CAP)    -> Ethernet/Wifi
-        // Link Type: Ethernet                 -> IPV4/IPV6
-        // Link Type: Wifi/LLC/SNAP            -> IPV4/IPV6
-        // Link Type: Linux Cooked Capture     -> IPV4/IPV6
+        // Link Type: Ethernet                 -> IPV4/IPV6/VNETTag
+        // Link Type: Wifi/LLC/SNAP            -> IPV4/IPV6/VNETTag
+        // Link Type: Linux Cooked Capture     -> IPV4/IPV6/VNETTag
         //
         // GRE                                 -> ERSPAN/IPV4/IPV6
         // ERSPAN                              -> Ethernet
         // IPV4/IPV6                           -> TCP/UDP/GRE (Generic Routing Encapsulation)
+        // VNETTag                             -> 802.1Q
+        // 802.1Q                              -> IPV4/IPV6
         //
         // UDP                                 -> SSRP
         // TCP                                 -> TDS/Kerberosv5/DNS/SMP
         // SMP                                 -> TDS
         //
+
+        public static void ParseNextProtocol(uint ProtocolNumber, byte[] b, int offset, NetworkTrace t, FrameData f)
+        {
+            switch (ProtocolNumber)
+            {
+                case 0x0006:   // TCP
+                    ParseTCPFrame(b, offset, t, f);
+                    break;
+                case 0x0011:   // UDP
+                    ParseUDPFrame(b, offset, t, f);
+                    break;
+                case 0x002F:   // GRE
+                    ParseGenericRoutingEncapsulation(b, offset, t, f);
+                    break;
+                case 0x0800:   // IPV4
+                    ParseIPV4Frame(b, offset, t, f);
+                    break;
+                case 0x8100:   // 802.1Q
+                    Parse8021QFrame(b, offset, t, f);
+                    break;
+                case 0x86DD:   // IPV6
+                    ParseIPV6Frame(b, offset, t, f);
+                    break;
+                case 0x88BE:   // ERSPAN Type II
+                case 0x22EB:   // ERSPAN Type III
+                    ParseERSPANFrame(b, offset, t, f);
+                    break;
+                case 0x8926:   // VNETTag
+                    ParseVNTagFrame(b, offset, t, f);
+                    break;
+                case 0:
+                case 60:
+                case 43:
+                case 44:
+                case 51:
+                case 135:
+                    {
+                        Program.logDiagnostic($"Warn: IPV6 packet has extension header {ProtocolNumber} (0x{ProtocolNumber.ToString("X4")}). Frame {f.frameNo} in {f.file.filePath}");
+                        break;
+                    }
+                default:
+                    {
+                        Program.logDiagnostic($"Unrecognized protocol {ProtocolNumber} (0x{ProtocolNumber.ToString("X4")}).");
+                        break;
+                    }
+            }
+        }
 
         public static void ParseLinuxCookedFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
         {
@@ -369,14 +418,15 @@ namespace SQLNA
 
             try
             {
-                if (NextProtocol == 0x800)
-                {
-                    ParseIPV4Frame(b, offset, t, f);
-                }
-                else if (NextProtocol == 0x86DD)
-                {
-                    ParseIPV6Frame(b, offset, t, f);
-                }
+                ParseNextProtocol(NextProtocol, b, offset, t, f);
+                //if (NextProtocol == 0x800)
+                //{
+                //    ParseIPV4Frame(b, offset, t, f);
+                //}
+                //else if (NextProtocol == 0x86DD)
+                //{
+                //    ParseIPV6Frame(b, offset, t, f);
+                //}
             }
             catch (IndexOutOfRangeException)
             {
@@ -384,21 +434,18 @@ namespace SQLNA
             }
             catch { throw; }
 
-            if (NextProtocol == 0x800 || NextProtocol == 0x86DD)
+            if (f.conversation != null)
             {
-                if (f.conversation != null)
+                f.conversation.sourceMAC = sourceMAC;
+                f.conversation.destMAC = destMAC;
+                // statistical gathering
+                if (f.conversation.startTick == 0 || f.ticks < f.conversation.startTick)
                 {
-                    f.conversation.sourceMAC = sourceMAC;
-                    f.conversation.destMAC = destMAC;
-                    // statistical gathering
-                    if (f.conversation.startTick == 0 || f.ticks < f.conversation.startTick)
-                    {
-                        f.conversation.startTick = f.ticks;
-                    }
-                    if (f.conversation.endTick < f.ticks) f.conversation.endTick = f.ticks;
-                    if (f.isFromClient) f.conversation.sourceFrames++; else f.conversation.destFrames++;
-                    f.conversation.totalBytes += (ulong)b.Length;
+                    f.conversation.startTick = f.ticks;
                 }
+                if (f.conversation.endTick < f.ticks) f.conversation.endTick = f.ticks;
+                if (f.isFromClient) f.conversation.sourceFrames++; else f.conversation.destFrames++;
+                f.conversation.totalBytes += (ulong)b.Length;
             }
         }
 
@@ -533,25 +580,26 @@ namespace SQLNA
                 if (fAck) offset += 4;      // bypass the ACK # value
             }
 
-            switch (NextProtocol)
-            {
-                case 0x0800:   // IPV4
-                    {
-                        ParseIPV4Frame(b, offset, t, f);
-                        break;
-                    }
-                case 0x86DD:   // IPV6
-                    {
-                        ParseIPV6Frame(b, offset, t, f);
-                        break;
-                    }
-                case 0x88BE:   // ERSPAN Type II
-                case 0x22EB:   // ERSPAN Type III
-                    {
-                        ParseERSPANFrame(b, offset, t, f);
-                        break;
-                    }
-            }
+            ParseNextProtocol(NextProtocol, b, offset, t, f);
+            //switch (NextProtocol)
+            //{
+            //    case 0x0800:   // IPV4
+            //        {
+            //            ParseIPV4Frame(b, offset, t, f);
+            //            break;
+            //        }
+            //    case 0x86DD:   // IPV6
+            //        {
+            //            ParseIPV6Frame(b, offset, t, f);
+            //            break;
+            //        }
+            //    case 0x88BE:   // ERSPAN Type II
+            //    case 0x22EB:   // ERSPAN Type III
+            //        {
+            //            ParseERSPANFrame(b, offset, t, f);
+            //            break;
+            //        }
+            //}
 
         }
 
@@ -601,23 +649,29 @@ namespace SQLNA
             NextProtocol = utility.B2UInt16(b, offset + 12);
             NextProtocolOffset = offset + 14;
 
-            // VLAN detection - may have more than one shim
-            while (NextProtocol == 0x8100)
-            {
-                NextProtocol = utility.B2UInt16(b, NextProtocolOffset + 2);
-                NextProtocolOffset += 4;
-            }
+            //// VLAN detection - may have more than one shim
+            //while (NextProtocol == 0x8100)
+            //{
+            //    NextProtocol = utility.B2UInt16(b, NextProtocolOffset + 2);
+            //    NextProtocolOffset += 4;
+            //}
 
             try
             {
-                if (NextProtocol == 0x800)
-                {
-                    ParseIPV4Frame(b, NextProtocolOffset, t, f);
-                }
-                else if (NextProtocol == 0x86DD)
-                {
-                    ParseIPV6Frame(b, NextProtocolOffset, t, f);
-                }
+                ParseNextProtocol(NextProtocol, b, NextProtocolOffset, t, f);  // handles the VLAN as well
+
+                //if (NextProtocol == 0x800)  // IPV4
+                //{
+                //    ParseIPV4Frame(b, NextProtocolOffset, t, f);
+                //}
+                //else if (NextProtocol == 0x86DD)  // IPV6
+                //{
+                //    ParseIPV6Frame(b, NextProtocolOffset, t, f);
+                //}
+                //else if (NextProtocol == 0x8926)  // VNETTag
+                //{
+                //    ParseVNTagFrame(b, NextProtocolOffset, t, f);
+                //}
             }
             catch (IndexOutOfRangeException)
             {
@@ -625,21 +679,18 @@ namespace SQLNA
             }
             catch { throw; }
 
-            if (NextProtocol == 0x800 || NextProtocol == 0x86DD)
+            if (f.conversation != null)
             {
-                if (f.conversation != null)
+                f.conversation.sourceMAC = sourceMAC;
+                f.conversation.destMAC = destMAC;
+                // statistical gathering
+                if (f.conversation.startTick == 0 || f.ticks < f.conversation.startTick)
                 {
-                    f.conversation.sourceMAC = sourceMAC;
-                    f.conversation.destMAC = destMAC;
-                    // statistical gathering
-                    if (f.conversation.startTick == 0 || f.ticks < f.conversation.startTick)
-                    {
-                        f.conversation.startTick = f.ticks;
-                    }
-                    if (f.conversation.endTick < f.ticks) f.conversation.endTick = f.ticks;
-                    if (f.isFromClient) f.conversation.sourceFrames++; else f.conversation.destFrames++;
-                    f.conversation.totalBytes += (ulong)b.Length;
+                    f.conversation.startTick = f.ticks;
                 }
+                if (f.conversation.endTick < f.ticks) f.conversation.endTick = f.ticks;
+                if (f.isFromClient) f.conversation.sourceFrames++; else f.conversation.destFrames++;
+                f.conversation.totalBytes += (ulong)b.Length;
             }
         }
 
@@ -763,18 +814,23 @@ namespace SQLNA
             NextProtocol = utility.B2UInt16(b, offset);
             offset += 2;
 
-            // Choose either IPV4 or IPV6
+            // Choose either IPV4 or IPV6 or VNETTag
 
             try
             {
-                if (NextProtocol == 0x800)
-                {
-                    ParseIPV4Frame(b, offset, t, f);
-                }
-                else if (NextProtocol == 0x86DD)
-                {
-                    ParseIPV6Frame(b, offset, t, f);
-                }
+                ParseNextProtocol(NextProtocol, b, offset, t, f);
+                //if (NextProtocol == 0x800)
+                //{
+                //    ParseIPV4Frame(b, offset, t, f);
+                //}
+                //else if (NextProtocol == 0x86DD)
+                //{
+                //    ParseIPV6Frame(b, offset, t, f);
+                //}
+                //else if (NextProtocol == 0x8926)
+                //{
+                //    ParseVNTagFrame(b, offset, t, f);
+                //}
             }
             catch (IndexOutOfRangeException)
             {
@@ -782,22 +838,74 @@ namespace SQLNA
             }
             catch { throw; }
 
-            if (NextProtocol == 0x800 || NextProtocol == 0x86DD)
+            if (f.conversation != null)
             {
-                if (f.conversation != null)
+                f.conversation.sourceMAC = sourceMAC;
+                f.conversation.destMAC = destMAC;
+                // statistical gathering
+                if (f.conversation.startTick == 0 || f.ticks < f.conversation.startTick)
                 {
-                    f.conversation.sourceMAC = sourceMAC;
-                    f.conversation.destMAC = destMAC;
-                    // statistical gathering
-                    if (f.conversation.startTick == 0 || f.ticks < f.conversation.startTick)
-                    {
-                        f.conversation.startTick = f.ticks;
-                    }
-                    if (f.conversation.endTick < f.ticks) f.conversation.endTick = f.ticks;
-                    if (f.isFromClient) f.conversation.sourceFrames++; else f.conversation.destFrames++;
-                    f.conversation.totalBytes += (ulong)b.Length;
+                    f.conversation.startTick = f.ticks;
                 }
+                if (f.conversation.endTick < f.ticks) f.conversation.endTick = f.ticks;
+                if (f.isFromClient) f.conversation.sourceFrames++; else f.conversation.destFrames++;
+                f.conversation.totalBytes += (ulong)b.Length;
             }
+        }
+
+        public static void ParseVNTagFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
+        {
+            //
+            // Protocol 0x8926
+            //
+            // VNTag is an IEEE-defined protocol
+            // Next Protocol = 802.1Q Virtual Lan or perhaps IPV4 or IPV6
+            //
+            // https://www.ieee802.org/1/files/public/docs2009/new-pelissier-vntag-seminar-0508.pdf
+            //
+
+            // Skip first 4 bytes, which are just flags - bytes 5 and 6 are the next protocol type
+
+            uint NextProtocol = utility.B2UInt16(b, offset + 4);
+            offset += 6;
+
+            ParseNextProtocol(NextProtocol, b, offset, t, f);
+
+            //if (NextProtocol == 0x0800)  // IPV4
+            //{
+            //    ParseIPV4Frame(b, offset, t, f);
+            //}
+            //else if (NextProtocol == 0x86DD)  // IPV6
+            //{
+            //    ParseIPV6Frame(b, offset, t, f);
+            //}
+            //else if (NextProtocol == 0x8100)  // 802.1Q Virtual LAN - seems to be next per WireShark parser
+            //{
+            //    Parse8021QFrame(b, offset, t, f);
+            //}
+        }
+
+        public static void Parse8021QFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
+        {
+            //
+            // Protocol 0x8100
+            //
+
+            // Skip the first 2 bytes, which are just flags - bytes 3 and 4 are the next protocol
+
+            uint NextProtocol = utility.B2UInt16(b, offset + 2);
+            offset += 4;
+
+            ParseNextProtocol(NextProtocol, b, offset, t, f);
+
+            //if (NextProtocol == 0x0800)  // IPV4
+            //{
+            //    ParseIPV4Frame(b, offset, t, f);
+            //}
+            //else if (NextProtocol == 0x86DD)  // IPV6
+            //{
+            //    ParseIPV6Frame(b, offset, t, f);
+            //}
         }
 
         public static void ParseIPV4Frame(byte[] b, int offset, NetworkTrace t, FrameData f)
@@ -917,18 +1025,19 @@ namespace SQLNA
                     f.isFromClient = true;
              }
 
-            if (NextProtocol == 6)
-            {
-                ParseTCPFrame(b, offset + HeaderLength, t, f);
-            }
-            else if (NextProtocol == 0x11)
-            {
-                ParseUDPFrame(b, offset + HeaderLength, t, f);
-            }
-            else if (NextProtocol == 0x2f)
-            {
-                ParseGenericRoutingEncapsulation(b, offset + HeaderLength, t, f);
-            }
+            ParseNextProtocol(NextProtocol, b, offset + HeaderLength, t, f);
+            //if (NextProtocol == 6)
+            //{
+            //    ParseTCPFrame(b, offset + HeaderLength, t, f);
+            //}
+            //else if (NextProtocol == 0x11)
+            //{
+            //    ParseUDPFrame(b, offset + HeaderLength, t, f);
+            //}
+            //else if (NextProtocol == 0x2f)
+            //{
+            //    ParseGenericRoutingEncapsulation(b, offset + HeaderLength, t, f);
+            //}
         }
 
         public static void ParseIPV6Frame(byte[] b, int offset, NetworkTrace t, FrameData f)
@@ -1033,39 +1142,40 @@ namespace SQLNA
                     f.isFromClient = true;
             }
 
-            switch (NextProtocol)
-            {
-                case 6:       //TCP
-                    {
-                        ParseTCPFrame(b, offset + HeaderLength, t, f);
-                        break;
-                    }
-                case 0x11:    // UDP
-                    {
-                        ParseUDPFrame(b, offset + HeaderLength, t, f);
-                        break;
-                    }
-                case 0x2F:    // Generic Routing Encapsulation (GRE)
-                    {
-                        ParseGenericRoutingEncapsulation(b, offset + HeaderLength, t, f);
-                        break;
-                    }
-                case 0:
-                case 60:
-                case 43:
-                case 44:
-                case 51:
-                case 135:
-                    {
-                        Program.logDiagnostic("Warn: IPV6 packet has extension header " + NextProtocol + ". Frame " + f.frameNo + " in " + f.file.filePath);
-                        break;
-                    }
-                default:
-                    {
-                        // Program.logDiagnostic("Ignored protocol " + NextProtocol.ToString());
-                        break;
-                    }
-            }
+            ParseNextProtocol(NextProtocol, b, offset + HeaderLength, t, f);
+            //switch (NextProtocol)
+            //{
+            //    case 6:       //TCP
+            //        {
+            //            ParseTCPFrame(b, offset + HeaderLength, t, f);
+            //            break;
+            //        }
+            //    case 0x11:    // UDP
+            //        {
+            //            ParseUDPFrame(b, offset + HeaderLength, t, f);
+            //            break;
+            //        }
+            //    case 0x2F:    // Generic Routing Encapsulation (GRE)
+            //        {
+            //            ParseGenericRoutingEncapsulation(b, offset + HeaderLength, t, f);
+            //            break;
+            //        }
+            //    case 0:
+            //    case 60:
+            //    case 43:
+            //    case 44:
+            //    case 51:
+            //    case 135:
+            //        {
+            //            Program.logDiagnostic("Warn: IPV6 packet has extension header " + NextProtocol + ". Frame " + f.frameNo + " in " + f.file.filePath);
+            //            break;
+            //        }
+            //    default:
+            //        {
+            //            // Program.logDiagnostic("Ignored protocol " + NextProtocol.ToString());
+            //            break;
+            //        }
+            //}
        }
 
         public static ushort GetESPTrailerLength(byte[] b, int offset, int LastByteOffset, ref byte NextProtocol)
