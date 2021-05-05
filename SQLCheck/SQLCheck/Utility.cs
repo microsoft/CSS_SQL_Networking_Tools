@@ -206,6 +206,32 @@ namespace SQLCheck
             }
         }
 
+        public static string RegistryTryGetValue(string RegPath, string ValueName, string Default)
+        {
+            object oVal = Registry.GetValue(RegPath, ValueName, Default);
+            if (oVal == null)
+            {
+                return "";
+            }
+            else
+            {
+                return oVal.ToString();
+            }
+        }
+
+        public static int RegistryTryGetValue(string RegPath, string ValueName, int Default)
+        {
+            object oVal = Registry.GetValue(RegPath, ValueName, Default);
+            if (oVal == null)
+            {
+                return 0;
+            }
+            else
+            {
+                return oVal.ToInt();
+            }
+        }
+
         //
         // Runs a Console application and returns the STDOUT text back to the method.
         //
@@ -368,16 +394,30 @@ namespace SQLCheck
 
         public static string GetFileVersion(string path, bool ShortVersion = false)
         {
-            var versionInfo = FileVersionInfo.GetVersionInfo(path);
-            string remainder = "";
-            // returns only up to the first space when ShortVersion is true - what's after that is text and not version #
-            return ShortVersion ? SmartString.ChopWord(versionInfo.FileVersion, ref remainder, " ", false, true) : versionInfo.FileVersion;
+            try
+            {
+                var versionInfo = FileVersionInfo.GetVersionInfo(path);
+                string remainder = "";
+                // returns only up to the first space when ShortVersion is true - what's after that is text and not version #
+                return ShortVersion ? SmartString.ChopWord(versionInfo.FileVersion, ref remainder, " ", false, true) : versionInfo.FileVersion;
+            }
+            catch (Exception ex)
+            {
+                return "Not found";
+            }
         }
 
         public static string GetProductVersion(string path)
         {
-            var versionInfo = FileVersionInfo.GetVersionInfo(path);
-            return versionInfo.ProductVersion;   // no need to chop this up
+            try
+            {
+                var versionInfo = FileVersionInfo.GetVersionInfo(path);
+                return versionInfo.ProductVersion;   // no need to chop this up
+            }
+            catch (Exception ex)
+            {
+                return "Not found";
+            }
         }
 
         //

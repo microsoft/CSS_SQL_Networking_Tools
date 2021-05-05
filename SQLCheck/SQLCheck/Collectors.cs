@@ -47,11 +47,8 @@ namespace SQLCheck
             CollectSQLServer(ds);
             // Collect SSRS
             // Collect OLAP
-            // Collect TLS enabled - 3 values for enabled/disabled/unsupported: (1) Default, (2) Local setting, (3) Policy setting
-            // Collect Cipher Suites - defaults per TLS version enabled, current settings, policy?
 
             // Other items:
-            // 1. SQL Keep-alive time and interval
             // 2. ODBC Driver 17.4 keep-alive time and interval on ODBC Driver and DSN entries: https://docs.microsoft.com/en-us/sql/connect/odbc/windows/features-of-the-microsoft-odbc-driver-for-sql-server-on-windows?view=sql-server-ver15
             ds.AcceptChanges();
 
@@ -135,15 +132,15 @@ namespace SQLCheck
             int majorVersion = 0, minorVersion = 0, ubr = 0;
             string releaseID = "";
             Computer["WindowsVersion"] = Environment.OSVersion.VersionString;  // not really valid past Windows 2012
-            majorVersion = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentMajorVersionNumber", 0).ToInt();
+            majorVersion = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentMajorVersionNumber", 0);
             Computer["MajorVersion"] = majorVersion.ToString();
-            minorVersion = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentMinorVersionNumber", 0).ToInt();
+            minorVersion = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentMinorVersionNumber", 0);
             Computer["MinorVersion"] = minorVersion.ToString();
-            Computer["WindowsName"] = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ProductName", "").ToString();
-            Computer["WindowsBuild"] = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentBuild", "").ToString();
-            releaseID = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ReleaseID", "").ToString();
+            Computer["WindowsName"] = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ProductName", "");
+            Computer["WindowsBuild"] = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentBuild", "");
+            releaseID = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ReleaseID", "");
             Computer["WindowsReleaseID"] = releaseID;
-            ubr = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "UBR", 0).ToInt();  // UBR = Update Build Revision
+            ubr = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "UBR", 0);  // UBR = Update Build Revision
             Computer["WindowsUBR"] = ubr.ToString();
 
             if (majorVersion != 0) Computer["WindowsVersion"] = $"{majorVersion}.{minorVersion}.{Computer["WindowsBuild"].ToString()}.{ubr}";
@@ -153,7 +150,7 @@ namespace SQLCheck
             // CLR 4 version - ADO.NET support for TLS 1.2 is available only in the .NET Framework 4.6
             //
 
-            string CLR4Version = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Client\1033", "Version", "").ToString();
+            string CLR4Version = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v4\Client\1033", "Version", "");
             if (CLR4Version == "") CLR4Version = "Not Installed";
             Computer["CLR4Version"] = CLR4Version;
             if (CLR4Version.StartsWith("4.0.") || CLR4Version.StartsWith("4.5."))  // No versions 4.1, 4.2, 4.3, or 4.4
@@ -166,16 +163,16 @@ namespace SQLCheck
             // CLR 2 version - try 3.5, then 3.0, then 2.0 - ADO.NET support for TLS 1.2 is available only in the .NET Framework 2.0 SP2, 3.0 SP2, 3.5 SP1
             //
 
-            string CLR2Version = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5\1033", "Version", "").ToString();
-            string ServicePack = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5\1033", "SP", "").ToString();
+            string CLR2Version = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5\1033", "Version", "");
+            string ServicePack = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.5\1033", "SP", "");
             if (CLR2Version == "")
             {
-                CLR2Version = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.0\Setup\1033", "Version", "").ToString();
-                ServicePack = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.0\Setup\1033", "SP", "").ToString();
+                CLR2Version = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.0\Setup\1033", "Version", "");
+                ServicePack = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v3.0\Setup\1033", "SP", "");
                 if (CLR2Version == "")
                 {
-                    CLR2Version = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v2.0.50727\1033", "Version", "").ToString();
-                    ServicePack = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v2.0.50727\1033", "SP", "").ToString();
+                    CLR2Version = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v2.0.50727\1033", "Version", "");
+                    ServicePack = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\NET Framework Setup\NDP\v2.0.50727\1033", "SP", "");
                     if (CLR2Version == "")
                     {
                         CLR2Version = "Not installed";
@@ -869,6 +866,7 @@ namespace SQLCheck
         public static void CollectDatabaseDriver(DataSet ds)
         {
             DataRow Computer = ds.Tables["Computer"].Rows[0];
+            DataRow DatabaseDriver = null;
             bool is64bit = Computer["CPU64Bit"].ToBoolean();
             string[] OLEDBProviders = DriverInfo.GetExtendedOLEDBNames();  // SQL and some non-SQL OLE DB Providers
             string[] ODBCDrivers = DriverInfo.GetODBCNames();
@@ -888,21 +886,28 @@ namespace SQLCheck
                     string inprocServer32 = ip == null ? "" : ip.ToString();
                     if (inprocServer32 != "")
                     {
-                        DataRow DatabaseDriver = ds.Tables["DatabaseDriver"].NewRow();
-                        ds.Tables["DatabaseDriver"].Rows.Add(DatabaseDriver);
+                        try
+                        {
+                            DatabaseDriver = ds.Tables["DatabaseDriver"].NewRow();
+                            ds.Tables["DatabaseDriver"].Rows.Add(DatabaseDriver);
 
-                        DatabaseDriver["DriverName"] = Provider;
-                        DatabaseDriver["DriverType"] = "OLE DB";
-                        DatabaseDriver["Guid"] = guid;
-                        DatabaseDriver["Path"] = inprocServer32;
-                        versionInfo = FileVersionInfo.GetVersionInfo(inprocServer32);
-                        info = DriverInfo.GetDriverInfo(Provider, versionInfo, windowsVersion, windowsReleaseID);
-                        DatabaseDriver["Version"] = versionInfo.ProductVersion;
-                        DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
-                        DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
-                        DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
-                        DatabaseDriver["Supported"] = info == null ? "" : info.Supported;
-                        DatabaseDriver["MultiSubnetFailoverSupport"] = info == null ? "" : info.MultiSubnetFailover;
+                            DatabaseDriver["DriverName"] = Provider;
+                            DatabaseDriver["DriverType"] = "OLE DB";
+                            DatabaseDriver["Guid"] = guid;
+                            DatabaseDriver["Path"] = inprocServer32;
+                            versionInfo = FileVersionInfo.GetVersionInfo(inprocServer32);
+                            info = DriverInfo.GetDriverInfo(Provider, versionInfo, windowsVersion, windowsReleaseID);
+                            DatabaseDriver["Version"] = versionInfo.ProductVersion;
+                            DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
+                            DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
+                            DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
+                            DatabaseDriver["Supported"] = info == null ? "" : info.Supported;
+                            DatabaseDriver["MultiSubnetFailoverSupport"] = info == null ? "" : info.MultiSubnetFailover;
+                        }
+                        catch (Exception ex)
+                        {
+                            DatabaseDriver.LogException($"There was a problem enumerating OLE DB Provider {inprocServer32}.", ex);
+                        }
                     }
                     if (is64bit)
                     {
@@ -913,21 +918,28 @@ namespace SQLCheck
                             inprocServer32 = SmartString.ReplaceBeginning(inprocServer32, Environment.GetEnvironmentVariable("ProgramFiles") + @"\", Environment.GetEnvironmentVariable("ProgramFiles(x86)") + @"\", true);
                             inprocServer32 = SmartString.ReplaceBeginning(inprocServer32, Environment.GetEnvironmentVariable("SystemRoot") + @"\System32\", Environment.GetEnvironmentVariable("SystemRoot") + @"\SysWOW64\", true);
 
-                            DataRow DatabaseDriver = ds.Tables["DatabaseDriver"].NewRow();
-                            ds.Tables["DatabaseDriver"].Rows.Add(DatabaseDriver);
+                            try
+                            {
+                                DatabaseDriver = ds.Tables["DatabaseDriver"].NewRow();
+                                ds.Tables["DatabaseDriver"].Rows.Add(DatabaseDriver);
 
-                            DatabaseDriver["DriverName"] = Provider;
-                            DatabaseDriver["DriverType"] = "OLE DB";
-                            DatabaseDriver["Path"] = inprocServer32;
-                            DatabaseDriver["Guid"] = guid;
-                            versionInfo = FileVersionInfo.GetVersionInfo(inprocServer32);
-                            info = DriverInfo.GetDriverInfo(Provider, versionInfo, windowsVersion, windowsReleaseID);
-                            DatabaseDriver["Version"] = versionInfo.ProductVersion;
-                            DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
-                            DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
-                            DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
-                            DatabaseDriver["Supported"] = info == null ? "" : info.Supported;
-                            DatabaseDriver["MultiSubnetFailoverSupport"] = info == null ? "" : info.MultiSubnetFailover;
+                                DatabaseDriver["DriverName"] = Provider;
+                                DatabaseDriver["DriverType"] = "OLE DB";
+                                DatabaseDriver["Path"] = inprocServer32;
+                                DatabaseDriver["Guid"] = guid;
+                                versionInfo = FileVersionInfo.GetVersionInfo(inprocServer32);
+                                info = DriverInfo.GetDriverInfo(Provider, versionInfo, windowsVersion, windowsReleaseID);
+                                DatabaseDriver["Version"] = versionInfo.ProductVersion;
+                                DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
+                                DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
+                                DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
+                                DatabaseDriver["Supported"] = info == null ? "" : info.Supported;
+                                DatabaseDriver["MultiSubnetFailoverSupport"] = info == null ? "" : info.MultiSubnetFailover;
+                            }
+                            catch (Exception ex)
+                            {
+                                DatabaseDriver.LogException($"There was a problem enumerating OLE DB Provider {inprocServer32}.", ex);
+                            }
                         }
                     }
                 }
@@ -969,24 +981,31 @@ namespace SQLCheck
                             }
                             else
                             {
-                                DataRow DatabaseDriver = ds.Tables["DatabaseDriver"].NewRow();
+                                DatabaseDriver = ds.Tables["DatabaseDriver"].NewRow();
                                 ds.Tables["DatabaseDriver"].Rows.Add(DatabaseDriver);
 
                                 object d = driverKey.GetValue("Driver", "");
                                 string path = d == null ? "" : d.ToString();
 
-                                DatabaseDriver["DriverName"] = valueName;
-                                DatabaseDriver["DriverType"] = "ODBC";
-                                DatabaseDriver["Path"] = path;
-                                DatabaseDriver["Guid"] = "";
-                                versionInfo = FileVersionInfo.GetVersionInfo(path);
-                                info = DriverInfo.GetDriverInfo(valueName, versionInfo, windowsVersion, windowsReleaseID);
-                                DatabaseDriver["Version"] = versionInfo.ProductVersion;
-                                DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
-                                DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
-                                DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
-                                DatabaseDriver["Supported"] = info == null ? "" : info.Supported;
-                                DatabaseDriver["MultiSubnetFailoverSupport"] = info == null ? "" : info.MultiSubnetFailover;
+                                try
+                                {
+                                    DatabaseDriver["DriverName"] = valueName;
+                                    DatabaseDriver["DriverType"] = "ODBC";
+                                    DatabaseDriver["Path"] = path;
+                                    DatabaseDriver["Guid"] = "";
+                                    versionInfo = FileVersionInfo.GetVersionInfo(path);
+                                    info = DriverInfo.GetDriverInfo(valueName, versionInfo, windowsVersion, windowsReleaseID);
+                                    DatabaseDriver["Version"] = versionInfo.ProductVersion;
+                                    DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
+                                    DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
+                                    DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
+                                    DatabaseDriver["Supported"] = info == null ? "" : info.Supported;
+                                    DatabaseDriver["MultiSubnetFailoverSupport"] = info == null ? "" : info.MultiSubnetFailover;
+                                }
+                                catch (Exception ex)
+                                {
+                                    DatabaseDriver.LogException($"There was a problem enumerating ODBC Driver {path}.", ex);
+                                }
                             }
                         }
                     }
@@ -1037,7 +1056,7 @@ namespace SQLCheck
                             }
                             else
                             {
-                                DataRow DatabaseDriver = ds.Tables["DatabaseDriver"].NewRow();
+                                DatabaseDriver = ds.Tables["DatabaseDriver"].NewRow();
                                 ds.Tables["DatabaseDriver"].Rows.Add(DatabaseDriver);
 
                                 object d = driverKey.GetValue("Driver", "");
@@ -1046,19 +1065,25 @@ namespace SQLCheck
                                 path = SmartString.ReplaceBeginning(path, Environment.GetEnvironmentVariable("ProgramFiles") + @"\", Environment.GetEnvironmentVariable("ProgramFiles(x86)") + @"\", true);
                                 path = SmartString.ReplaceBeginning(path, Environment.GetEnvironmentVariable("SystemRoot") + @"\System32\", Environment.GetEnvironmentVariable("SystemRoot") + @"\SysWOW64\", true);
 
-
-                                DatabaseDriver["DriverName"] = valueName;
-                                DatabaseDriver["DriverType"] = "ODBC";
-                                DatabaseDriver["Path"] = path;
-                                DatabaseDriver["Guid"] = "";
-                                versionInfo = FileVersionInfo.GetVersionInfo(path);
-                                info = DriverInfo.GetDriverInfo(valueName, versionInfo, windowsVersion, windowsReleaseID);
-                                DatabaseDriver["Version"] = versionInfo.ProductVersion;
-                                DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
-                                DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
-                                DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
-                                DatabaseDriver["Supported"] = info == null ? "" : info.Supported;
-                                DatabaseDriver["MultiSubnetFailoverSupport"] = info == null ? "" : info.MultiSubnetFailover;
+                                try
+                                {
+                                    DatabaseDriver["DriverName"] = valueName;
+                                    DatabaseDriver["DriverType"] = "ODBC";
+                                    DatabaseDriver["Path"] = path;
+                                    DatabaseDriver["Guid"] = "";
+                                    versionInfo = FileVersionInfo.GetVersionInfo(path);
+                                    info = DriverInfo.GetDriverInfo(valueName, versionInfo, windowsVersion, windowsReleaseID);
+                                    DatabaseDriver["Version"] = versionInfo.ProductVersion;
+                                    DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
+                                    DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
+                                    DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
+                                    DatabaseDriver["Supported"] = info == null ? "" : info.Supported;
+                                    DatabaseDriver["MultiSubnetFailoverSupport"] = info == null ? "" : info.MultiSubnetFailover;
+                                }
+                                catch (Exception ex)
+                                {
+                                    DatabaseDriver.LogException($"There was a problem enumerating ODBC Driver {path}.", ex);
+                                }
                             }
                         }
                     }
@@ -1274,6 +1299,8 @@ namespace SQLCheck
 
                     dtCertificate.Rows.Add(Certificate);
 
+                    bool serverCert = false;
+                    string keySpec = "";
                     foreach (X509Extension extension in cert.Extensions)
                     {
                         AsnEncodedData asndata = new AsnEncodedData(extension.Oid, extension.RawData);
@@ -1283,17 +1310,17 @@ namespace SQLCheck
                                 Certificate["SubjectAlternativeName"] = asndata.Format(false);
                                 break;
                             case "Key Usage":
-                                string keySpec = asndata.Format(false);
+                                keySpec = asndata.Format(false);
                                 Certificate["KeySpec"] = keySpec;
-                                if (keySpec.Contains("Key Encipherment") == false) msg += ", KeySpec!=1";
                                 break;
                             case "Enhanced Key Usage":
-                                bool serverCert = asndata.Format(false).Contains("Server Authentication") ? true : false;
+                                serverCert = asndata.Format(false).Contains("Server Authentication") ? true : false;
                                 Certificate["ServerCert"] = serverCert;
-                                if (serverCert == false) msg += ", Not server";
                                 break;
                         }
                     }
+                    if (keySpec.Contains("Key Encipherment") == false) msg += ", KeySpec!=1";
+                    if (serverCert == false) msg += ", Not server";
                     Certificate["Message"] = msg.Length > 2 ? msg.Substring(2) : "";
                     Certificate = null;
                 }
