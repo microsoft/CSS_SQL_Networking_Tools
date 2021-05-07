@@ -296,20 +296,29 @@ namespace SQLCheck
             if (Computer.GetBoolean("JoinedToDomain") == false) return;
 
             DataRow DomainRow = ds.Tables["Domain"].NewRow();
-            Domain domain = Domain.GetComputerDomain();
-            Domain parent = domain.Parent;
-            Forest forest = domain.Forest;
-            DomainRow["DomainName"] = domain.Name;
-            DomainRow["DomainMode"] = domain.DomainMode.ToString();
-            if (parent != null) DomainRow["ParentDomain"] = parent.Name;
-            if (forest != null)
+            Domain domain = null;
+            try
             {
-                DomainRow["ForestName"] = forest.Name;
-                DomainRow["ForestMode"] = forest.ForestMode.ToString();
-                Domain rootDomain = forest.RootDomain;
-                if (rootDomain != null) DomainRow["RootDomain"] = forest.RootDomain.Name;
+                domain = Domain.GetComputerDomain();
+                Domain parent = domain.Parent;
+                Forest forest = domain.Forest;
+                DomainRow["DomainName"] = domain.Name;
+                DomainRow["DomainMode"] = domain.DomainMode.ToString();
+                if (parent != null) DomainRow["ParentDomain"] = parent.Name;
+                if (forest != null)
+                {
+                    DomainRow["ForestName"] = forest.Name;
+                    DomainRow["ForestMode"] = forest.ForestMode.ToString();
+                    Domain rootDomain = forest.RootDomain;
+                    if (rootDomain != null) DomainRow["RootDomain"] = forest.RootDomain.Name;
+                }
+                ds.Tables["Domain"].Rows.Add(DomainRow);
             }
-            ds.Tables["Domain"].Rows.Add(DomainRow);
+            catch (Exception ex)
+            {
+                Computer.LogException("The computer appears to be joined to a domain but the application could not contact a domain controller.", ex);
+                return;
+            }
 
             //
             // Get related domains
