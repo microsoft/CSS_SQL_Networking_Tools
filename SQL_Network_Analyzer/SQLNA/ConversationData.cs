@@ -117,7 +117,7 @@ namespace SQLNA
         {
             get
             {
-                if (hasLateLoginAck) return true; // added Dec 5, 2016
+                if (hasLateLoginAck || ErrorMsg != "") return true; // added Dec 5, 2016
                 if (isEncrypted)
                 {
                     if ((hasApplicationData == false) &&
@@ -128,12 +128,21 @@ namespace SQLNA
                         return true;
                     }
                 }
-                else if ((hasPostLoginResponse == false) &&
-                        ((resetCount > 0) || (finCount > 0)) &&
-                        ((synCount > 0) || hasPrelogin || hasPreloginResponse || hasClientSSL || hasServerSSL ||
-                          hasKeyExchange || hasCipherExchange || hasNTLMChallenge || hasNTLMResponse || hasApplicationData))
+                else
                 {
-                    return true;
+                    if (hasApplicationData == true  && synCount == 0 && hasPrelogin == false && hasPreloginResponse == false &&
+                        hasClientSSL == false && hasServerSSL == false && hasKeyExchange == false && hasCipherExchange == false &&
+                        hasNTLMChallenge == false && hasNTLMResponse == false && frames.Count > (4 + 2 * keepAliveCount + rawRetransmits))
+                    {
+                        return false;
+                    }
+                    if ((hasPostLoginResponse == false) &&
+                          ((resetCount > 0) || (finCount > 0)) &&
+                          ((synCount > 0) || hasPrelogin || hasPreloginResponse || hasClientSSL || hasServerSSL ||
+                            hasKeyExchange || hasCipherExchange || hasNTLMChallenge || hasNTLMResponse || hasApplicationData))
+                    {
+                        return true;
+                    }
                 }
                 return false;
             }

@@ -70,6 +70,7 @@
     <Compile Include="SmartString.cs" />
     <Compile Include="Storage.cs" />
     <Compile Include="TextReport.cs" />
+    <Compile Include="TLSInfo.cs" />
     <Compile Include="Utility.cs" />
     <EmbeddedResource Include="SQLCheck.resx">
       <DependentUpon>SQLCheck.cs</DependentUpon>

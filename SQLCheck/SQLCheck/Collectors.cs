@@ -465,27 +465,67 @@ namespace SQLCheck
 
         public static void CollectTLS(DataSet ds)
         {
+            DataRow Computer = ds.Tables["Computer"].Rows[0];
             string[] TLSVersions = new string[] { "SSL 2.0", "SSL 3.0", "TLS 1.0", "TLS 1.1", "TLS 1.2" };
             string[] ClientServer = new string[] { "Client", "Server" };
-            string[] ValueNames = new string[] { "DisabledByDefault", "Enabled" };  // DWORD
             object temp = null;
+            string defVal = "", enVal = "", disVal = "", effVal = "";
+            TLSInfo tlsInfo = TLSInfo.GetTLSInfo(Computer);
 
             foreach (string cs in ClientServer)
             {
                 foreach (string tlsVersion in TLSVersions)
                 {
-                    foreach (string valueName in ValueNames)
+                    DataRow TLS = ds.Tables["TLS"].NewRow();
+                    ds.Tables["TLS"].Rows.Add(TLS);
+                    defVal = "";
+                    enVal = "";
+                    disVal = "";
+                    effVal = "";
+                    TLS["ClientOrServer"] = cs;
+                    TLS["TLSVersion"] = tlsVersion;
+                    defVal = tlsInfo.GetComputerDefault(tlsVersion);
+                    TLS["Defaultvalue"] = defVal;
+                    temp = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\{tlsVersion}\{cs}", "Enabled", "");
+                    enVal = temp == null ? "" : ((temp.ToInt() != 0) ? $"True " : "False") + $" (0x{temp.ToInt().ToString("X8")})" + CheckTLS(tlsVersion, "Enabled", temp.ToInt());
+                    TLS["EnabledValue"] = enVal;
+                    temp = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\{tlsVersion}\{cs}", "DisabledByDefault", "");
+                    disVal = temp == null ? "" : ((temp.ToInt() != 0) ? $"True " : "False") + $" (0x{temp.ToInt().ToString("X8")})" + CheckTLS(tlsVersion, "DisabledByDefault", temp.ToInt());
+                    TLS["DisabledByDefaultValue"] = disVal;
+
+                    //
+                    // Calculate the effective Value
+                    //
+                    switch (defVal)
                     {
-                        DataRow TLS = ds.Tables["TLS"].NewRow();
-                        ds.Tables["TLS"].Rows.Add(TLS);
-                        TLS["ClientOrServer"] = cs;
-                        TLS["TLSVersion"] = tlsVersion;
-                        TLS["ValueName"] = valueName;
-                        TLS["Defaultvalue"] = "TODO";              // TODO
-                        temp = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\{tlsVersion}\{cs}", valueName, "");
-                        TLS["RegistryValue"] = temp == null ? "" : ((temp.ToInt() != 0) ? $"True " : "False") + $" (0x{temp.ToInt().ToString("X8")})" + CheckTLS(tlsVersion, valueName, temp.ToInt());
-                        TLS["PolicyValue"] = "TODO";               // TODO
+                        case "Not Supported":
+                            effVal = "Not Supported";
+                            break;
+                        case "Disabled":
+                            if (enVal == "" || enVal.StartsWith("False"))
+                            {
+                                effVal = "Disabled";
+                            }
+                            else // enVal = true
+                            {
+                                effVal = disVal.StartsWith("False") ? "Enabled" : "Disabled";  // disVal = "" (not specified) -> Disabled
+                            }
+                            break;
+                        case "Enabled":
+                            if (enVal.StartsWith("False"))
+                            {
+                                effVal = "Disabled";
+                            }
+                            else  // enVal = True or blank (not specified)
+                            {
+                                effVal = disVal.StartsWith("False") ? "Enabled" : "Disabled";  // disVal = "" (not specified) -> Disabled
+                            }
+                            break;
+                        default:
+                            effVal = "";
+                            break;
                     }
+                    TLS["EffectiveValue"] = effVal;
                 }
             }
         }
@@ -1619,7 +1659,7 @@ namespace SQLCheck
                                     PropertyValueCollection props = entry.Properties["msDS-AllowedToDelegateTo"];
                                     foreach (object prop in props)
                                     {
-                                        Console.WriteLine($"Constrained target SPN for {tempAccount}: {prop.ToString()}");
+                                        //Console.WriteLine($"Constrained target SPN for {tempAccount}: {prop.ToString()}");  // debug trace
                                         // add constrained SPN records here
                                         DataRow ConstrainedDelegationSPN = ds.Tables["ConstrainedDelegationSPN"].NewRow();
                                         ds.Tables["ConstrainedDelegationSPN"].Rows.Add(ConstrainedDelegationSPN);
@@ -2047,7 +2087,7 @@ namespace SQLCheck
                             {
                                 string msg = "";
                                 line = SmartString.GetBetween(line, @"[", @"]", false, true);  // auto trim the result
-                                DataRow[] Certificates = ds.Tables["Certificate"].Select($"ThumbPrint='{line}'");
+                                DataRow[] Certificates = ds.Tables["Certificate"].Select($@"ThumbPrint Like 'Cert Hash(*) ""{line}""'");
                                 if (Certificates.Length == 0)
                                 {
                                     msg = " (no certs match the thumbprint)";

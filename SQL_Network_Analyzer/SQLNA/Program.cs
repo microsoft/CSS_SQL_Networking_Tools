@@ -27,10 +27,11 @@ namespace SQLNA
         public static string outFile = null;
         public static string diagOutFile = null;
         public static bool outputConversationList = false;   // enables a section in the main report that is normally suppressed
-        public static string filterFormat = "";              // blank | N | W   if N or W, replace the Client IP and Port in reports with a filter string in either NETMON or WireShark format
+        public static string filterFormat = "";              // blank | A | N | W   if N or W, replace the Client IP and Port in reports with a filter string in either NETMON or WireShark format
+                                                             // filterFormat A = AUTO, will perform NETMON or WirreShark filters based on the capture type ... ETL -> Netmon format
 
-        public const string VERSION_NUMBER = "1.5.1750.0";
-        public const string UPDATE_DATE = "2021/06/30";
+        public const string VERSION_NUMBER = "1.5.1760.0";
+        public const string UPDATE_DATE = "2021/07/31";
         public const string GITHUB_PROJECT_URL = "https://github.com/microsoft/CSS_SQL_Networking_Tools";
 
         static void Main(string[] args)
@@ -117,6 +118,11 @@ namespace SQLNA
                         case "WIRESHARK":
                             {
                                 filterFormat = "W";
+                                break;
+                            }
+                        case "AUTO":
+                            {
+                                filterFormat = "A";  // gets set to N or W based on the file type of the first file opened
                                 break;
                             }
                         default:

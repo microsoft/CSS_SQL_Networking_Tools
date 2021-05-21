@@ -44,6 +44,11 @@ namespace SQLNAUI
                         CboAddressFormat.Text = "WireShark Filter String";
                         break;
                     }
+                case "AUTO":
+                    {
+                        CboAddressFormat.Text = "Auto";
+                        break;
+                    }
                 default:
                     {
                         CboAddressFormat.Text = "Default";
@@ -71,6 +76,11 @@ namespace SQLNAUI
                 case "WIRESHARK FILTER STRING":
                     {
                         Registry.SetValue(Program.RegPath, Program.addrFormatValueName, "WireShark");
+                        break;
+                    }
+                case "AUTO":
+                    {
+                        Registry.SetValue(Program.RegPath, Program.addrFormatValueName, "Auto");
                         break;
                     }
                 default:

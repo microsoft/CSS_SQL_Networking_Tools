@@ -70,7 +70,7 @@ namespace SQLNA
                     dr["FileName"] = f;
                     dr["FileDate"] = fi.LastWriteTime;
                     dr["FileSize"] = fi.Length;
-                    dr["InitialTick"] = GetInitialTick(f);
+                    dr["InitialTick"] = GetInitialTick(f);  // we set the Program.reportFilterFormat value in here
                     totalSize = fi.Length;
                     dt.Rows.Add(dr);
                 }
@@ -121,6 +121,7 @@ namespace SQLNA
                 {
                     er = new ETLFileReader(filePath);
                     initialTick = er.GetStartTime().Ticks;
+                    if (Program.filterFormat == "A") Program.filterFormat = "N";   // format for "AUTO" format mode based on file type
                 }
                 else
                 {
@@ -132,6 +133,7 @@ namespace SQLNA
                         case 0x55424d47:  // NETMON magic number
                             {
                                 rb = new NetMonReader(r);
+                                if (Program.filterFormat == "A") Program.filterFormat = "N";   // format for "AUTO" format mode based on file type
                                 break;
                             }
                         case 0xa1b2c3d4:  // PCAP normal byte order   - millisecond resolution
@@ -140,11 +142,13 @@ namespace SQLNA
                         case 0x4d3cb2a1:  // PCAP reversed byte order - nanosecond resolution
                             {
                                 rb = new SimplePCAPReader(r);
+                                if (Program.filterFormat == "A") Program.filterFormat = "W";   // format for "AUTO" format mode based on file type
                                 break;
                             }
                         case 0x0A0D0D0A:  // PCAPNG Section Header Block identifier. Magic number is at file offset 8.
                             {
                                 rb = new PcapNGReader(r);
+                                if (Program.filterFormat == "A") Program.filterFormat = "W";   // format for "AUTO" format mode based on file type
                                 break;
                             }
                         default:

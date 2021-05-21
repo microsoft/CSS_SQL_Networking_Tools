@@ -59,7 +59,7 @@ namespace SQLNAUI
             if (TxtLogFile.Text.Trim() != "") TxtCommand.Text += @" /output """ + TxtLogFile.Text.Trim() + @"""";
             if (TxtSQLHint.Text.Trim() != "") TxtCommand.Text += @" /sql " + TxtSQLHint.Text.Trim().Replace(" ", " /sql ");
             if (convList) TxtCommand.Text += @" /convList";
-            if (addrFormat != "Default") TxtCommand.Text += addrFormat == "NETMON Filter String" ? @" /filterFmt NETMON" : @" /filterFmt WireShark";
+            if (addrFormat != "Default") TxtCommand.Text += $@" /filterFmt {addrFormat}";
         }
 
         private void GetRegistryDefaults()
@@ -84,12 +84,17 @@ namespace SQLNAUI
             {
                 case "NETMON":
                     {
-                        addrFormat = "NETMON Filter String";
+                        addrFormat = "NETMON";
                         break;
                     }
                 case "WIRESHARK":
                     {
-                        addrFormat = "WireShark Filter String";
+                        addrFormat = "WireShark";
+                        break;
+                    }
+                case "AUTO":
+                    {
+                        addrFormat = "Auto";
                         break;
                     }
                 default:

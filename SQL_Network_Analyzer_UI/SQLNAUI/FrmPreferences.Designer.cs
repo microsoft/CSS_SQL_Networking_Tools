@@ -92,12 +92,13 @@
             this.CboAddressFormat.Items.AddRange(new object[] {
             "Default",
             "NETMON Filter String",
-            "WireShark Filter String"});
+            "WireShark Filter String",
+            "Auto"});
             this.CboAddressFormat.Location = new System.Drawing.Point(274, 50);
             this.CboAddressFormat.Name = "CboAddressFormat";
             this.CboAddressFormat.Size = new System.Drawing.Size(230, 21);
             this.CboAddressFormat.TabIndex = 5;
-            this.CboAddressFormat.Text = "Default";
+            this.CboAddressFormat.Text = "Auto";
             // 
             // TextBox1
             // 
@@ -111,7 +112,7 @@
             this.TextBox1.Size = new System.Drawing.Size(303, 53);
             this.TextBox1.TabIndex = 6;
             this.TextBox1.Text = "SQL Network Analyzer User Interface\r\nMicrosoft CSS SQL Server Networking Team\r\nCo" +
-    "pyright 2014, 2015, 2016, 2017, 2018, 2019, 2020";
+    "pyright 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021";
             // 
             // FrmPreferences
             // 

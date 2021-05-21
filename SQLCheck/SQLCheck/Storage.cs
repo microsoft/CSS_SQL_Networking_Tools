@@ -130,12 +130,12 @@ namespace SQLCheck
             dt.AddColumn("ID", "Integer");
             dt.Columns["ID"].AutoIncrement = true;
             dt.AddColumn("ParentID", "Integer");
-            dt.AddColumn("TLSVersion", "String");     // SSL 2.0, SSL 3.0, TLS 1.0, TLS 1.1, TLS 1.2
-            dt.AddColumn("ClientOrServer", "String"); // Client or Server
-            dt.AddColumn("ValueName", "String");      // DisabledByDefault or Enabled
-            dt.AddColumn("DefaultValue", "String");   // got from OS version mapping table, any non-zero setting is "True", preserve blanks for missing entries
-            dt.AddColumn("RegistryValue", "String");  // under HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols
-            dt.AddColumn("PolicyValue", "String");    // under HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies ... somewhere - none on my system
+            dt.AddColumn("TLSVersion", "String");                // SSL 2.0, SSL 3.0, TLS 1.0, TLS 1.1, TLS 1.2
+            dt.AddColumn("ClientOrServer", "String");            // Client or Server
+            dt.AddColumn("DefaultValue", "String");              // got from OS version mapping table: Not Supported, Disabled, Enabled
+            dt.AddColumn("EnabledValue", "String");              // under HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols
+            dt.AddColumn("DisabledByDefaultValue", "String");    // under HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols
+            dt.AddColumn("EffectiveValue", "String");            // 
             ds.Tables.Add(dt);
 
             //

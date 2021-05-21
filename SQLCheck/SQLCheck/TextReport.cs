@@ -285,15 +285,15 @@ namespace SQLCheck
             DataTable dtTLS = ds.Tables["TLS"];
             ReportFormatter rf = new ReportFormatter();
             // rf.SetColumnNames("Client/Server:L", "TLS Version:L", "Setting:L", "Default:L", "Registry:L", "Policy:L");  // we don't collect all these columns, yet
-            rf.SetColumnNames("Client/Server:L", "TLS Version:L", "Setting:L", "Registry:L");
+            rf.SetColumnNames("Client/Server:L", "TLS Version:L", "Default:L", "Enabled in Reg:L", "Disabled By Default:L", "Effective Value:L");
             foreach (DataRow TLS in dtTLS.Rows)
             {
                 rf.SetcolumnData(TLS["ClientOrServer"].ToString(),
                                  TLS["TLSVersion"].ToString(),
-                                 TLS["ValueName"].ToString(),
-                                 //    TLS["DefaultValue"].ToString(),
-                                 TLS["RegistryValue"].ToString());
-                                 //    TLS["PolicyValue"].ToString());
+                                 TLS.GetString("DefaultValue"),
+                                 TLS.GetString("EnabledValue"),
+                                 TLS.GetString("DisabledByDefaultValue"),
+                                 TLS.GetString("EffectiveValue"));
             }
             s.WriteLine(rf.GetHeaderText());
             s.WriteLine(rf.GetSeparatorText());
