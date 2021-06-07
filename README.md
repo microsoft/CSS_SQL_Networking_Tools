@@ -13,6 +13,10 @@ SQL Network Analyzer - a command-line tool that reads a network trace (or series
 
 SQL Network Analyzer UI - a GUI interface for SQL Network Analyzer.
 
+SQL Check - a command-line tool that records system information useful for analyzing SQL Server client-server connectivity issues.
+
+Various scripts referenced by workflows.
+
 # Documentation
 
 The Wiki contains documentation for the tools on this site.
