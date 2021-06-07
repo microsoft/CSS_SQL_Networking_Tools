@@ -449,56 +449,56 @@ namespace SQLCheck
             return ds;
         }
 
-        public static void SaveDataSet(DataSet ds, string filePath)
-        {
-            try
-            {
-                ds.WriteXml(filePath, XmlWriteMode.WriteSchema);
-            }
-            catch (Exception ex)
-            {
-                //DisplayException("There was an error saving the data.", ex);
-            }
-        }
+        //public static void SaveDataSet(DataSet ds, string filePath)
+        //{
+        //    try
+        //    {
+        //        ds.WriteXml(filePath, XmlWriteMode.WriteSchema);
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        //DisplayException("There was an error saving the data.", ex);
+        //    }
+        //}
 
-        public static DataSet LoadDataSet(string filePath)
-        {
-            DataSet ds = null;
-            try
-            {
-                ds = new DataSet();
-                ds.ReadXml(filePath);
-                int dsSchemaVersion = 0;
-                if (ds.ExtendedProperties.ContainsKey("SchemaVersion"))
-                {
-                    try
-                    {
-                        dsSchemaVersion = (int)ds.ExtendedProperties["SchemaVersion"];
-                    }
-                    catch (Exception ex)
-                    {
-                        // TODO display message saying there was a problem determining the DataSet version
-                        return null;
-                    }
-                    if (dsSchemaVersion > Program.schemaVersion)
-                    {
-                        // TODO display message that the DataSet is newer than the app and to upgrade the application
-                        return null;
-                    }
-                }
-                else
-                {
-                    // TODO display messgage that the DataSet is not versioned
-                    return null;
-                }
-            }
-            catch (Exception ex)
-            {
-                // TODO DisplayException("There was an error reading the data.", ex);
-                return null;
-            }
-            return ds;
-        }
+        //public static DataSet LoadDataSet(string filePath)
+        //{
+        //    DataSet ds = null;
+        //    try
+        //    {
+        //        ds = new DataSet();
+        //        ds.ReadXml(filePath);
+        //        int dsSchemaVersion = 0;
+        //        if (ds.ExtendedProperties.ContainsKey("SchemaVersion"))
+        //        {
+        //            try
+        //            {
+        //                dsSchemaVersion = (int)ds.ExtendedProperties["SchemaVersion"];
+        //            }
+        //            catch (Exception ex)
+        //            {
+        //                // TODO display message saying there was a problem determining the DataSet version
+        //                return null;
+        //            }
+        //            if (dsSchemaVersion > Program.schemaVersion)
+        //            {
+        //                // TODO display message that the DataSet is newer than the app and to upgrade the application
+        //                return null;
+        //            }
+        //        }
+        //        else
+        //        {
+        //            // TODO display messgage that the DataSet is not versioned
+        //            return null;
+        //        }
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        // TODO DisplayException("There was an error reading the data.", ex);
+        //        return null;
+        //    }
+        //    return ds;
+        //}
 
         //
         // Extension method for DataSet, DataTable, DataRow, including message logging

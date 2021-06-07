@@ -2,7 +2,6 @@
 // Licensed under the MIT license.
 using System;
 using System.Data;
-using System.Windows.Forms;
 using System.Reflection;
 
 namespace SQLCheck
@@ -25,11 +24,6 @@ namespace SQLCheck
         [STAThread]
         static void Main()
         {
-            //Application.EnableVisualStyles();
-            //Application.SetCompatibleTextRenderingDefault(false);
-            //MachineCheck f = new MachineCheck();
-            //f.Text += $" {version}";
-            //Application.Run(f);
             DataSet ds = Storage.CreateDataSet("Test");
             Collectors.Collect(ds);
             TextReport.Report(ds, Console.Out);

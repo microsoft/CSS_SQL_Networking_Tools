@@ -269,7 +269,7 @@ namespace SQLCheck
                 r.Close();
                 fs.Close();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 // ignore all exceptions - but allow us to break and see what it is when testing
             }
@@ -401,7 +401,7 @@ namespace SQLCheck
                 // returns only up to the first space when ShortVersion is true - what's after that is text and not version #
                 return ShortVersion ? SmartString.ChopWord(versionInfo.FileVersion, ref remainder, " ", false, true) : versionInfo.FileVersion;
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return "Not found";
             }
@@ -414,7 +414,7 @@ namespace SQLCheck
                 var versionInfo = FileVersionInfo.GetVersionInfo(path);
                 return versionInfo.ProductVersion;   // no need to chop this up
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 return "Not found";
             }
@@ -427,7 +427,7 @@ namespace SQLCheck
         // If the two version numbers have a different number of parts, compare only what is common between them.
         // e.g. CompareVersion("1.2.345", "1.2.345.678") returns the same result as CompareVersion("1.2.345", "1.2.345")
         //
-        // If you pass in non-numeric parts or really long numbers, that's your fault -> Exception on the int.Parse method
+        // If you pass in non-numeric parts or really long numbers, we return an empty string - this should make the comparison false
         //
 
         public static string CompareVersion(string a, string b)
@@ -437,14 +437,24 @@ namespace SQLCheck
             string[] bParts = b.Split('.');
             int partLength = Math.Min(aParts.Length, bParts.Length);  // only compare the parts in common
 
-            for (int i = 0; i < partLength; i++)  // throw an exception if the parts are not integer
+            try
             {
-                aVal = int.Parse(aParts[i]);
-                bVal = int.Parse(bParts[i]);
-                if (aVal < bVal) return "<";
-                if (aVal > bVal) return ">";
+                for (int i = 0; i < partLength; i++)  // throw an exception if the parts are not integer
+                {
+                    aVal = int.Parse(aParts[i]);
+                    bVal = int.Parse(bParts[i]);
+                    if (aVal < bVal) return "<";
+                    if (aVal > bVal) return ">";
+                }
+                return "=";
             }
-            return "=";
+            catch (Exception ex)
+            {
+                Console.WriteLine($@"Utility.CompareVersion: Error comparing ""{a}"" and ""{b}"".");
+                Console.WriteLine(ex.Message);
+                Console.WriteLine(ex.StackTrace);
+                return "";
+            }
         }
     }
 }

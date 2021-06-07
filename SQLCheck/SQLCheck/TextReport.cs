@@ -52,7 +52,7 @@ namespace SQLCheck
         static void ReportHeading(DataSet ds, TextWriter s)
         {
             DataRow Computer = ds.Tables["Computer"].Rows[0];
-            s.WriteLine($"SQL Server Connectivity Check v{Program.version}");
+            s.WriteLine($"SQL Server Connectivity Check v{Program.version}, run on {DateTime.Now.ToString(@"MM/dd/yyyy hh:mm:ss tt")}");
             s.WriteLine("by the Microsoft CSS SQL Networking Team");
             s.WriteLine();
             s.WriteLine("This report contains the following sections:");
