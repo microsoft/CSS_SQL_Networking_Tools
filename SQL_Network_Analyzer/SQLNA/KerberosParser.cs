@@ -146,7 +146,7 @@ namespace SQLNA
                 }
                 PayLoad.Close();
             }
-            catch (Exception ex)
+            catch (Exception)
             {
                 throw;
             }

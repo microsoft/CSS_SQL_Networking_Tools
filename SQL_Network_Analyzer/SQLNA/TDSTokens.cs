@@ -139,16 +139,19 @@ namespace SQLNA
         Routing             =  20
     }
 
+    [Serializable]
     public class InvalidTDSException : Exception
     {
         public InvalidTDSException(string message) : base(message) { }
     }
 
+    [Serializable]
     public class UnexpectedEndOfTDSException : Exception
     {
         public UnexpectedEndOfTDSException(string message) : base(message) { }
     }
 
+    [Serializable]
     public class UnknownTDSVersionException : Exception
     {
         public UnknownTDSVersionException(string message) : base(message) { }
@@ -168,27 +171,29 @@ namespace SQLNA
         public byte PacketID;
         public byte Window;
 
-        public void Read(TDSReader r)
+        public static TDSHeader Read(TDSReader r)   // TODo - not all token types have a TDS Header, like APPDATA or perhaps SSPI - needs more research
         {
-            PacketType = r.ReadByte();
-            if (PacketType != (byte)TDSPacketType.SQLBATCH &&
-                PacketType != (byte)TDSPacketType.LOGIN &&
-                PacketType != (byte)TDSPacketType.RPC &&
-                PacketType != (byte)TDSPacketType.RESPONSE &&
-                PacketType != (byte)TDSPacketType.ATTENTION &&
-                PacketType != (byte)TDSPacketType.BULKLOAD &&
-                PacketType != (byte)TDSPacketType.DTC &&
-                PacketType != (byte)TDSPacketType.LOGIN7 &&
-                PacketType != (byte)TDSPacketType.SSPI &&
-                PacketType != (byte)TDSPacketType.PRELOGIN &&
-                PacketType != (byte)TDSPacketType.APPDATA) throw new InvalidTDSException("Unknown token type: " + PacketType);
-            Status = r.ReadByte();
-            if (Status > 31) throw new InvalidTDSException("Unknown Status value: " + Status);  // supposed to ignore other flag fields
-            Length = r.ReadBigEndianUInt16();
-            SPID = r.ReadBigEndianUInt16();
-            PacketID = r.ReadByte();
-            Window = r.ReadByte();
-            if (Window != 0) throw new InvalidTDSException("Invalid TDS Window value: " + Window); // supposed to ignore
+            TDSHeader head = new TDSHeader();
+            head.PacketType = r.ReadByte();
+            if (head.PacketType != (byte)TDSPacketType.SQLBATCH &&
+                head.PacketType != (byte)TDSPacketType.LOGIN &&
+                head.PacketType != (byte)TDSPacketType.RPC &&
+                head.PacketType != (byte)TDSPacketType.RESPONSE &&
+                head.PacketType != (byte)TDSPacketType.ATTENTION &&
+                head.PacketType != (byte)TDSPacketType.BULKLOAD &&
+                head.PacketType != (byte)TDSPacketType.DTC &&
+                head.PacketType != (byte)TDSPacketType.LOGIN7 &&
+                head.PacketType != (byte)TDSPacketType.SSPI &&
+                head.PacketType != (byte)TDSPacketType.PRELOGIN &&
+                head.PacketType != (byte)TDSPacketType.APPDATA) throw new InvalidTDSException("Unknown token type: " + head.PacketType);
+            head.Status = r.ReadByte();
+            if (head.Status > 31) throw new InvalidTDSException("Unknown Status value: " + head.Status);  // supposed to ignore other flag fields
+            head.Length = r.ReadBigEndianUInt16();
+            head.SPID = r.ReadBigEndianUInt16();
+            head.PacketID = r.ReadByte();
+            head.Window = r.ReadByte();
+            if (head.Window != 0) throw new InvalidTDSException("Invalid TDS Window value: " + head.Window); // supposed to ignore
+            return head;
         }
     }
 

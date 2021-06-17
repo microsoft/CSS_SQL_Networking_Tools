@@ -3,6 +3,7 @@
 using System;
 using System.Collections;
 using System.IO;
+using System.Reflection;
 
 namespace SQLNA
 {
@@ -30,7 +31,8 @@ namespace SQLNA
         public static string filterFormat = "";              // blank | A | N | W   if N or W, replace the Client IP and Port in reports with a filter string in either NETMON or WireShark format
                                                              // filterFormat A = AUTO, will perform NETMON or WirreShark filters based on the capture type ... ETL -> Netmon format
 
-        public const string VERSION_NUMBER = "1.5.1760.0";
+        //public const string VERSION_NUMBER = "1.5.1760.0";
+        public static string VERSION_NUMBER = Assembly.GetExecutingAssembly().GetName().Version.ToString();
         public const string UPDATE_DATE = "2021/07/31";
         public const string GITHUB_PROJECT_URL = "https://github.com/microsoft/CSS_SQL_Networking_Tools";
 

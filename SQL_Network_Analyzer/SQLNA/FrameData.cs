@@ -35,6 +35,19 @@ namespace SQLNA
         public ushort lastByteOffSet = 0;                 // set in ParseIPV4Frame and ParseIPV6Frame - offset of last byte in the IPV4 or IPV6 portion of the frame - should be the last byte of the payload
         public byte[] reassembledPayLoad = null;
 
+        public TDSHeader GetTDSHeader()
+        {
+            TDSHeader head = null;
+            TDSReader r = null;                 // TDSReader does not need to be closed; GC is all it needs
+            try
+            {
+                r = new TDSReader(payload, 0);  // header does not span packets, so we can read without aggregating
+                head = TDSHeader.Read(r);
+            }
+            catch (Exception) { return null; }  // null if error
+            return head;
+        }
+
         public int payloadLength
         {
             get { return (payload == null) ? 0 : payload.Length; }
