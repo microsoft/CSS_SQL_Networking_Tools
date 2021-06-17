@@ -19,7 +19,7 @@ Various scripts referenced by workflows.
 
 # Documentation
 
-The Wiki contains documentation for the tools on this site.
+The Wiki contains documentation for the tools on this site and workflows for solving many issues with SQL Server client-server connectivity.
 
 # Contributing
 
