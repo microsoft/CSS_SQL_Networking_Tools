@@ -9,11 +9,11 @@ These tools all run locally and do not use any external services or report back 
 
 # Tools
 
-SQL Network Analyzer - a command-line tool that reads a network trace (or series of chained traces) and produces a report indicating potential problems.
+**SQL Network Analyzer** - a command-line tool that reads a network trace (or series of chained traces) and produces a report indicating potential problems.
 
-SQL Network Analyzer UI - a GUI interface for SQL Network Analyzer.
+**SQL Network Analyzer UI** - a GUI interface for SQL Network Analyzer.
 
-SQL Check - a command-line tool that records system information useful for analyzing SQL Server client-server connectivity issues.
+**SQL Check** - a command-line tool that records system information useful for analyzing SQL Server client-server connectivity issues.
 
 Various scripts referenced by workflows.
 
