@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 15
+VisualStudioVersion = 15.0.28307.1500
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SQLBench", "SQLBench.csproj", "{6AEEA53E-4817-432F-8A57-6D52EC0E4213}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6AEEA53E-4817-432F-8A57-6D52EC0E4213}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6AEEA53E-4817-432F-8A57-6D52EC0E4213}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6AEEA53E-4817-432F-8A57-6D52EC0E4213}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6AEEA53E-4817-432F-8A57-6D52EC0E4213}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {10C61B01-0B37-4D32-B198-69BD522A72DD}
+	EndGlobalSection
+EndGlobal
