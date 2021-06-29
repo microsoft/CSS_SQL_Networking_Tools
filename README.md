@@ -15,6 +15,8 @@ These tools all run locally and do not use any external services or report back 
 
 **SQL Check** - a command-line tool that records system information useful for analyzing SQL Server client-server connectivity issues.
 
+**SQL Benchmark Tool** - a command-line tool that performs a standard set of operations on a file folder/share or database, so you can compare systems and databases.
+
 Various scripts referenced by workflows.
 
 # Documentation
