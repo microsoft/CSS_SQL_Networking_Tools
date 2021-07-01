@@ -57,7 +57,7 @@ namespace SQLNA
    //     DONEINPROC          = 255,
    //}
 
-    enum TCPFlag
+    public enum TCPFlag
     {
         FIN          =    1,
         SYN          =    2,
@@ -69,7 +69,7 @@ namespace SQLNA
 
     
 
-    class FileData                      //               - constructed in ParseFileSpec
+    public class FileData                      //               - constructed in ParseFileSpec
     {
         public string filePath = null;  //               - set in ParseFileSpec
         public DateTime fileDate;       //               - set in ParseFileSpec
@@ -79,7 +79,7 @@ namespace SQLNA
         public int frameCount = 0;
     }
 
-    class SQLServer                                         // constructed in ProcessTDS
+    public class SQLServer                                         // constructed in ProcessTDS
     {
         public uint sqlIP = 0;
         public ulong sqlIPHi = 0;
@@ -100,7 +100,7 @@ namespace SQLNA
         public ArrayList conversations = new ArrayList(1024);  // pre-size to moderate starting amount - SQL may have few or many conversations
     }
 
-    class DomainController                                         // constructed in DomainControllerParser
+    public class DomainController                                         // constructed in DomainControllerParser
     {
         public uint IP = 0;
         public ulong IPHi = 0;
@@ -115,6 +115,8 @@ namespace SQLNA
         public bool hasMultipleMSRPCPorts = false;
         public ArrayList conversations = new ArrayList(1024);  // pre-size to moderate starting amount - The DC may have few or many conversations
     }
+
+
 
     public class ResetConnectionData
     {
@@ -260,6 +262,24 @@ namespace SQLNA
         public string IPAddress = "";
         public string MACAddress = "";
     }
-     
 
+    public class PipeNameData
+    {
+        public string PipeName = "";
+        public FrameData frame = null;
+    }
+
+    public class NamedPipeRecord
+    {
+        public string PipeName = "";
+        public bool IsIPV6 = false;
+        public string ClientIPAddress = "";
+        public ushort ClientPort = 0;
+        public string ServerIPAddress = "";
+        public int File = 0;
+        public uint FrameNumber = 0;
+        public long TimeOffset = 0;
+        public long ticks = 0;
+    }
+     
 }

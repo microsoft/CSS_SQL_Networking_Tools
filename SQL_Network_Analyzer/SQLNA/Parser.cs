@@ -1303,6 +1303,27 @@ namespace SQLNA
                 f.conversation.keepAliveCount++;  // 2 should happen every 30 seconds of idle time; one from the client and one from the server
             }
 
+            // see if the packet has Named Pipes on port 445
+            if ((f.conversation.destPort == 445 || f.conversation.sourcePort == 445) && f.payload != null)
+            {
+                if (f.conversation.PipeAdminName == "")
+                {
+                    string pipeName = GetAdminPipeName(f);
+                    if (pipeName != "")
+                    {
+                        f.conversation.PipeAdminName = pipeName;
+                        System.Diagnostics.Debug.WriteLine(pipeName);
+                    }
+                }
+
+                PipeNameData pipeInfo = GetPipeName(f);
+                if (pipeInfo != null && pipeInfo.PipeName != "")
+                {
+                    f.conversation.PipeNames.Add(pipeInfo);
+                    System.Diagnostics.Debug.WriteLine(pipeInfo.PipeName);
+                }
+            }
+
             // test checksum to find where the trace was taken
             if (t.BadChecksumFrames.Count < 10 && canTestChecksum)
             {
@@ -1503,6 +1524,74 @@ namespace SQLNA
 
             return (ushort)Accumulator;
         }
+
+        public static string GetAdminPipeName(FrameData f)
+        {
+            //
+            // The Admin pipe name has this format: hostname\IPC$
+            //
+
+            int pos1 = -1, pos2 = -1;
+            byte backslash = (byte)'\\';
+
+            // Does it contain the Admin pipe suffix
+
+            pos1 = utility.FindUNICODEString(f.payload, 0, @"\IPC$");
+            if (pos1 == -1) return "";
+
+            // Read backward for a low character
+            for (int i = pos1 - 1; i >=0; i--)
+            {
+                if (f.payload[i] == backslash)  // ignore the null byte between letters
+                {
+                    pos2 = i - 2; // we stop on the first on found. Subtract to to get the one closer to the start of the byte array
+                    break;
+                }
+            }
+
+            if (pos2 == -1) return "";
+
+            // Length in characters, not bytes, but pos in byte offset
+            string pipeName = utility.ReadUnicodeString(f.payload, pos2, (pos1 - pos2) / 2 + 5);  // Length of "\IPC$" = 5 characters
+
+            return pipeName;
+
+        }  // end of GetAdminPipeName
+
+        public static PipeNameData GetPipeName(FrameData f)
+        {
+            //
+            // Named pipes names can be one of two formats:
+            //
+            // Default instance:              sql\query
+            // Named instance:                MSSQL$instance\sql\query
+            //
+
+            int pos1 = -1, pos2 = -1;
+
+            // Does it contain a SQL pipe
+
+            pos1 = utility.FindUNICODEString(f.payload, 0, @"sql\query");
+            if (pos1 == -1) return null;
+
+            // Does it contain instance prefix
+            pos2 = utility.FindUNICODEString(f.payload, 0, @"MSSQL$");
+
+            if (pos2 == -1)   // default instance
+            {
+                PipeNameData pipeInfo = new PipeNameData();
+                pipeInfo.PipeName = @"sql\query";
+                pipeInfo.frame = f;
+                return pipeInfo;
+            }
+            else              // named instance - pos2 has a lower offset than pos1
+            {
+                PipeNameData pipeInfo = new PipeNameData();
+                pipeInfo.PipeName = utility.ReadUnicodeString(f.payload, pos2, (pos1 - pos2) / 2 + 9);  // Length of "sql\query" = 9 characters
+                pipeInfo.frame = f;
+                return pipeInfo;
+            }
+        }  // end of GetPipeName
 
     }  // end of class
 }      // end of namespace
