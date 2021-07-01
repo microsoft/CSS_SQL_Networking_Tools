@@ -56,6 +56,56 @@ namespace SQLNA
             return s.Trim();
         }
 
+        public static int FindASCIIString(byte[] b, int start, string s)
+        {
+            // convert string to character to byte array
+            char[] c = s.ToCharArray();
+            byte[] search = new byte[c.Length];
+            for (int i = 0; i < c.Length; i++) search[i] = (byte)c[i];
+            // search for
+            for (int i = start; i < b.Length - search.Length + 1; i++)
+            {
+                bool found = true;
+                for (int offset = 0; offset < search.Length; offset++)
+                {
+                    if (search[offset] != b[i])
+                    {
+                        found = false;
+                        break;
+                    }
+                }
+                if (found) return i;
+            }
+            return -1;  // not found
+        }
+
+        public static int FindUNICODEString(byte[] b, int start, string s)
+        {
+            // convert string to character to byte array
+            char[] c = s.ToCharArray();
+            byte[] search = new byte[c.Length * 2];
+            for (int i = 0; i < c.Length; i++)
+            {
+                search[i * 2] = (byte)c[i];
+                search[i * 2 + 1] = 0;
+            }
+            // search for the bytes in "search"
+            for (int i = start; i < b.Length - search.Length + 1; i++)
+            {
+                bool found = true;
+                for (int offset = 0; offset < search.Length; offset++)
+                {
+                    if (search[offset] != b[i + offset])
+                    {
+                        found = false;
+                        break;
+                    }
+                }
+                if (found) return i;
+            }
+            return -1;  // not found
+        }
+
         public static string ReadAnsiString(byte[] b, int pos, int length)
         {
             string s;

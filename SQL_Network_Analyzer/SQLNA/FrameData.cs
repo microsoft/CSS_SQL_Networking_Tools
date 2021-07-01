@@ -13,7 +13,7 @@ namespace SQLNA
     // Helper methods for dumping frames for debugging purposes
     //
 
-    class FrameData                                       // constructed in ParseOneFile
+    public class FrameData                                       // constructed in ParseOneFile
     {
         public ConversationData conversation = null;      // set in ParseIPV4Frame and ParseIPV6Frame
         public FileData file = null;                      // set in ParseOneFile

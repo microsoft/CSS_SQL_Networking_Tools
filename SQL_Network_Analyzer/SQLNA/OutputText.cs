@@ -28,6 +28,7 @@ namespace SQLNA
             DisplayResetConnections(Trace);
             DisplayLoginErrors(Trace);
             DisplayDomainControllerLoginErrors(Trace);
+            DisplayNamedPipesReport(Trace);
             DisplayAttentions(Trace);
             DisplayTLSIssues(Trace);
             DisplayRedirectedConnections(Trace);
@@ -1349,6 +1350,142 @@ namespace SQLNA
             if (hasError == false)
             {
                 Program.logMessage("All conversations were using TLS 1.2.");
+                Program.logMessage();
+            }
+        }
+
+        private static void DisplayNamedPipesReport(NetworkTrace Trace)
+        {
+            List<NamedPipeRecord> PipeRecords = new List<NamedPipeRecord>();
+
+            long firstTick = 0;
+
+            if (Trace.frames != null && Trace.frames.Count > 0)
+            {
+                firstTick = ((FrameData)Trace.frames[0]).ticks;
+            }
+
+            foreach (ConversationData c in Trace.conversations)
+            {
+                if (c.PipeNames.Count > 0)
+                {
+                    // fix up the pipe prefix if captured
+                    string adminName = c.PipeAdminName;
+                    if (adminName == "")
+                    {
+                        adminName = @"\\unknown";
+                    }
+                    else
+                    {
+                        adminName = adminName.Replace("IPC$", "pipe");
+                    }
+                    foreach (PipeNameData pipeInfo in c.PipeNames)
+                    {
+                        NamedPipeRecord np = new NamedPipeRecord();
+                        np.File = Trace.files.IndexOf(pipeInfo.frame.file);
+                        np.FrameNumber = pipeInfo.frame.frameNo;
+                        np.IsIPV6 = c.isIPV6;
+                        np.TimeOffset = pipeInfo.frame.ticks - firstTick;
+                        np.ticks = pipeInfo.frame.ticks;
+                        if (c.destPort == 445)
+                        {
+                            np.ClientIPAddress = (c.isIPV6) ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP);
+                            np.ClientPort = c.sourcePort;
+                            np.ServerIPAddress = (c.isIPV6) ? utility.FormatIPV6Address(c.destIPHi, c.destIPLo) : utility.FormatIPV4Address(c.destIP);
+                        }
+                        else  // IP address and port #s need to be swapped from dest to source and vice versa
+                        {
+                            np.ClientIPAddress = (c.isIPV6) ? utility.FormatIPV6Address(c.destIPHi, c.destIPLo) : utility.FormatIPV4Address(c.destIP);
+                            np.ClientPort = c.destPort;
+                            np.ServerIPAddress = (c.isIPV6) ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP);
+                        }
+                        np.PipeName = adminName + @"\" + pipeInfo.PipeName;
+                        PipeRecords.Add(np);
+                    }
+                }
+            }
+
+            Program.logMessage("The following Named Pipes conversations we detected in the network trace:\r\n");
+            ReportFormatter rf = new ReportFormatter();
+
+
+            // "Client Address:L", "Port:R", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Login Progress:L", "Keep-Alives:R", "Retransmits:R", "NullCreds:R", "DHE:R", "LoginAck:L", "Error:L");
+            switch (Program.filterFormat)
+            {
+                case "N":
+                    {
+                        rf.SetColumnNames("Server Address:L", "Pipe Name:L", "NETMON Filter (Client conv.):L", "File:R", "Frame:R", "Offset:R", "Time:R");
+                        break;
+                    }
+                case "W":
+                    {
+                        rf.SetColumnNames("Server Address:L", "Pipe Name:L", "WireShark Filter (Client conv.):L", "File:R", "Frame:R", "Offset:R", "Time:R");
+                        break;
+                    }
+                default:
+                    {
+                        rf.SetColumnNames("Server Address:L", "Pipe Name:L", "Client Address:L", "Port:R", "File:R", "Frame:R", "Offset:R", "Time:R");
+                        break;
+                    }
+            }
+
+            var OrderedRows = from row in PipeRecords orderby row.ServerIPAddress, row.PipeName, row.TimeOffset ascending select row;
+
+            foreach (var row in OrderedRows)
+            {
+                switch (Program.filterFormat)
+                {
+                    case "N":  // list client IP and port as a NETMON filter string
+                        {
+                            rf.SetcolumnData(row.ServerIPAddress,
+                                             row.PipeName,
+                                             (row.IsIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.ClientIPAddress + " AND tcp.port==" + row.ClientPort.ToString(),
+                                             row.File.ToString(),
+                                             row.FrameNumber.ToString(),
+                                             (row.TimeOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                             new DateTime(row.ticks).ToString(utility.TIME_FORMAT));
+                            break;
+                        }
+                    case "W":  // list client IP and port as a WireShark filter string
+                        {
+                            rf.SetcolumnData(row.ServerIPAddress,
+                                             row.PipeName,
+                                             (row.IsIPV6 ? "ipv6" : "ip") + ".addr==" + row.ClientIPAddress + " and tcp.port==" + row.ClientPort.ToString(),
+                                             row.File.ToString(),
+                                             row.FrameNumber.ToString(),
+                                             (row.TimeOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                             new DateTime(row.ticks).ToString(utility.TIME_FORMAT));
+                            break;
+                        }
+                    default:  // list client IP and port as separate columns
+                        {
+                            rf.SetcolumnData(row.ServerIPAddress,
+                                             row.PipeName,
+                                             row.ClientIPAddress,
+                                             row.ClientPort.ToString(),
+                                             row.File.ToString(),
+                                             row.FrameNumber.ToString(),
+                                             (row.TimeOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                             new DateTime(row.ticks).ToString(utility.TIME_FORMAT));
+                            break;
+                        }
+                }
+            }
+
+            Program.logMessage(rf.GetHeaderText());
+            Program.logMessage(rf.GetSeparatorText());
+
+            for (int i = 0; i < rf.GetRowCount(); i++)
+            {
+                Program.logMessage(rf.GetDataText(i));
+            }
+
+            Program.logMessage();
+
+
+            if (PipeRecords.Count == 0)
+            {
+                Program.logMessage("No Named Pipes conversations found.");
                 Program.logMessage();
             }
         }

@@ -95,6 +95,8 @@ namespace SQLNA
         public bool hasRedirectedConnection = false;
         public uint RedirectPort = 0;
         public string RedirectServer = "";
+        public string PipeAdminName = "";              // - set in TCP Parser
+        public ArrayList PipeNames = new ArrayList();  // - set in TCP Parser
 
         public bool hasLateLoginAck  // added Dec 5, 2016
         {
