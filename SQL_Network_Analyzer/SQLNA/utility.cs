@@ -39,6 +39,7 @@ namespace SQLNA
         public static string DATE_FORMAT = @"MM/dd/yyyy hh:mm:ss tt";     // 06/15/2014 09:03:55 PM
         public static string TIME_FORMAT = @"hh:mm:ss.fff tt";            // 03:22:12.549 AM
         public static double TICKS_PER_SECOND = 10000000.0;               // one tick = 100 nano seconds
+        public static double TICKS_PER_MILLISECOND = utility.TICKS_PER_SECOND / 1000.0;
 
         //
         // Helper functions

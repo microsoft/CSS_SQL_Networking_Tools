@@ -581,8 +581,7 @@ namespace SQLNA
         private static void DisplayDelayedLogins(NetworkTrace Trace)
         {
             bool hasDelay = false;
-            double TICKS_PER_MILLISECOND = utility.TICKS_PER_SECOND / 1000.0;
-
+            
             long firstTick = 0;
             long lastTick = 0;
 
@@ -645,19 +644,19 @@ namespace SQLNA
                     ld.duration = ld.endOffset - ld.startOffset;
                     ld.rawRetransmits = c.rawRetransmits;
                     ld.keepAliveCount = c.keepAliveCount;
-                    ld.ackSynInterval = (int)(c.LoginDelay("AS", firstTick) / TICKS_PER_MILLISECOND);
-                    ld.preLoginInterval = (int)(c.LoginDelay("PL", firstTick) / TICKS_PER_MILLISECOND);
-                    ld.preLoginResponseInterval = (int)(c.LoginDelay("PR", firstTick) / TICKS_PER_MILLISECOND);
-                    ld.clientHelloInterval = (int)(c.LoginDelay("CH", firstTick) / TICKS_PER_MILLISECOND);
-                    ld.serverHelloInterval = (int)(c.LoginDelay("SH", firstTick) / TICKS_PER_MILLISECOND);
-                    ld.keyExchangeInterval = (int)(c.LoginDelay("KE", firstTick) / TICKS_PER_MILLISECOND);
-                    ld.cipherExchangeInterval = (int)(c.LoginDelay("CE", firstTick) / TICKS_PER_MILLISECOND);
-                    ld.loginInterval = (int)(c.LoginDelay("AD", firstTick) / TICKS_PER_MILLISECOND);
-                    ld.sspiInterval = (int)(c.LoginDelay("SS", firstTick) / TICKS_PER_MILLISECOND);
-                    ld.ntlmChallengeInterval = (int)(c.LoginDelay("NC", firstTick) / TICKS_PER_MILLISECOND);
-                    ld.ntlmResponseInterval = (int)(c.LoginDelay("NR", firstTick) / TICKS_PER_MILLISECOND);
-                    ld.loginAckInterval = (int)(c.LoginDelay("LA", firstTick) / TICKS_PER_MILLISECOND);
-                    ld.errorInterval = (int)(c.LoginDelay("ER", firstTick) / TICKS_PER_MILLISECOND);
+                    ld.ackSynInterval = (int)(c.LoginDelay("AS", firstTick) / utility.TICKS_PER_MILLISECOND);
+                    ld.preLoginInterval = (int)(c.LoginDelay("PL", firstTick) / utility.TICKS_PER_MILLISECOND);
+                    ld.preLoginResponseInterval = (int)(c.LoginDelay("PR", firstTick) / utility.TICKS_PER_MILLISECOND);
+                    ld.clientHelloInterval = (int)(c.LoginDelay("CH", firstTick) / utility.TICKS_PER_MILLISECOND);
+                    ld.serverHelloInterval = (int)(c.LoginDelay("SH", firstTick) / utility.TICKS_PER_MILLISECOND);
+                    ld.keyExchangeInterval = (int)(c.LoginDelay("KE", firstTick) / utility.TICKS_PER_MILLISECOND);
+                    ld.cipherExchangeInterval = (int)(c.LoginDelay("CE", firstTick) / utility.TICKS_PER_MILLISECOND);
+                    ld.loginInterval = (int)(c.LoginDelay("AD", firstTick) / utility.TICKS_PER_MILLISECOND);
+                    ld.sspiInterval = (int)(c.LoginDelay("SS", firstTick) / utility.TICKS_PER_MILLISECOND);
+                    ld.ntlmChallengeInterval = (int)(c.LoginDelay("NC", firstTick) / utility.TICKS_PER_MILLISECOND);
+                    ld.ntlmResponseInterval = (int)(c.LoginDelay("NR", firstTick) / utility.TICKS_PER_MILLISECOND);
+                    ld.loginAckInterval = (int)(c.LoginDelay("LA", firstTick) / utility.TICKS_PER_MILLISECOND);
+                    ld.errorInterval = (int)(c.LoginDelay("ER", firstTick) / utility.TICKS_PER_MILLISECOND);
 
                     g.AddData(new DateTime(c.LastPreloginTime()), 1.0); // for graphing
 

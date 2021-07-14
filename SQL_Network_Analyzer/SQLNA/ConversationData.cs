@@ -168,34 +168,35 @@ namespace SQLNA
 
         public long LoginDelay(string step, long firstFrameTick)   // times are in ticks, if prior packet time is unknown - timed to start of trace
         {
+            long notPresent = (long)(-1 * utility.TICKS_PER_MILLISECOND);  // this value means a blank in the report instead of a 0.
             long priorTick = firstFrameTick;
             if (synTime != 0) priorTick = synTime;
-            if (step == "AS") return ackSynTime == 0 ? -1 : ackSynTime - priorTick;
+            if (step == "AS") return ackSynTime == 0 ? notPresent : ackSynTime - priorTick;
             if (ackSynTime != 0) priorTick = ackSynTime;
-            if (step == "PL") return PreLoginTime == 0 ? -1 : PreLoginTime - priorTick;
+            if (step == "PL") return PreLoginTime == 0 ? notPresent : PreLoginTime - priorTick;
             if (PreLoginTime != 0) priorTick = PreLoginTime;
-            if (step == "PR") return PreLoginResponseTime == 0 ? -1 : PreLoginResponseTime - priorTick;
+            if (step == "PR") return PreLoginResponseTime == 0 ? notPresent : PreLoginResponseTime - priorTick;
             if (PreLoginResponseTime != 0) priorTick = PreLoginResponseTime;
-            if (step == "CH") return ClientHelloTime == 0 ? -1 : ClientHelloTime - priorTick;
+            if (step == "CH") return ClientHelloTime == 0 ? notPresent : ClientHelloTime - priorTick;
             if (ClientHelloTime != 0) priorTick = ClientHelloTime;
-            if (step == "SH") return ServerHelloTime == 0 ? -1 : ServerHelloTime - priorTick;
+            if (step == "SH") return ServerHelloTime == 0 ? notPresent : ServerHelloTime - priorTick;
             if (ServerHelloTime != 0) priorTick = ServerHelloTime;
-            if (step == "KE") return KeyExchangeTime == 0 ? -1 : KeyExchangeTime - priorTick;
+            if (step == "KE") return KeyExchangeTime == 0 ? notPresent : KeyExchangeTime - priorTick;
             if (KeyExchangeTime != 0) priorTick = KeyExchangeTime;
-            if (step == "CE") return CipherExchangeTime == 0 ? -1 : CipherExchangeTime - priorTick;
+            if (step == "CE") return CipherExchangeTime == 0 ? notPresent : CipherExchangeTime - priorTick;
             if (CipherExchangeTime != 0) priorTick = CipherExchangeTime;
-            if (step == "AD") return LoginTime == 0 ? -1 : LoginTime - priorTick;
+            if (step == "AD") return LoginTime == 0 ? notPresent : LoginTime - priorTick;
             if (LoginTime != 0) priorTick = LoginTime;
-            if (step == "SS") return SSPITime == 0 ? -1 : SSPITime - priorTick;
+            if (step == "SS") return SSPITime == 0 ? notPresent : SSPITime - priorTick;
             if (SSPITime != 0) priorTick = SSPITime;
-            if (step == "NC") return NTLMChallengeTime == 0 ? -1 : NTLMChallengeTime - priorTick;
+            if (step == "NC") return NTLMChallengeTime == 0 ? notPresent : NTLMChallengeTime - priorTick;
             if (NTLMChallengeTime != 0) priorTick = NTLMChallengeTime;
-            if (step == "NR") return NTLMResponseTime == 0 ? -1 : NTLMResponseTime-priorTick;
+            if (step == "NR") return NTLMResponseTime == 0 ? notPresent : NTLMResponseTime-priorTick;
             if (NTLMResponseTime != 0) priorTick = NTLMResponseTime;
-            if (step == "LA") return LoginAckTime == 0 ? -1 : LoginAckTime - priorTick;
+            if (step == "LA") return LoginAckTime == 0 ? notPresent : LoginAckTime - priorTick;
             if (LoginAckTime != 0) priorTick = LoginAckTime;
-            if (step == "ER") return ErrorTime == 0 ? -1 : ErrorTime - priorTick;
-            return -1;   // -1 means step not in the list above or step time is 0
+            if (step == "ER") return ErrorTime == 0 ? notPresent : ErrorTime - priorTick;
+            return notPresent;   // -1 means step not in the list above or step time is 0
         }
 
         public long LastPreloginTime()   // times are in ticks
