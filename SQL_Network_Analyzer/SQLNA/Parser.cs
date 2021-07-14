@@ -1225,6 +1225,17 @@ namespace SQLNA
             f.windowSize = utility.B2UInt16(b, offset + 14);
             CheckSum = utility.B2UInt16(b, offset + 16);
             if (utility.B2UInt16(b, offset + 18) != 0) canTestChecksum = false;   // we only want to test if the Urgent flag is 0
+            if (f.hasSYNFlag)
+            {
+                if (f.hasACKFlag)
+                {
+                    if (f.conversation.ackSynTime == 0) f.conversation.ackSynTime = f.ticks;
+                }
+                else
+                {
+                    if (f.conversation.synTime == 0) f.conversation.synTime = f.ticks;
+                }
+            }
 
             // raw payload length
             int payloadLen = f.lastByteOffSet - offset - headerLength + 1;
@@ -1405,6 +1416,44 @@ namespace SQLNA
                                 f.isRetransmit = true;
                                 f.conversation.rawRetransmits++;
                                 if (payloadLen > 1) f.conversation.sigRetransmits++;
+                                FrameData originalFrame = priorFrame.originalFrame == null ? priorFrame : priorFrame.originalFrame;
+                                f.originalFrame = originalFrame;
+                                originalFrame.retransmitCount++;
+                                if (originalFrame.retransmitCount > c.maxRetransmitCount) c.maxRetransmitCount = originalFrame.retransmitCount;
+                                break; // each frame locates one retransmit; if retransmitted multiple times, later retransmits will get counted on their own
+                            }
+                            if (backCount >= BACK_COUNT_LIMIT) break;  // none found in last 20 frames from the same side of the conversation
+                        }
+                    }
+                }
+            }
+        }
+
+        public static void FindKeepAliveRetransmits(NetworkTrace t)
+        {
+            foreach (ConversationData c in t.conversations)
+            {
+                for (int i = 0; i < c.frames.Count; i++) // process the frames in the current conversation in ascending order
+                {
+                    FrameData f = (FrameData)c.frames[i];
+                    if (!f.isKeepAlive) continue;   // skip non-Keep-Alive packets; payload = 1 and flags = ACK and no others
+                    int backCount = 0;
+
+                    for (int j = i - 1; j >= 0; j--) // look in descending order for the same sequence number and payload length
+                    {
+                        FrameData priorFrame = (FrameData)c.frames[j];
+                        if (f.isFromClient == priorFrame.isFromClient)
+                        {
+                            backCount++;
+                            long oneSecond = (long)utility.TICKS_PER_SECOND;
+                            long tickDiff = f.ticks - priorFrame.ticks;  // frames should be 1 second apart, so this difference should be close to 0
+                            if (priorFrame.isKeepAlive && tickDiff < utility.TICKS_PER_SECOND * 1.1) // 0.1 second error on the 1-second timer if diff > 1 second
+                            {
+                                f.isKeepAliveRetransmit = true;
+                                FrameData originalFrame = priorFrame.originalFrame == null ? priorFrame : priorFrame.originalFrame;
+                                f.originalFrame = originalFrame;
+                                originalFrame.kaRetransmitCount++;
+                                if (originalFrame.kaRetransmitCount > c.maxKeepAliveRetransmits) c.maxKeepAliveRetransmits = originalFrame.kaRetransmitCount;
                                 break; // each frame locates one retransmit; if retransmitted multiple times, later retransmits will get counted on their own
                             }
                             if (backCount >= BACK_COUNT_LIMIT) break;  // none found in last 20 frames from the same side of the conversation

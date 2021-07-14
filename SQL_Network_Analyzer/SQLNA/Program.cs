@@ -180,6 +180,10 @@ namespace SQLNA
                 Parser.FindRetransmits(Trace);
                 T.stop();
 
+                T.start("Finding retransmitted Keep-Alive packets");
+                Parser.FindKeepAliveRetransmits(Trace);
+                T.stop();
+
                 T.start("Finding continuation packets");
                 Parser.FindContinuationFrames(Trace);
                 T.stop();

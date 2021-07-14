@@ -27,6 +27,7 @@ namespace SQLNA
             if (Program.outputConversationList) DisplaySucessfullLoginReport(Trace);  // optional section; must be explicitly requested
             DisplayResetConnections(Trace);
             DisplayLoginErrors(Trace);
+            DisplayDelayedLogins(Trace);
             DisplayDomainControllerLoginErrors(Trace);
             DisplayNamedPipesReport(Trace);
             DisplayAttentions(Trace);
@@ -417,7 +418,9 @@ namespace SQLNA
                             rd.duration = rd.endOffset - rd.startOffset;
                             rd.isClientReset = false;
                             rd.rawRetransmits = c.rawRetransmits;
+                            rd.maxRetransmitsInARow = c.maxRetransmitCount;
                             rd.keepAliveCount = c.keepAliveCount;
+                            rd.maxKeepAliveRetransmitsInARow = (ushort)(c.maxKeepAliveRetransmits == 0 ? 0 : c.maxKeepAliveRetransmits + 1);
                             rd.flags = null;
 
                             //for (int i = c.frames.Count - 1; i >= 0; i--)
@@ -446,17 +449,17 @@ namespace SQLNA
                         {
                             case "N":
                                 {
-                                    rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "Retransmits:R");
+                                    rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "KA Timeout:R", "Retransmits:R", "Max RT:R");
                                     break;
                                 }
                             case "W":
                                 {
-                                    rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "Retransmits:R");
+                                    rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "KA Timeout:R", "Retransmits:R", "Max RT:R");
                                     break;
                                 }
                             default:
                                 {
-                                    rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "Retransmits:R");
+                                    rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "KA Timeout:R", "Retransmits:R", "Max RT:R");
                                     break;
                                 }
                         }
@@ -480,7 +483,9 @@ namespace SQLNA
                                                          (row.isClientReset ? "Client" : "Server"),
                                                          row.flags,
                                                          row.keepAliveCount.ToString(),
-                                                         row.rawRetransmits.ToString());
+                                                         row.maxKeepAliveRetransmitsInARow.ToString(),
+                                                         row.rawRetransmits.ToString(),
+                                                         row.maxRetransmitsInARow.ToString());
                                         break;
                                     }
                                 case "W":  // list client IP and port as a WireShark filter string
@@ -496,7 +501,9 @@ namespace SQLNA
                                                          (row.isClientReset ? "Client" : "Server"),
                                                          row.flags,
                                                          row.keepAliveCount.ToString(),
-                                                         row.rawRetransmits.ToString());
+                                                         row.maxKeepAliveRetransmitsInARow.ToString(),
+                                                         row.rawRetransmits.ToString(),
+                                                         row.maxRetransmitsInARow.ToString());
                                         break;
                                     }
                                 default:  // list client IP and port as separate columns
@@ -513,7 +520,9 @@ namespace SQLNA
                                                          (row.isClientReset ? "Client" : "Server"),
                                                          row.flags,
                                                          row.keepAliveCount.ToString(),
-                                                         row.rawRetransmits.ToString());
+                                                         row.maxKeepAliveRetransmitsInARow.ToString(),
+                                                         row.rawRetransmits.ToString(),
+                                                         row.maxRetransmitsInARow.ToString());
                                         break;
                                     }
                             }
@@ -569,6 +578,239 @@ namespace SQLNA
             }
         }
 
+        private static void DisplayDelayedLogins(NetworkTrace Trace)
+        {
+            bool hasDelay = false;
+            double TICKS_PER_MILLISECOND = utility.TICKS_PER_SECOND / 1000.0;
+
+            long firstTick = 0;
+            long lastTick = 0;
+
+            if (Trace.frames != null && Trace.frames.Count > 0)
+            {
+                firstTick = ((FrameData)Trace.frames[0]).ticks;
+                lastTick = ((FrameData)Trace.frames[Trace.frames.Count - 1]).ticks;
+            }
+
+            foreach (SQLServer s in Trace.sqlServers)
+            {
+                List<LongConnectionData> DelayRecords = new List<LongConnectionData>();
+
+                // initialize graph object
+                TextGraph g = new TextGraph();
+                g.startTime = new DateTime(firstTick);
+                g.endTime = new DateTime(lastTick);
+                g.SetGraphWidth(150);
+                g.fAbsoluteScale = true;
+                g.SetCutoffValues(1, 3, 9, 27, 81);
+
+                string sqlIP = (s.isIPV6) ? utility.FormatIPV6Address(s.sqlIPHi, s.sqlIPLo) : utility.FormatIPV4Address(s.sqlIP);
+
+                foreach (ConversationData c in s.conversations)
+                {
+                    // check whether the login sequence is visible; if not, skip this connection
+                    string loginFlags = c.loginFlags.Trim();
+                    bool hasLoginSequence = loginFlags != "AD" && loginFlags != "";  // if blank or only 'AD' then we are past the login phase
+                    if (!hasLoginSequence) continue;   // try the next connection
+
+                    // if we have login failures, was the total duration more than 2 seconds
+                    long duration = ((FrameData)c.frames[c.frames.Count - 1]).ticks - ((FrameData)c.frames[0]).ticks;
+                    if (c.hasLoginFailure && duration < 2 * utility.TICKS_PER_SECOND) continue;
+
+                    // if we are encrypted, was the time up until the Login packet greater than 2 seconds?
+                    // the packets after that are all encrypted, so we can't reliably time them
+                    if (c.isEncrypted)
+                    {
+                        if (c.LoginTime != 0 && c.LoginDelay("AD", firstTick) < 2 * utility.TICKS_PER_SECOND) continue;
+                    }
+
+                    // check whether we completed the login
+                    long cStart = ((FrameData)c.frames[0]).ticks;
+                    if (c.LoginAckTime != 0 && c.LoginDelay("LA", firstTick) < 2 * utility.TICKS_PER_SECOND) continue;
+                    if (c.ErrorTime != 0 && c.LoginDelay("ER", firstTick) < 2 * utility.TICKS_PER_SECOND) continue;
+
+                    hasDelay = true;
+
+                    LongConnectionData ld = new LongConnectionData();
+
+                    ld.clientIP = (c.isIPV6) ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP);
+                    ld.sourcePort = c.sourcePort;
+                    ld.isIPV6 = c.isIPV6;
+                    ld.frames = c.frames.Count;
+                    ld.firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
+                    ld.lastFile = Trace.files.IndexOf(((FrameData)(c.frames[c.frames.Count - 1])).file);
+                    ld.startOffset = ((FrameData)c.frames[0]).ticks - firstTick;
+                    ld.endTicks = ((FrameData)c.frames[c.frames.Count - 1]).ticks;
+                    ld.endOffset = ld.endTicks - firstTick;
+                    ld.duration = ld.endOffset - ld.startOffset;
+                    ld.rawRetransmits = c.rawRetransmits;
+                    ld.keepAliveCount = c.keepAliveCount;
+                    ld.ackSynInterval = (int)(c.LoginDelay("AS", firstTick) / TICKS_PER_MILLISECOND);
+                    ld.preLoginInterval = (int)(c.LoginDelay("PL", firstTick) / TICKS_PER_MILLISECOND);
+                    ld.preLoginResponseInterval = (int)(c.LoginDelay("PR", firstTick) / TICKS_PER_MILLISECOND);
+                    ld.clientHelloInterval = (int)(c.LoginDelay("CH", firstTick) / TICKS_PER_MILLISECOND);
+                    ld.serverHelloInterval = (int)(c.LoginDelay("SH", firstTick) / TICKS_PER_MILLISECOND);
+                    ld.keyExchangeInterval = (int)(c.LoginDelay("KE", firstTick) / TICKS_PER_MILLISECOND);
+                    ld.cipherExchangeInterval = (int)(c.LoginDelay("CE", firstTick) / TICKS_PER_MILLISECOND);
+                    ld.loginInterval = (int)(c.LoginDelay("AD", firstTick) / TICKS_PER_MILLISECOND);
+                    ld.sspiInterval = (int)(c.LoginDelay("SS", firstTick) / TICKS_PER_MILLISECOND);
+                    ld.ntlmChallengeInterval = (int)(c.LoginDelay("NC", firstTick) / TICKS_PER_MILLISECOND);
+                    ld.ntlmResponseInterval = (int)(c.LoginDelay("NR", firstTick) / TICKS_PER_MILLISECOND);
+                    ld.loginAckInterval = (int)(c.LoginDelay("LA", firstTick) / TICKS_PER_MILLISECOND);
+                    ld.errorInterval = (int)(c.LoginDelay("ER", firstTick) / TICKS_PER_MILLISECOND);
+
+                    g.AddData(new DateTime(c.LastPreloginTime()), 1.0); // for graphing
+
+                    DelayRecords.Add(ld);
+                }
+
+                if (DelayRecords.Count > 0)
+                {
+                    Program.logMessage("The following conversations with SQL Server " + sqlIP + " on port " + s.sqlPort + " took more than 2 seconds to login or error out:");
+                    Program.logMessage("Login progress durations are in milliseconds.\r\n");
+                    ReportFormatter rf = new ReportFormatter();
+                    switch (Program.filterFormat)
+                    {
+                        case "N":
+                            {
+                                rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "AS:R", "PL:R", "PR:R", "CH:R", "SH:R", "KE:R", "CE:R", "AD:R", "SS:R", "NC:R", "NR:R", "LA:R", "ER:R", "Keep-Alives:R", "Retransmits:R");
+                                break;
+                            }
+                        case "W":
+                            {
+                                rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "AS:R", "PL:R", "PR:R", "CH:R", "SH:R", "KE:R", "CE:R", "AD:R", "SS:R", "NC:R", "NR:R", "LA:R", "ER:R", "Keep-Alives:R",  "Retransmits:R");
+                                break;
+                            }
+                        default:
+                            {
+                                rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "AS:R", "PL:R", "PR:R", "CH:R", "SH:R", "KE:R", "CE:R", "AD:R", "SS:R", "NC:R", "NR:R", "LA:R", "ER:R", "Keep-Alives:R", "Retransmits:R");
+                                break;
+                            }
+                    }
+
+                    var OrderedRows = from row in DelayRecords orderby row.endOffset ascending select row;
+
+                    foreach (var row in OrderedRows)
+                    {
+                        switch (Program.filterFormat)
+                        {
+                            case "N":  // list client IP and port as a NETMON filter string
+                                {
+                                    rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                                        (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                        (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                        row.frames.ToString(),
+                                                        (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        row.ackSynInterval == -1 ? "" : $"{row.ackSynInterval}",
+                                                        row.preLoginInterval == -1 ? "" : $"{row.preLoginInterval}",
+                                                        row.preLoginResponseInterval == -1 ? "" : $"{row.preLoginResponseInterval}",
+                                                        row.clientHelloInterval == -1 ? "" : $"{row.clientHelloInterval}",
+                                                        row.serverHelloInterval == -1 ? "" : $"{row.serverHelloInterval}",
+                                                        row.keyExchangeInterval == -1 ? "" : $"{row.keyExchangeInterval}",
+                                                        row.cipherExchangeInterval == -1 ? "" : $"{row.cipherExchangeInterval}",
+                                                        row.loginInterval == -1 ? "" : $"{row.loginInterval}",
+                                                        row.sspiInterval == -1 ? "" : $"{row.sspiInterval}",
+                                                        row.ntlmChallengeInterval == -1 ? "" : $"{row.ntlmChallengeInterval}",
+                                                        row.ntlmResponseInterval == -1 ? "" : $"{row.ntlmResponseInterval}",
+                                                        row.loginAckInterval == -1 ? "" : $"{row.loginAckInterval}",
+                                                        row.errorInterval == -1 ? "" : $"{row.errorInterval}",
+                                                        row.keepAliveCount.ToString(),
+                                                        row.rawRetransmits.ToString());
+                                    break;
+                                }
+                            case "W":  // list client IP and port as a WireShark filter string
+                                {
+                                    rf.SetcolumnData((row.isIPV6 ? "ipv6" : "ip") + ".addr==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
+                                                        (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                        (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                        row.frames.ToString(),
+                                                        (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        row.ackSynInterval == -1 ? "" : $"{row.ackSynInterval}",
+                                                        row.preLoginInterval == -1 ? "" : $"{row.preLoginInterval}",
+                                                        row.preLoginResponseInterval == -1 ? "" : $"{row.preLoginResponseInterval}",
+                                                        row.clientHelloInterval == -1 ? "" : $"{row.clientHelloInterval}",
+                                                        row.serverHelloInterval == -1 ? "" : $"{row.serverHelloInterval}",
+                                                        row.keyExchangeInterval == -1 ? "" : $"{row.keyExchangeInterval}",
+                                                        row.cipherExchangeInterval == -1 ? "" : $"{row.cipherExchangeInterval}",
+                                                        row.loginInterval == -1 ? "" : $"{row.loginInterval}",
+                                                        row.sspiInterval == -1 ? "" : $"{row.sspiInterval}",
+                                                        row.ntlmChallengeInterval == -1 ? "" : $"{row.ntlmChallengeInterval}",
+                                                        row.ntlmResponseInterval == -1 ? "" : $"{row.ntlmResponseInterval}",
+                                                        row.loginAckInterval == -1 ? "" : $"{row.loginAckInterval}",
+                                                        row.errorInterval == -1 ? "" : $"{row.errorInterval}",
+                                                        row.keepAliveCount.ToString(),
+                                                        row.rawRetransmits.ToString());
+                                    break;
+                                }
+                            default:  // list client IP and port as separate columns
+                                {
+                                    rf.SetcolumnData(row.clientIP,
+                                                        row.sourcePort.ToString(),
+                                                        (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                        (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                        row.frames.ToString(),
+                                                        (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                        row.ackSynInterval == -1 ? "" : $"{row.ackSynInterval}",
+                                                        row.preLoginInterval == -1 ? "" : $"{row.preLoginInterval}",
+                                                        row.preLoginResponseInterval == -1 ? "" : $"{row.preLoginResponseInterval}",
+                                                        row.clientHelloInterval == -1 ? "" : $"{row.clientHelloInterval}",
+                                                        row.serverHelloInterval == -1 ? "" : $"{row.serverHelloInterval}",
+                                                        row.keyExchangeInterval == -1 ? "" : $"{row.keyExchangeInterval}",
+                                                        row.cipherExchangeInterval == -1 ? "" : $"{row.cipherExchangeInterval}",
+                                                        row.loginInterval == -1 ? "" : $"{row.loginInterval}",
+                                                        row.sspiInterval == -1 ? "" : $"{row.sspiInterval}",
+                                                        row.ntlmChallengeInterval == -1 ? "" : $"{row.ntlmChallengeInterval}",
+                                                        row.ntlmResponseInterval == -1 ? "" : $"{row.ntlmResponseInterval}",
+                                                        row.loginAckInterval == -1 ? "" : $"{row.loginAckInterval}",
+                                                        row.errorInterval == -1 ? "" : $"{row.errorInterval}",
+                                                        row.keepAliveCount.ToString(),
+                                                        row.rawRetransmits.ToString());
+                                    break;
+                                }
+                        }
+                    }
+
+                    Program.logMessage(rf.GetHeaderText());
+                    Program.logMessage(rf.GetSeparatorText());
+
+                    for (int i = 0; i < rf.GetRowCount(); i++)
+                    {
+                        Program.logMessage(rf.GetDataText(i));
+                    }
+
+                    Program.logMessage();
+
+                    //
+                    // Display graph
+                    //
+
+                    Program.logMessage("    Distribution of RESET connections.");
+                    Program.logMessage();
+                    g.ProcessData();
+                    Program.logMessage("    " + g.GetLine(0));
+                    Program.logMessage("    " + g.GetLine(1));
+                    Program.logMessage("    " + g.GetLine(2));
+                    Program.logMessage("    " + g.GetLine(3));
+                    Program.logMessage("    " + g.GetLine(4));
+                    Program.logMessage("    " + g.GetLine(5));
+
+                    Program.logMessage();
+
+                }
+            }
+
+            if (hasDelay == false)
+            {
+                Program.logMessage("No logins of over 2 seconds duration were found.");
+                Program.logMessage();
+            }
+        }
 
         private static void DisplaySucessfullLoginReport(NetworkTrace Trace)
         {
@@ -1405,7 +1647,7 @@ namespace SQLNA
                 }
             }
 
-            Program.logMessage("The following Named Pipes conversations we detected in the network trace:\r\n");
+            Program.logMessage("The following Named Pipes conversations were detected in the network trace:\r\n");
             ReportFormatter rf = new ReportFormatter();
 
 

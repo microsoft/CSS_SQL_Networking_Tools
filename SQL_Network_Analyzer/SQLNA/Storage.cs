@@ -126,6 +126,7 @@ namespace SQLNA
         public int frames = 0;
         public uint ResetFrame = 0;
         public uint rawRetransmits = 0;
+        public ushort maxRetransmitsInARow = 0;
         public int firstFile = 0;
         public int lastFile = 0;
         public long startOffset = 0;
@@ -135,6 +136,7 @@ namespace SQLNA
         public bool isClientReset = false;
         public string flags = null;
         public uint keepAliveCount = 0;
+        public ushort maxKeepAliveRetransmitsInARow = 0;
     }
 
     public class FailedConnectionData
@@ -160,6 +162,35 @@ namespace SQLNA
         public uint Error;
         public uint ErrorState;
         public string ErrorMsg;
+    }
+
+    public class LongConnectionData
+    {
+        public string clientIP = null;
+        public ushort sourcePort = 0;
+        public bool isIPV6 = false;
+        public int frames = 0;
+        public int firstFile = 0;
+        public int lastFile = 0;
+        public long startOffset = 0;
+        public long endOffset = 0;
+        public long endTicks = 0;
+        public long duration = 0;
+        public uint rawRetransmits = 0;
+        public uint keepAliveCount = 0;
+        public int ackSynInterval = 0;
+        public int preLoginInterval = 0;
+        public int preLoginResponseInterval = 0;
+        public int clientHelloInterval = 0;
+        public int serverHelloInterval = 0;
+        public int keyExchangeInterval = 0;
+        public int cipherExchangeInterval = 0;
+        public int loginInterval = 0;
+        public int sspiInterval = 0;
+        public int ntlmChallengeInterval = 0;
+        public int ntlmResponseInterval = 0;
+        public int loginAckInterval = 0;
+        public int errorInterval = 0;
     }
 
     public class RedirectedConnectionData

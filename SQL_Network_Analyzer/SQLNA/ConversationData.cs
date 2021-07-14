@@ -43,6 +43,7 @@ namespace SQLNA
         public bool hasCipherExchange = false;      //   - set in ProcessTDS
         public bool hasApplicationData = false;     //   - set in ProcessTDS   - this is the encrypted logon payload token
         public bool hasLogin7 = false;              //   - set in ProcessTDS   - this is the unencrypted login payload token - we should not see this unless SSL/TLS is disabled - very unsecure
+        public bool hasSSPI = false;                //   - set in ProcessTDS
         public bool hasNTLMChallenge = false;       //   - set in ProcessTDS
         public bool hasNTLMResponse = false;        //   - set in ProcessTDS
         public bool hasNullNTLMCreds = false;       //   - set in ProcessTDS
@@ -79,12 +80,27 @@ namespace SQLNA
         public uint missingPackets = 0;
         public uint rawRetransmits = 0; //               - accumulated in FindRetransmits
         public uint sigRetransmits = 0; //               - accumulated in FindRetransmits
+        public ushort maxRetransmitCount = 0; //         - accumulated in FindRetransmits
         public uint sourceFrames = 0;   //               - accumulated in ParseEthernetFrame
         public uint destFrames = 0;     //               - accumulated in ParseEthernetFrame
         public uint keepAliveCount = 0; //               - accumulated in ParseTCPFrame
+        public ushort maxKeepAliveRetransmits = 0; //    - accoumulated in FindKeepAliveRetransmits
         public uint truncatedFrameLength = 0; //         
         public uint truncationErrorCount = 0; //         
-        public long LoginAckTime = 0;               //   - set in TDS Parser - so we can check whether LoginAck was sent after connection was closed
+        public long synTime = 0;                    //
+        public long ackSynTime = 0;                 //
+        public long PreLoginTime = 0;               //   - set in TDS Parser - so we can time the PreLogin packet delay
+        public long PreLoginResponseTime = 0;       //   - set in TDS Parser - so we can time the Prelogin packet response delay
+        public long ClientHelloTime = 0;            //   - set in TDS Parser - so we can time the Client Hello packet delay
+        public long ServerHelloTime = 0;            //   - set in TDS Parser - so we can time the Server Hello packet delay
+        public long KeyExchangeTime = 0;            //   - set in TDS Parser - so we can time the Key Exchange packet delay
+        public long CipherExchangeTime = 0;         //   - set in TDS Parser - so we can time the Cipher Exchange packet delay
+        public long LoginTime = 0;                  //   - set in TDS Parser - so we can time the Login or Login7 packet delay
+        public long SSPITime = 0;                   //   - set in TDS Parser - so we can time the SSPI packet delay
+        public long NTLMChallengeTime = 0;          //   - set in TDS Parser - so we can time the NTLM Challenge packet delay
+        public long NTLMResponseTime = 0;           //   - set in TDS Parser - so we can time the NTLM Response packet delay
+        public long LoginAckTime = 0;               //   - set in TDS Parser - so we can time the LoginAck packet delay
+        public long ErrorTime = 0;                  //   - set in TDS Parser - so we can time the Login Error packet delay
         public long FinTime = 0;                    //   - set in TCP Parser - so we can check whether LoginAck was sent after connection was closed
         public long ResetTime = 0;                  //   - set in TCP Parser - so we can check whether LoginAck was sent after connection was closed
         public long AttentionTime = 0;              //   - set in TDS Parser - so we can identify command timeouts
@@ -148,6 +164,54 @@ namespace SQLNA
                 }
                 return false;
             }
+        }
+
+        public long LoginDelay(string step, long firstFrameTick)   // times are in ticks, if prior packet time is unknown - timed to start of trace
+        {
+            long priorTick = firstFrameTick;
+            if (synTime != 0) priorTick = synTime;
+            if (step == "AS") return ackSynTime == 0 ? -1 : ackSynTime - priorTick;
+            if (ackSynTime != 0) priorTick = ackSynTime;
+            if (step == "PL") return PreLoginTime == 0 ? -1 : PreLoginTime - priorTick;
+            if (PreLoginTime != 0) priorTick = PreLoginTime;
+            if (step == "PR") return PreLoginResponseTime == 0 ? -1 : PreLoginResponseTime - priorTick;
+            if (PreLoginResponseTime != 0) priorTick = PreLoginResponseTime;
+            if (step == "CH") return ClientHelloTime == 0 ? -1 : ClientHelloTime - priorTick;
+            if (ClientHelloTime != 0) priorTick = ClientHelloTime;
+            if (step == "SH") return ServerHelloTime == 0 ? -1 : ServerHelloTime - priorTick;
+            if (ServerHelloTime != 0) priorTick = ServerHelloTime;
+            if (step == "KE") return KeyExchangeTime == 0 ? -1 : KeyExchangeTime - priorTick;
+            if (KeyExchangeTime != 0) priorTick = KeyExchangeTime;
+            if (step == "CE") return CipherExchangeTime == 0 ? -1 : CipherExchangeTime - priorTick;
+            if (CipherExchangeTime != 0) priorTick = CipherExchangeTime;
+            if (step == "AD") return LoginTime == 0 ? -1 : LoginTime - priorTick;
+            if (LoginTime != 0) priorTick = LoginTime;
+            if (step == "SS") return SSPITime == 0 ? -1 : SSPITime - priorTick;
+            if (SSPITime != 0) priorTick = SSPITime;
+            if (step == "NC") return NTLMChallengeTime == 0 ? -1 : NTLMChallengeTime - priorTick;
+            if (NTLMChallengeTime != 0) priorTick = NTLMChallengeTime;
+            if (step == "NR") return NTLMResponseTime == 0 ? -1 : NTLMResponseTime-priorTick;
+            if (NTLMResponseTime != 0) priorTick = NTLMResponseTime;
+            if (step == "LA") return LoginAckTime == 0 ? -1 : LoginAckTime - priorTick;
+            if (LoginAckTime != 0) priorTick = LoginAckTime;
+            if (step == "ER") return ErrorTime == 0 ? -1 : ErrorTime - priorTick;
+            return -1;   // -1 means step not in the list above or step time is 0
+        }
+
+        public long LastPreloginTime()   // times are in ticks
+        {
+            if (ErrorTime > 0) return ErrorTime;
+            if (LoginAckTime > 0) return LoginAckTime;
+            if (NTLMResponseTime > 0) return NTLMResponseTime;
+            if (NTLMChallengeTime > 0) return NTLMChallengeTime;
+            if (SSPITime > 0) return SSPITime;
+            if (CipherExchangeTime > 0) return CipherExchangeTime;
+            if (KeyExchangeTime > 0) return KeyExchangeTime;
+            if (ServerHelloTime > 0) return ServerHelloTime;
+            if (ClientHelloTime > 0) return ClientHelloTime;
+            if (PreLoginResponseTime > 0) return PreLoginResponseTime;
+            if (PreLoginTime > 0) return PreLoginTime;
+            return ackSynTime;
         }
 
         public string FriendlyTDSVersionServer  // these are SERVER return codes, not client codes, which are different
@@ -255,7 +319,9 @@ namespace SQLNA
                            (hasCipherExchange ? "CE " : "   ") +
                            (hasApplicationData ? "AD " : "   ") +
                            (hasNTLMChallenge ? "NC " : "   ") +
-                           (hasNTLMResponse ? "NR" : "  ");
+                           (hasNTLMResponse ? "NR " : "   ") +
+                           (hasSSPI ? "SS " : "   ") +
+                           (ErrorTime !=0 ? "ER" : "  ");
 
                 return s;
             }

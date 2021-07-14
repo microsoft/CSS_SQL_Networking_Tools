@@ -29,7 +29,11 @@ namespace SQLNA
         public ushort smpSession = 0;                     // set in ParseTCPFrame
         public byte smpType = 0;                          // set in ParseTCPFrame
         public byte[] payload = null;                     // set in ParseTCPFrame and ParseUDPFrame
+        public bool isKeepAliveRetransmit = false;        // set in FindKeepAliveRetransmits
+        public ushort kaRetransmitCount = 0;              // set in FindKeepAliveRetransmits
         public bool isRetransmit = false;                 // set in FindRetransmits
+        public ushort retransmitCount = 0;                // set in FindRetransmits
+        public FrameData originalFrame = null;            // set in FindRetransmits or FindKeepAliveRetransmits
         public bool isFromClient = false;                 // set in ParseIPV4Frame and ParseIPV6Frame
         public bool isContinuation = false;
         public ushort lastByteOffSet = 0;                 // set in ParseIPV4Frame and ParseIPV6Frame - offset of last byte in the IPV4 or IPV6 portion of the frame - should be the last byte of the payload

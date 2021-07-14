@@ -65,7 +65,7 @@ namespace SQLCheck
             }
             catch (Exception)
             {
-                //LogException(("Exception accessing Management object '" & Name & "'"), ex)
+                //LogException(("Exception accessing Active Directory object '" & Name & "'"), ex)
                 return null;
             }
             return d;
