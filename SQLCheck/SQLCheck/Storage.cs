@@ -68,6 +68,27 @@ namespace SQLCheck
             dt.AddColumn("TrustType", "String");
             dt.AddColumn("TrustDirection", "String");
             dt.AddColumn("SelectiveAuthentication", "Boolean");
+            dt.AddColumn("TrustAttributes", "String");
+            dt.AddColumn("SupportedEncryptionTypes", "String");
+            dt.AddColumn("Message", "String");
+            ds.Tables.Add(dt);
+
+            //
+            // Root Domain Related Domains - some will have a FOREST_TRANSITIVE flag set
+            //
+
+            dt = new DataTable("RootDomainRelatedDomain");
+            dt.AddColumn("ID", "Integer");
+            dt.Columns["ID"].AutoIncrement = true;
+            dt.AddColumn("ParentID", "Integer");
+            dt.AddColumn("SourceForest", "String");
+            dt.AddColumn("TargetDomain", "String");
+            dt.AddColumn("TrustType", "String");
+            dt.AddColumn("TrustDirection", "String");
+            dt.AddColumn("SelectiveAuthentication", "Boolean");
+            dt.AddColumn("TrustAttributes", "String");
+            dt.AddColumn("ForestTransitive", "String");
+            dt.AddColumn("SupportedEncryptionTypes", "String");
             ds.Tables.Add(dt);
 
             //
@@ -115,6 +136,7 @@ namespace SQLCheck
             dt.Columns["ID"].AutoIncrement = true;
             dt.AddColumn("ParentID", "Integer");
             dt.AddColumn("CrashOnAuditFail", "String", @"HKLM\SYSTEM\CurrentControlSet\Control\Lsa!CrashOnAuditFail");
+            dt.AddColumn("LanmanCompatibilityLevel", "String", @"HKLM\SYSTEM\CurrentControlSet\Control\Lsa!LMCompatibilityLevel");
             dt.AddColumn("DisableLoopbackCheck", "String", @"HKLM\SYSTEM\CurrentControlSet\Control\Lsa!DisableLoopbackCheck");
             dt.AddColumn("BackConnectionHostNames", "String", @"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Lsa\MSV1_0!BackConnectionHostNames");
             dt.AddColumn("MaxTokenSize", "String", @"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\LSA\Kerberos\Parameters!MaxTokenSize");
@@ -198,6 +220,30 @@ namespace SQLCheck
             dt.AddColumn("FlowControl", "String", "Flow Control");
             dt.AddColumn("RSS", "String", "Receive Side Scaling");
             dt.AddColumn("NICTeaming", "Boolean");
+            ds.Tables.Add(dt);
+
+            //
+            // FLTMC filters
+            //
+
+            dt = new DataTable("FLTMC");
+            dt.AddColumn("ID", "Integer");
+            dt.Columns["ID"].AutoIncrement = true;
+            dt.AddColumn("ParentID", "Integer");
+            dt.AddColumn("Name", "String");
+            ds.Tables.Add(dt);
+
+            //
+            // Network Mini Driver
+            //
+
+            dt = new DataTable("NetworkMiniDriver");
+            dt.AddColumn("ID", "Integer");
+            dt.Columns["ID"].AutoIncrement = true;
+            dt.AddColumn("ParentID", "Integer");
+            dt.AddColumn("Service", "String", @"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Network\{4d36e974-e325-11ce-bfc1-08002be10318}\*\Ndi!Service");
+            dt.AddColumn("HelpText", "String", @"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Network\{4d36e974-e325-11ce-bfc1-08002be10318}\*\Ndi!HelpText");
+            dt.AddColumn("FilterMediaTypes", "String", @"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Network\{4d36e974-e325-11ce-bfc1-08002be10318}\*\Ndi\Interfaces!FilterMediaTypes");
             ds.Tables.Add(dt);
 
             //
