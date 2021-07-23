@@ -34,6 +34,7 @@ namespace SQLCheck
             dt.AddColumn("TableRow", "Integer");
             dt.AddColumn("Severity", "Integer");
             dt.AddColumn("Message", "String");
+            dt.AddColumn("ExceptionTypeName", "String");
             dt.AddColumn("ExMessage", "String");
             dt.AddColumn("ExSource", "String");
             dt.AddColumn("ExStackTrace", "String");
@@ -74,10 +75,28 @@ namespace SQLCheck
             ds.Tables.Add(dt);
 
             //
-            // Root Domain Related Domains - some will have a FOREST_TRANSITIVE flag set
+            // Root Domain Related Domains - entries not having FOREST_TRANSITIVE flag set
             //
 
             dt = new DataTable("RootDomainRelatedDomain");
+            dt.AddColumn("ID", "Integer");
+            dt.Columns["ID"].AutoIncrement = true;
+            dt.AddColumn("ParentID", "Integer");
+            dt.AddColumn("SourceDomain", "String");
+            dt.AddColumn("TargetDomain", "String");
+            dt.AddColumn("TrustType", "String");
+            dt.AddColumn("TrustDirection", "String");
+            dt.AddColumn("SelectiveAuthentication", "Boolean");
+            dt.AddColumn("TrustAttributes", "String");
+            dt.AddColumn("SupportedEncryptionTypes", "String");
+            dt.AddColumn("Message", "String");
+            ds.Tables.Add(dt);
+
+            //
+            // Forest Related Domains - entries having FOREST_TRANSITIVE flag set
+            //
+
+            dt = new DataTable("ForestRelatedDomain");
             dt.AddColumn("ID", "Integer");
             dt.Columns["ID"].AutoIncrement = true;
             dt.AddColumn("ParentID", "Integer");
@@ -87,8 +106,8 @@ namespace SQLCheck
             dt.AddColumn("TrustDirection", "String");
             dt.AddColumn("SelectiveAuthentication", "Boolean");
             dt.AddColumn("TrustAttributes", "String");
-            dt.AddColumn("ForestTransitive", "String");
             dt.AddColumn("SupportedEncryptionTypes", "String");
+            dt.AddColumn("Message", "String");
             ds.Tables.Add(dt);
 
             //
@@ -618,6 +637,7 @@ namespace SQLCheck
             {
                 drMessage["Severity"] = SeverityLevel.Exception;
                 drMessage["ExMessage"] = exRecord.Message;
+                drMessage["ExceptionTypeName"] = exRecord.GetType().Name;
                 drMessage["ExSource"] = exRecord.Source;
                 drMessage["ExStacktrace"] = exRecord.StackTrace;
             }

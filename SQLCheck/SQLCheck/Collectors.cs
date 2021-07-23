@@ -326,7 +326,7 @@ namespace SQLCheck
             }
 
             //
-            // Get related domains
+            // Get related domains to current domain
             //
 
             DataTable dtRelatedDomain = ds.Tables["RelatedDomain"];
@@ -359,6 +359,78 @@ namespace SQLCheck
             }
 
             //
+            // Get related domains to root domain
+            //
+
+            DataTable dtRootDomainRelatedDomain = ds.Tables["RootDomainRelatedDomain"];  // referenced further down in the method
+            if (rootDomain != null)
+            {
+                RelatedDomain = null;
+
+                try
+                {
+                    TrustRelationshipInformationCollection relatedDomains = rootDomain.GetAllTrustRelationships();
+                    foreach (TrustRelationshipInformation rd in relatedDomains)
+                    {
+                        RelatedDomain = dtRootDomainRelatedDomain.NewRow();
+                        dtRootDomainRelatedDomain.Rows.Add(RelatedDomain);
+                        try
+                        {
+                            RelatedDomain["SourceDomain"] = rd.SourceName;
+                            RelatedDomain["TargetDomain"] = rd.TargetName;
+                            RelatedDomain["TrustType"] = rd.TrustType.ToString();
+                            RelatedDomain["TrustDirection"] = rd.TrustDirection.ToString();
+                            RelatedDomain["SelectiveAuthentication"] = rootDomain.GetSelectiveAuthenticationStatus(rd.TargetName);
+                        }
+                        catch (Exception ex2)
+                        {
+                            RelatedDomain.LogException("Error reading related domain properties for root domain.", ex2);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DomainRow.LogException("Error enumerating related domains for root domain.", ex);
+                }
+            }
+
+            //
+            // Get related domains to the forest
+            //
+
+            DataTable dtForestRelatedDomain = ds.Tables["ForestRelatedDomain"];  // referenced further down the method
+            if (forest != null)
+            {
+                RelatedDomain = null;
+
+                try
+                {
+                    TrustRelationshipInformationCollection relatedDomains = forest.GetAllTrustRelationships();
+                    foreach (TrustRelationshipInformation rd in relatedDomains)
+                    {
+                        RelatedDomain = dtForestRelatedDomain.NewRow();
+                        dtForestRelatedDomain.Rows.Add(RelatedDomain);
+                        try
+                        {
+                            RelatedDomain["SourceForest"] = rd.SourceName;
+                            RelatedDomain["TargetDomain"] = rd.TargetName;
+                            RelatedDomain["TrustType"] = rd.TrustType.ToString();
+                            RelatedDomain["TrustDirection"] = rd.TrustDirection.ToString();
+                            RelatedDomain["SelectiveAuthentication"] = forest.GetSelectiveAuthenticationStatus(rd.TargetName);
+                        }
+                        catch (Exception ex2)
+                        {
+                            RelatedDomain.LogException("Error reading related domain properties for forest.", ex2);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DomainRow.LogException("Error enumerating related domains for forest.", ex);
+                }
+            }
+
+            //
             // Get related domain - additional attributes
             //
 
@@ -382,10 +454,47 @@ namespace SQLCheck
                     if (supportedEncryptionTypes == 0) supportedEncryptionTypes = 4; // RC4
                     string encryptNames = Utility.KerbEncryptNames(supportedEncryptionTypes);
                     RelatedDomain["SupportedEncryptionTypes"] = $"{supportedEncryptionTypes.ToString("X8")} ({encryptNames})";
-                    if (supportedEncryptionTypes != 0 && supportedEncryptionTypes != 4) RelatedDomain["Message"] = "RC4 encryption has been disabled.";
+                    if (supportedEncryptionTypes != 0 && supportedEncryptionTypes != 4) RelatedDomain["Message"] = "RC4 disabled.";
                     // RelatedDomain["ForestTransitive"] = ((trustAttributes & 0x00000008) != 0) ? "Y" : "";
                     string attributeFlagNames = Utility.DomainTrustAttributeNames(trustAttributes);
                     RelatedDomain["TrustAttributes"] = $"{trustAttributes.ToString("X8")} ({attributeFlagNames})";
+                }
+            }
+
+            //
+            // Get root domain and forest related domain - additional attributes
+            //
+
+            int FOREST_TRANSITIVE = 8;
+            if (rootDomain != null)
+            {
+                searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{rootDomain.Name}"), $"objectCategory=trustedDomain", new string[] { "name", "trustAttributes", "msDS-SupportedEncryptionTypes" }, SearchScope.Subtree);
+                results = searcher.FindAll();
+                foreach (SearchResult result in results)
+                {
+                    DirectoryEntry entry = result.GetDirectoryEntry();
+                    string name = entry.Properties["name"][0].ToString();
+                    int trustAttributes = entry.Properties["trustAttributes"][0].ToInt();
+                    int supportedEncryptionTypes = entry.Properties["msDS-SupportedEncryptionTypes"][0].ToInt();
+                    Debug.WriteLine($"name: {name}, trustAttributes: 0x{trustAttributes.ToString("X8")}, Enc: {supportedEncryptionTypes.ToString("X8")}");
+                    
+                    DataTable dt = ((trustAttributes & FOREST_TRANSITIVE) != 0) ? dtForestRelatedDomain : dtRootDomainRelatedDomain;
+                    DataRow[] rows = dt.Select($"TargetDomain='{name}'");
+                    if (rows.Length == 0)
+                    {
+                        Debug.WriteLine($"Could not find a record in {dt.TableName} related domains to match '{name}'.");
+                    }
+                    if (rows.Length == 1)
+                    {
+                        RelatedDomain = rows[0];
+                        if (supportedEncryptionTypes == 0) supportedEncryptionTypes = 4; // RC4
+                        string encryptNames = Utility.KerbEncryptNames(supportedEncryptionTypes);
+                        RelatedDomain["SupportedEncryptionTypes"] = $"{supportedEncryptionTypes.ToString("X8")} ({encryptNames})";
+                        if (supportedEncryptionTypes != 0 && supportedEncryptionTypes != 4) RelatedDomain["Message"] = "RC4 disabled.";
+                        // RelatedDomain["ForestTransitive"] = ((trustAttributes & 0x00000008) != 0) ? "Y" : "";
+                        string attributeFlagNames = Utility.DomainTrustAttributeNames(trustAttributes);
+                        RelatedDomain["TrustAttributes"] = $"{trustAttributes.ToString("X8")} ({attributeFlagNames})";
+                    }
                 }
             }
         }
@@ -557,7 +666,7 @@ namespace SQLCheck
                             }
                             else // enVal = true
                             {
-                                effVal = disVal.StartsWith("False") ? "Enabled" : "Disabled";  // disVal = "" (not specified) -> Disabled
+                                effVal = (disVal.StartsWith("False") || disVal == "") ? "Enabled" : "Disabled";
                             }
                             break;
                         case "Enabled":
@@ -567,7 +676,7 @@ namespace SQLCheck
                             }
                             else  // enVal = True or blank (not specified)
                             {
-                                effVal = disVal.StartsWith("False") ? "Enabled" : "Disabled";  // disVal = "" (not specified) -> Disabled
+                                effVal = (disVal.StartsWith("False") || disVal == "") ? "Enabled" : "Disabled";
                             }
                             break;
                         default:
@@ -1106,7 +1215,7 @@ namespace SQLCheck
                             }
                             catch (Exception ex)
                             {
-                                DatabaseDriver.LogException($"There was a problem enumerating OLE DB Provider {inprocServer32}.", ex);
+                                DatabaseDriver.LogException($"There was a problem enumerating 32-bit OLE DB Provider {inprocServer32}.", ex);
                             }
                         }
                     }

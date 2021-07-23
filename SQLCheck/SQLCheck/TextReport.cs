@@ -114,6 +114,7 @@ namespace SQLCheck
                 s.WriteLine($"Forest Domain:              {Domain.GetString("ForestName")}");
                 s.WriteLine($"Forest Mode:                {Domain.GetString("ForestMode")}");
                 s.WriteLine();
+
                 // domains trusted by this domain
                 if (ds.Tables["RelatedDomain"].Rows.Count == 0)
                 {
@@ -125,7 +126,7 @@ namespace SQLCheck
                     s.WriteLine();
                     DataTable dtRelatedDomain = ds.Tables["RelatedDomain"];
                     ReportFormatter rf = new ReportFormatter();
-                    rf.SetColumnNames("TargetDomain:L","Trust Type:L", "Direction:L", "Selective Auth:L", "Encryption:L", "Attributes:L", "Message:L");
+                    rf.SetColumnNames("Target Domain:L","Trust Type:L", "Direction:L", "Selective Auth:L", "Encryption:L", "Attributes:L", "Message:L");
                     foreach (DataRow RelatedDomain in dtRelatedDomain.Rows)
                     {
                         rf.SetcolumnData(RelatedDomain.GetString("TargetDomain"),
@@ -144,30 +145,60 @@ namespace SQLCheck
                     }
                 }
                 s.WriteLine();
-                // domains trusted by the root domain or forest ... good question
+
+                // domains trusted by the root domain
                 if (ds.Tables["RootDomainRelatedDomain"].Rows.Count == 0)
                 {
                     s.WriteLine($"There do not appear to be any domains trusted by root domain {Domain.GetString("RootDomain")}.");
                 }
                 else
                 {
-                    s.WriteLine($"Domains and forests trusted by root domain {Domain.GetString("RootDomain")}.");
+                    s.WriteLine($"Domains trusted by root domain {Domain.GetString("RootDomain")}.");
                     s.WriteLine();
                     DataTable dtRelatedDomain = ds.Tables["RootDomainRelatedDomain"];
                     ReportFormatter rf = new ReportFormatter();
-                    rf.SetColumnNames("TargetDomain:L", "Trust Type:L", "Direction:L", "Forest Transitive:L", "Selective Auth:L", "Encryption:L", "Attributes:L");
+                    rf.SetColumnNames("Target Domain:L", "Trust Type:L", "Direction:L", "Selective Auth:L", "Encryption:L", "Attributes:L", "Message:L");
                     foreach (DataRow RelatedDomain in dtRelatedDomain.Rows)
                     {
                         rf.SetcolumnData(RelatedDomain.GetString("TargetDomain"),
                                          RelatedDomain.GetString("TrustType"),
                                          RelatedDomain.GetString("TrustDirection"),
-                                         RelatedDomain.GetString("ForestTransitive"),
                                          RelatedDomain.GetBoolean("SelectiveAuthentication").ToString(),
                                          RelatedDomain.GetString("SupportedEncryptionTypes"),
-                                         RelatedDomain.GetString("TrustAttributes"));
+                                         RelatedDomain.GetString("TrustAttributes"),
+                                         RelatedDomain.GetString("Message"));
                     }
+                    s.WriteLine(rf.GetHeaderText());
+                    s.WriteLine(rf.GetSeparatorText());
+                    for (int i = 0; i < rf.GetRowCount(); i++)
+                    {
+                        s.WriteLine(rf.GetDataText(i));
+                    }
+                }
+                s.WriteLine();
+
+                // domains trusted by the forest
+                if (ds.Tables["ForestRelatedDomain"].Rows.Count == 0)
+                {
+                    s.WriteLine($"There do not appear to be any domains trusted by forest {Domain.GetString("ForestName")}.");
+                }
+                else
+                {
+                    s.WriteLine($"Forests trusted by root domain {Domain.GetString("ForestName")}.");
                     s.WriteLine();
-                    s.WriteLine();
+                    DataTable dtRelatedDomain = ds.Tables["ForestRelatedDomain"];
+                    ReportFormatter rf = new ReportFormatter();
+                    rf.SetColumnNames("Target Forest:L", "Trust Type:L", "Direction:L", "Selective Auth:L", "Encryption:L", "Attributes:L", "Message:L");
+                    foreach (DataRow RelatedDomain in dtRelatedDomain.Rows)
+                    {
+                        rf.SetcolumnData(RelatedDomain.GetString("TargetDomain"),
+                                         RelatedDomain.GetString("TrustType"),
+                                         RelatedDomain.GetString("TrustDirection"),
+                                         RelatedDomain.GetBoolean("SelectiveAuthentication").ToString(),
+                                         RelatedDomain.GetString("SupportedEncryptionTypes"),
+                                         RelatedDomain.GetString("TrustAttributes"),
+                                         RelatedDomain.GetString("Message"));
+                    }
                     s.WriteLine(rf.GetHeaderText());
                     s.WriteLine(rf.GetSeparatorText());
                     for (int i = 0; i < rf.GetRowCount(); i++)
@@ -865,7 +896,10 @@ namespace SQLCheck
                         }
                         break;
                     case Storage.SeverityLevel.Exception:
+                        string src = drv["exSource"].ToString();
+                        if (src != "") src = "Source: " + src;
                         s.WriteLine($"{sev.ToString()}: {drv["Message"].ToString()}");
+                        s.WriteLine($"Exception Type: {drv["ExceptionTypeName"].ToString()}     {src}");
                         s.WriteLine($"{drv["exMessage"].ToString()}");
                         s.WriteLine($"{drv["exStackTrace"].ToString()}");
                         messagesOutput = true;
