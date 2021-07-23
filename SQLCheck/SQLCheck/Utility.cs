@@ -330,6 +330,25 @@ namespace SQLCheck
         }
 
         //
+        // Converts Lanman compatibility levels to string
+        //
+
+        public static string LanmanNames(string value)
+        {
+            switch (value)
+            {
+                case "0": return "Send LM & NTLM responses";
+                case "1": return "Send LM & NTLM – use NTLMv2 session security if negotiated";
+                case "2": return "Send NTLM response only";
+                case "3": return "Send NTLMv2 response only";
+                case "4": return "Send NTLMv2 response only. Refuse LM";
+                case "5": return "Send NTLMv2 response only. Refuse LM & NTLM";
+                default: return "";
+            }
+        }
+
+
+        //
         // Converts a Kerberos encryption bitmask to string
         //
 
@@ -338,12 +357,34 @@ namespace SQLCheck
             string s = "";
             if (bitmask == 0) return "RC4_HMAC_MD5";
             if ((bitmask & 0x00000001) != 0) s += "DES_CBC_CRC";
-            if ((bitmask & 0x00000002) != 0) s += "+DES_CBC_MD5";
-            if ((bitmask & 0x00000004) != 0) s += "+RC4_HMAC_MD5";
-            if ((bitmask & 0x00000008) != 0) s += "+AES128_HMAC_SHA1";
-            if ((bitmask & 0x00000010) != 0) s += "+AES256_HMAC_SHA1";
-            if (bitmask > 0x0000001F) s += "+Future";
-            return (s.StartsWith("+") ? s.Substring(1) : s);
+            if ((bitmask & 0x00000002) != 0) s += "|DES_CBC_MD5";
+            if ((bitmask & 0x00000004) != 0) s += "|RC4_HMAC_MD5";
+            if ((bitmask & 0x00000008) != 0) s += "|AES128_HMAC_SHA1";
+            if ((bitmask & 0x00000010) != 0) s += "|AES256_HMAC_SHA1";
+            if (bitmask > 0x0000001F) s += "|Future";
+            return (s.StartsWith("|") ? s.Substring(1) : s);
+        }
+
+        //
+        // Converts a domain trust attribute bitmask to a string
+        //
+
+        public static string DomainTrustAttributeNames(int bitmask)
+        {
+            string s = "";
+            if ((bitmask & 0x00000001) != 0) s += "NON_TRANSITIVE";
+            if ((bitmask & 0x00000002) != 0) s += "|UPLEVEL_ONLY";
+            if ((bitmask & 0x00000004) != 0) s += "|QUARANTINED_DOMAIN";
+            if ((bitmask & 0x00000008) != 0) s += "|FOREST_TRANSITIVE";
+            if ((bitmask & 0x00000010) != 0) s += "|CROSS_ORGANIZATION";
+            if ((bitmask & 0x00000020) != 0) s += "|WITHIN_FOREST";
+            if ((bitmask & 0x00000040) != 0) s += "|TREAT_AS_EXTERNAL";
+            if ((bitmask & 0x00000080) != 0) s += "|USES_RC4_ENCRYPTION";
+            if ((bitmask & 0x00000100) != 0) s += "|RESERVED_USES_AES_KEYS";  // RESERVED in MSFT documentation; USES_AES_KEYS in some 3rd-party dcumentation
+            if ((bitmask & 0x00000200) != 0) s += "|CROSS_ORGANIZATION_NO_TGT_DELEGATION";
+            if ((bitmask & 0x00000400) != 0) s += "|PIM_TRUST";
+            if ((bitmask & 0x00000800) != 0) s += "|CROSS_ORGANIZATION_ENABLE_TGT_DELEGATION";
+            return (s.StartsWith("|") ? s.Substring(1) : s);
         }
 
         //

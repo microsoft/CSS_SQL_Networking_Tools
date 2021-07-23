@@ -33,10 +33,12 @@ namespace SQLCheck
             CollectProtocolOrder(ds);
             CollectNetwork(ds);
             CollectNetworkAdapter(ds);
+            CollectNetworkMiniDriver(ds);
             CollectODBC(ds);
             CollectDiskDrive(ds);
             CollectHostAlias(ds);
             CollectIPAddress(ds);
+            CollectFLTMC(ds);
             CollectDatabaseDriver(ds);
             CollectSQLAlias(ds);
             CollectClientSNI(ds);
@@ -294,14 +296,17 @@ namespace SQLCheck
         {
             DataRow Computer = ds.Tables["Computer"].Rows[0];
             if (Computer.GetBoolean("JoinedToDomain") == false) return;
+            DataTable dtDomain = ds.Tables["Domain"];
+            Domain rootDomain = null;
+            Forest forest = null;
 
-            DataRow DomainRow = ds.Tables["Domain"].NewRow();
+            DataRow DomainRow = dtDomain.NewRow();
             Domain domain = null;
             try
             {
                 domain = Domain.GetComputerDomain();
                 Domain parent = domain.Parent;
-                Forest forest = domain.Forest;
+                forest = domain.Forest;
                 DomainRow["DomainName"] = domain.Name;
                 DomainRow["DomainMode"] = domain.DomainMode.ToString();
                 if (parent != null) DomainRow["ParentDomain"] = parent.Name;
@@ -309,10 +314,10 @@ namespace SQLCheck
                 {
                     DomainRow["ForestName"] = forest.Name;
                     DomainRow["ForestMode"] = forest.ForestMode.ToString();
-                    Domain rootDomain = forest.RootDomain;
+                    rootDomain = forest.RootDomain;
                     if (rootDomain != null) DomainRow["RootDomain"] = forest.RootDomain.Name;
                 }
-                ds.Tables["Domain"].Rows.Add(DomainRow);
+                dtDomain.Rows.Add(DomainRow);
             }
             catch (Exception ex)
             {
@@ -321,16 +326,18 @@ namespace SQLCheck
             }
 
             //
-            // Get related domains
+            // Get related domains to current domain
             //
+
+            DataTable dtRelatedDomain = ds.Tables["RelatedDomain"];
+            DataRow RelatedDomain = null;
 
             try
             {
-                DataTable dtRelatedDomain = ds.Tables["RelatedDomain"];
                 TrustRelationshipInformationCollection relatedDomains = domain.GetAllTrustRelationships();
                 foreach (TrustRelationshipInformation rd in relatedDomains)
                 {
-                    DataRow RelatedDomain = dtRelatedDomain.NewRow();
+                    RelatedDomain = dtRelatedDomain.NewRow();
                     dtRelatedDomain.Rows.Add(RelatedDomain);
                     try
                     {
@@ -350,6 +357,146 @@ namespace SQLCheck
             {
                 DomainRow.LogException("Error enumerating related domains.", ex);
             }
+
+            //
+            // Get related domains to root domain
+            //
+
+            DataTable dtRootDomainRelatedDomain = ds.Tables["RootDomainRelatedDomain"];  // referenced further down in the method
+            if (rootDomain != null)
+            {
+                RelatedDomain = null;
+
+                try
+                {
+                    TrustRelationshipInformationCollection relatedDomains = rootDomain.GetAllTrustRelationships();
+                    foreach (TrustRelationshipInformation rd in relatedDomains)
+                    {
+                        RelatedDomain = dtRootDomainRelatedDomain.NewRow();
+                        dtRootDomainRelatedDomain.Rows.Add(RelatedDomain);
+                        try
+                        {
+                            RelatedDomain["SourceDomain"] = rd.SourceName;
+                            RelatedDomain["TargetDomain"] = rd.TargetName;
+                            RelatedDomain["TrustType"] = rd.TrustType.ToString();
+                            RelatedDomain["TrustDirection"] = rd.TrustDirection.ToString();
+                            RelatedDomain["SelectiveAuthentication"] = rootDomain.GetSelectiveAuthenticationStatus(rd.TargetName);
+                        }
+                        catch (Exception ex2)
+                        {
+                            RelatedDomain.LogException("Error reading related domain properties for root domain.", ex2);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DomainRow.LogException("Error enumerating related domains for root domain.", ex);
+                }
+            }
+
+            //
+            // Get related domains to the forest
+            //
+
+            DataTable dtForestRelatedDomain = ds.Tables["ForestRelatedDomain"];  // referenced further down the method
+            if (forest != null)
+            {
+                RelatedDomain = null;
+
+                try
+                {
+                    TrustRelationshipInformationCollection relatedDomains = forest.GetAllTrustRelationships();
+                    foreach (TrustRelationshipInformation rd in relatedDomains)
+                    {
+                        RelatedDomain = dtForestRelatedDomain.NewRow();
+                        dtForestRelatedDomain.Rows.Add(RelatedDomain);
+                        try
+                        {
+                            RelatedDomain["SourceForest"] = rd.SourceName;
+                            RelatedDomain["TargetDomain"] = rd.TargetName;
+                            RelatedDomain["TrustType"] = rd.TrustType.ToString();
+                            RelatedDomain["TrustDirection"] = rd.TrustDirection.ToString();
+                            RelatedDomain["SelectiveAuthentication"] = forest.GetSelectiveAuthenticationStatus(rd.TargetName);
+                        }
+                        catch (Exception ex2)
+                        {
+                            RelatedDomain.LogException("Error reading related domain properties for forest.", ex2);
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    DomainRow.LogException("Error enumerating related domains for forest.", ex);
+                }
+            }
+
+            //
+            // Get related domain - additional attributes
+            //
+
+            DirectorySearcher searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{domain.Name}"), $"objectCategory=trustedDomain", new string[] { "name", "trustAttributes", "msDS-SupportedEncryptionTypes" }, SearchScope.Subtree);
+            SearchResultCollection results = searcher.FindAll();
+            foreach (SearchResult result in results)
+            {
+                DirectoryEntry entry = result.GetDirectoryEntry();
+                string name = entry.Properties["name"][0].ToString();
+                int trustAttributes = entry.Properties["trustAttributes"][0].ToInt();
+                int supportedEncryptionTypes = entry.Properties["msDS-SupportedEncryptionTypes"][0].ToInt();
+                Debug.WriteLine($"name: {name}, trustAttributes: 0x{trustAttributes.ToString("X8")}, Enc: {supportedEncryptionTypes.ToString("X8")}");
+                DataRow[] rows = dtRelatedDomain.Select($"TargetDomain='{name}'");
+                if (rows.Length == 0)
+                {
+                    Debug.WriteLine($"Could not find a record in RelatedDomains to match '{name}'.");
+                }
+                if (rows.Length == 1)
+                {
+                    RelatedDomain = rows[0];
+                    if (supportedEncryptionTypes == 0) supportedEncryptionTypes = 4; // RC4
+                    string encryptNames = Utility.KerbEncryptNames(supportedEncryptionTypes);
+                    RelatedDomain["SupportedEncryptionTypes"] = $"{supportedEncryptionTypes.ToString("X8")} ({encryptNames})";
+                    if (supportedEncryptionTypes != 0 && supportedEncryptionTypes != 4) RelatedDomain["Message"] = "RC4 disabled.";
+                    // RelatedDomain["ForestTransitive"] = ((trustAttributes & 0x00000008) != 0) ? "Y" : "";
+                    string attributeFlagNames = Utility.DomainTrustAttributeNames(trustAttributes);
+                    RelatedDomain["TrustAttributes"] = $"{trustAttributes.ToString("X8")} ({attributeFlagNames})";
+                }
+            }
+
+            //
+            // Get root domain and forest related domain - additional attributes
+            //
+
+            int FOREST_TRANSITIVE = 8;
+            if (rootDomain != null)
+            {
+                searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{rootDomain.Name}"), $"objectCategory=trustedDomain", new string[] { "name", "trustAttributes", "msDS-SupportedEncryptionTypes" }, SearchScope.Subtree);
+                results = searcher.FindAll();
+                foreach (SearchResult result in results)
+                {
+                    DirectoryEntry entry = result.GetDirectoryEntry();
+                    string name = entry.Properties["name"][0].ToString();
+                    int trustAttributes = entry.Properties["trustAttributes"][0].ToInt();
+                    int supportedEncryptionTypes = entry.Properties["msDS-SupportedEncryptionTypes"][0].ToInt();
+                    Debug.WriteLine($"name: {name}, trustAttributes: 0x{trustAttributes.ToString("X8")}, Enc: {supportedEncryptionTypes.ToString("X8")}");
+                    
+                    DataTable dt = ((trustAttributes & FOREST_TRANSITIVE) != 0) ? dtForestRelatedDomain : dtRootDomainRelatedDomain;
+                    DataRow[] rows = dt.Select($"TargetDomain='{name}'");
+                    if (rows.Length == 0)
+                    {
+                        Debug.WriteLine($"Could not find a record in {dt.TableName} related domains to match '{name}'.");
+                    }
+                    if (rows.Length == 1)
+                    {
+                        RelatedDomain = rows[0];
+                        if (supportedEncryptionTypes == 0) supportedEncryptionTypes = 4; // RC4
+                        string encryptNames = Utility.KerbEncryptNames(supportedEncryptionTypes);
+                        RelatedDomain["SupportedEncryptionTypes"] = $"{supportedEncryptionTypes.ToString("X8")} ({encryptNames})";
+                        if (supportedEncryptionTypes != 0 && supportedEncryptionTypes != 4) RelatedDomain["Message"] = "RC4 disabled.";
+                        // RelatedDomain["ForestTransitive"] = ((trustAttributes & 0x00000008) != 0) ? "Y" : "";
+                        string attributeFlagNames = Utility.DomainTrustAttributeNames(trustAttributes);
+                        RelatedDomain["TrustAttributes"] = $"{trustAttributes.ToString("X8")} ({attributeFlagNames})";
+                    }
+                }
+            }
         }
 
         public static void CollectSecurity(DataSet ds)
@@ -367,6 +514,17 @@ namespace SQLCheck
             Security.CheckRange("CrashOnAuditFail", crashOnAuditFail, 0, 2);
             if (crashOnAuditFail == "1") Security.LogWarning("CrashOnAuditFail: Non-Administrators may get locked out if the security log fills up.");
             if (crashOnAuditFail == "2") Security.LogCritical("CrashOnAuditFail: Non-Administrators cannot log in. See http://support.microsoft.com/default.aspx/kb/832981.");
+
+            //
+            // Lanman compatibility Level - affects NTLM connections but not Kerberos connections
+            //
+
+            string lanmanCompatibilityLevel = Utility.GetRegistryValueAsString(@"HKLM\SYSTEM\CurrentControlSet\Control\Lsa", "LMCompatibilityLevel", RegistryValueKind.DWord, 0);
+            string lanmanDesc = Utility.LanmanNames(lanmanCompatibilityLevel);
+            Security["LanmanCompatibilityLevel"] = lanmanDesc == "" ? lanmanCompatibilityLevel : $"{lanmanCompatibilityLevel} ({lanmanDesc})";
+            Security.CheckRange("LanmanCompatibilityLevel", lanmanCompatibilityLevel, 0, 7);
+            if (lanmanCompatibilityLevel.CompareTo("3") < 0) Security.LogWarning("LanmanCompatibilityLevel: The setting may be too low.");
+
 
             //
             // DisableLoopbackCheck and BackConnectHostNames
@@ -508,7 +666,7 @@ namespace SQLCheck
                             }
                             else // enVal = true
                             {
-                                effVal = disVal.StartsWith("False") ? "Enabled" : "Disabled";  // disVal = "" (not specified) -> Disabled
+                                effVal = (disVal.StartsWith("False") || disVal == "") ? "Enabled" : "Disabled";
                             }
                             break;
                         case "Enabled":
@@ -518,7 +676,7 @@ namespace SQLCheck
                             }
                             else  // enVal = True or blank (not specified)
                             {
-                                effVal = disVal.StartsWith("False") ? "Enabled" : "Disabled";  // disVal = "" (not specified) -> Disabled
+                                effVal = (disVal.StartsWith("False") || disVal == "") ? "Enabled" : "Disabled";
                             }
                             break;
                         default:
@@ -667,6 +825,27 @@ namespace SQLCheck
             if (sap == "1") Network.LogWarning("Enabling SynAttackProtect may cause connectivity issues.");
 
             ds.Tables["Network"].Rows.Add(Network);
+        }
+
+        public static void CollectFLTMC(DataSet ds)
+        {
+            DataRow Computer = ds.Tables["Computer"].Rows[0];
+            DataTable dtFLTMC = ds.Tables["FLTMC"];
+
+            string FLTMCOut = Utility.GetExecutableSTDOUT("FLTMC.EXE", "");
+            StringReader sr = new StringReader(FLTMCOut);
+            string line = sr.ReadLine();  // ignore the first line    - blank
+            line = sr.ReadLine();         // ignore the second line   - heading
+            line = sr.ReadLine();         // ignore the third line    - dashes
+            line = sr.ReadLine();
+            while (line != null)
+            {
+                string word = line.Split(new char[] { ' ' }, 2)[0];
+                DataRow FLTMC = dtFLTMC.NewRow();
+                dtFLTMC.Rows.Add(FLTMC);
+                FLTMC["Name"] = word;
+                line = sr.ReadLine();
+            }
         }
 
         public static void CollectODBC(DataSet ds)
@@ -832,6 +1011,55 @@ namespace SQLCheck
             }
         }
 
+        public static void CollectNetworkMiniDriver(DataSet ds)
+        {
+            DataRow Computer = ds.Tables["Computer"].Rows[0];
+            DataTable dtNetworkMiniDriver = ds.Tables["NetworkMiniDriver"];
+            RegistryKey hive = null;
+            RegistryKey miniDriverKey = null;
+            string miniDriverPath = @"SYSTEM\CurrentControlSet\Control\Network\{4d36e974-e325-11ce-bfc1-08002be10318}";
+
+            try
+            {
+                hive = Registry.LocalMachine;
+                miniDriverKey = hive.OpenSubKey(miniDriverPath, RegistryKeyPermissionCheck.ReadSubTree,
+                                System.Security.AccessControl.RegistryRights.ReadPermissions |
+                                System.Security.AccessControl.RegistryRights.ReadKey |
+                                System.Security.AccessControl.RegistryRights.EnumerateSubKeys |
+                                System.Security.AccessControl.RegistryRights.QueryValues);
+                if (miniDriverKey == null)
+                {
+                    Computer.LogCritical($"Network mini-driver registry key should exist but it does not: {miniDriverPath}");
+                }
+                else
+                {
+                    string[] subKeyNames = miniDriverKey.GetSubKeyNames();
+                    foreach (string subKeyName in subKeyNames)
+                    {
+                        object oService = Registry.GetValue($@"HKEY_LOCAL_MACHINE\{miniDriverPath}\{subKeyName}\Ndi", "Service", "");
+                        object oHelpText = Registry.GetValue($@"HKEY_LOCAL_MACHINE\{miniDriverPath}\{subKeyName}\Ndi", "HelpText", "");
+                        object oFilter = Registry.GetValue($@"HKEY_LOCAL_MACHINE\{miniDriverPath}\{subKeyName}\Ndi\Interfaces", "FilterMediaTypes", "");
+                        DataRow NetworkMiniDriver = dtNetworkMiniDriver.NewRow();
+                        dtNetworkMiniDriver.Rows.Add(NetworkMiniDriver);
+                        NetworkMiniDriver["Service"] = oService == null ? "" : oService.ToString();
+                        NetworkMiniDriver["HelpText"] = oHelpText == null ? "" : oHelpText.ToString();
+                        NetworkMiniDriver["FilterMediaTypes"] = oFilter == null ? "" : oFilter.ToString();
+                    }
+                }
+                miniDriverKey.Close();
+                hive.Close();
+            }
+            catch (Exception ex)
+            {
+                Computer.LogException("Exception getting network mini driver information.", ex);
+            }
+            finally
+            {
+                if (miniDriverKey != null) miniDriverKey.Close();
+                if (hive != null) hive.Close();
+            }
+        }
+
         private static NICInfo GetEnumInfo(RegistryKey adapterKey, string enumName, string description, DataRow dr)
         {
             RegistryKey paramKey = null, enumKey = null;
@@ -987,7 +1215,7 @@ namespace SQLCheck
                             }
                             catch (Exception ex)
                             {
-                                DatabaseDriver.LogException($"There was a problem enumerating OLE DB Provider {inprocServer32}.", ex);
+                                DatabaseDriver.LogException($"There was a problem enumerating 32-bit OLE DB Provider {inprocServer32}.", ex);
                             }
                         }
                     }
