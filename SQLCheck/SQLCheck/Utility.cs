@@ -421,7 +421,7 @@ namespace SQLCheck
             if (acc.StartsWith(@"NT AUTHORITY\") ||
                 acc.StartsWith(@"NT SERVICE\") ||
                 acc == @"LOCALSYSTEM" ||
-                acc.Contains(@"\") == false ||
+                (acc.Contains(@"\") == false && acc.Contains("@") == false) ||  // old name format has domain\account and UPN format has account@domain.com
                 SmartString.ChopWord(acc, ref remainder , @"\") == NETBIOSName.ToUpper())
             {
                 Account = NETBIOSName;

@@ -789,7 +789,7 @@ namespace SQLNA
                     // Display graph
                     //
 
-                    Program.logMessage("    Distribution of RESET connections.");
+                    Program.logMessage("    Distribution of slow connections.");
                     Program.logMessage();
                     g.ProcessData();
                     Program.logMessage("    " + g.GetLine(0));
