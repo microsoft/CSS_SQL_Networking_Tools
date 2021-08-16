@@ -294,6 +294,7 @@ namespace SQLCheck
 
         public static void CollectDomain(DataSet ds)
         {
+            //Console.WriteLine("Getting Computer");
             DataRow Computer = ds.Tables["Computer"].Rows[0];
             if (Computer.GetBoolean("JoinedToDomain") == false) return;
             DataTable dtDomain = ds.Tables["Domain"];
@@ -302,6 +303,7 @@ namespace SQLCheck
 
             DataRow DomainRow = dtDomain.NewRow();
             Domain domain = null;
+            //Console.WriteLine("Getting Computer Domian");
             try
             {
                 domain = Domain.GetComputerDomain();
@@ -329,9 +331,11 @@ namespace SQLCheck
             // Get related domains to current domain
             //
 
+            //Console.WriteLine("Getting Related Domain Table");
             DataTable dtRelatedDomain = ds.Tables["RelatedDomain"];
             DataRow RelatedDomain = null;
 
+            //Console.WriteLine("Getting Related Domains");
             try
             {
                 TrustRelationshipInformationCollection relatedDomains = domain.GetAllTrustRelationships();
@@ -362,6 +366,7 @@ namespace SQLCheck
             // Get related domains to root domain
             //
 
+            //Console.WriteLine("Getting Root Domain Related Domain Table");
             DataTable dtRootDomainRelatedDomain = ds.Tables["RootDomainRelatedDomain"];  // referenced further down in the method
             if (rootDomain != null)
             {
@@ -369,6 +374,7 @@ namespace SQLCheck
 
                 try
                 {
+                    Console.WriteLine("Getting Root Domain Related Domains");
                     TrustRelationshipInformationCollection relatedDomains = rootDomain.GetAllTrustRelationships();
                     foreach (TrustRelationshipInformation rd in relatedDomains)
                     {
@@ -398,6 +404,7 @@ namespace SQLCheck
             // Get related domains to the forest
             //
 
+            //Console.WriteLine("Getting Forest Related Domain Table");
             DataTable dtForestRelatedDomain = ds.Tables["ForestRelatedDomain"];  // referenced further down the method
             if (forest != null)
             {
@@ -405,6 +412,7 @@ namespace SQLCheck
 
                 try
                 {
+                    Console.WriteLine("Getting Forest Related Domains");
                     TrustRelationshipInformationCollection relatedDomains = forest.GetAllTrustRelationships();
                     foreach (TrustRelationshipInformation rd in relatedDomains)
                     {
@@ -433,42 +441,12 @@ namespace SQLCheck
             //
             // Get related domain - additional attributes
             //
-
-            DirectorySearcher searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{domain.Name}"), $"objectCategory=trustedDomain", new string[] { "name", "trustAttributes", "msDS-SupportedEncryptionTypes" }, SearchScope.Subtree);
-            SearchResultCollection results = searcher.FindAll();
-            foreach (SearchResult result in results)
+            //Console.WriteLine("Getting Related Domain Additional Attributes");
+            DirectorySearcher searcher = null;
+            SearchResultCollection results = null;
+            try
             {
-                DirectoryEntry entry = result.GetDirectoryEntry();
-                string name = entry.Properties["name"][0].ToString();
-                int trustAttributes = entry.Properties["trustAttributes"][0].ToInt();
-                int supportedEncryptionTypes = entry.Properties["msDS-SupportedEncryptionTypes"][0].ToInt();
-                Debug.WriteLine($"name: {name}, trustAttributes: 0x{trustAttributes.ToString("X8")}, Enc: {supportedEncryptionTypes.ToString("X8")}");
-                DataRow[] rows = dtRelatedDomain.Select($"TargetDomain='{name}'");
-                if (rows.Length == 0)
-                {
-                    Debug.WriteLine($"Could not find a record in RelatedDomains to match '{name}'.");
-                }
-                if (rows.Length == 1)
-                {
-                    RelatedDomain = rows[0];
-                    if (supportedEncryptionTypes == 0) supportedEncryptionTypes = 4; // RC4
-                    string encryptNames = Utility.KerbEncryptNames(supportedEncryptionTypes);
-                    RelatedDomain["SupportedEncryptionTypes"] = $"{supportedEncryptionTypes.ToString("X8")} ({encryptNames})";
-                    if (supportedEncryptionTypes != 0 && supportedEncryptionTypes != 4) RelatedDomain["Message"] = "RC4 disabled.";
-                    // RelatedDomain["ForestTransitive"] = ((trustAttributes & 0x00000008) != 0) ? "Y" : "";
-                    string attributeFlagNames = Utility.DomainTrustAttributeNames(trustAttributes);
-                    RelatedDomain["TrustAttributes"] = $"{trustAttributes.ToString("X8")} ({attributeFlagNames})";
-                }
-            }
-
-            //
-            // Get root domain and forest related domain - additional attributes
-            //
-
-            int FOREST_TRANSITIVE = 8;
-            if (rootDomain != null)
-            {
-                searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{rootDomain.Name}"), $"objectCategory=trustedDomain", new string[] { "name", "trustAttributes", "msDS-SupportedEncryptionTypes" }, SearchScope.Subtree);
+                searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{domain.Name}"), $"objectCategory=trustedDomain", new string[] { "name", "trustAttributes", "msDS-SupportedEncryptionTypes" }, SearchScope.Subtree);
                 results = searcher.FindAll();
                 foreach (SearchResult result in results)
                 {
@@ -477,12 +455,10 @@ namespace SQLCheck
                     int trustAttributes = entry.Properties["trustAttributes"][0].ToInt();
                     int supportedEncryptionTypes = entry.Properties["msDS-SupportedEncryptionTypes"][0].ToInt();
                     Debug.WriteLine($"name: {name}, trustAttributes: 0x{trustAttributes.ToString("X8")}, Enc: {supportedEncryptionTypes.ToString("X8")}");
-                    
-                    DataTable dt = ((trustAttributes & FOREST_TRANSITIVE) != 0) ? dtForestRelatedDomain : dtRootDomainRelatedDomain;
-                    DataRow[] rows = dt.Select($"TargetDomain='{name}'");
+                    DataRow[] rows = dtRelatedDomain.Select($"TargetDomain='{name}'");
                     if (rows.Length == 0)
                     {
-                        Debug.WriteLine($"Could not find a record in {dt.TableName} related domains to match '{name}'.");
+                        Debug.WriteLine($"Could not find a record in RelatedDomains to match '{name}'.");
                     }
                     if (rows.Length == 1)
                     {
@@ -495,6 +471,69 @@ namespace SQLCheck
                         string attributeFlagNames = Utility.DomainTrustAttributeNames(trustAttributes);
                         RelatedDomain["TrustAttributes"] = $"{trustAttributes.ToString("X8")} ({attributeFlagNames})";
                     }
+                }
+                results.Dispose();
+                results = null;
+                searcher.Dispose();
+                searcher = null;
+            }
+            catch (Exception ex)
+            {
+                if (results != null) { results.Dispose(); results = null; }
+                if (searcher != null) { searcher.Dispose(); searcher = null; }
+                DomainRow.LogException("Failed to look up trusted domain additional attributes.", ex);
+            }
+
+            //
+            // Get root domain and forest related domain - additional attributes
+            //
+
+            //Console.WriteLine("Getting Root Domain and Forest additional attributes");
+            searcher = null;
+            results = null;
+            int FOREST_TRANSITIVE = 8;
+            if (rootDomain != null)
+            {
+                try
+                {
+                    searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{rootDomain.Name}"), $"objectCategory=trustedDomain", new string[] { "name", "trustAttributes", "msDS-SupportedEncryptionTypes" }, SearchScope.Subtree);
+                    results = searcher.FindAll();
+                    foreach (SearchResult result in results)
+                    {
+                        DirectoryEntry entry = result.GetDirectoryEntry();
+                        string name = entry.Properties["name"][0].ToString();
+                        int trustAttributes = entry.Properties["trustAttributes"][0].ToInt();
+                        int supportedEncryptionTypes = entry.Properties["msDS-SupportedEncryptionTypes"][0].ToInt();
+                        Debug.WriteLine($"name: {name}, trustAttributes: 0x{trustAttributes.ToString("X8")}, Enc: {supportedEncryptionTypes.ToString("X8")}");
+
+                        DataTable dt = ((trustAttributes & FOREST_TRANSITIVE) != 0) ? dtForestRelatedDomain : dtRootDomainRelatedDomain;
+                        DataRow[] rows = dt.Select($"TargetDomain='{name}'");
+                        if (rows.Length == 0)
+                        {
+                            Debug.WriteLine($"Could not find a record in {dt.TableName} related domains to match '{name}'.");
+                        }
+                        if (rows.Length == 1)
+                        {
+                            RelatedDomain = rows[0];
+                            if (supportedEncryptionTypes == 0) supportedEncryptionTypes = 4; // RC4
+                            string encryptNames = Utility.KerbEncryptNames(supportedEncryptionTypes);
+                            RelatedDomain["SupportedEncryptionTypes"] = $"{supportedEncryptionTypes.ToString("X8")} ({encryptNames})";
+                            if (supportedEncryptionTypes != 0 && supportedEncryptionTypes != 4) RelatedDomain["Message"] = "RC4 disabled.";
+                            // RelatedDomain["ForestTransitive"] = ((trustAttributes & 0x00000008) != 0) ? "Y" : "";
+                            string attributeFlagNames = Utility.DomainTrustAttributeNames(trustAttributes);
+                            RelatedDomain["TrustAttributes"] = $"{trustAttributes.ToString("X8")} ({attributeFlagNames})";
+                        }
+                    }
+                    results.Dispose();
+                    results = null;
+                    searcher.Dispose();
+                    searcher = null;
+                }
+                catch (Exception ex)
+                {
+                    if (results != null) { results.Dispose(); results = null; }
+                    if (searcher != null) { searcher.Dispose(); searcher = null; }
+                    DomainRow.LogException("Failed to look up root domain and forest additional attributes.", ex);
                 }
             }
         }
