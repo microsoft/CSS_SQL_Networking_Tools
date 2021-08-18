@@ -9,13 +9,13 @@ These tools all run locally and do not use any external services or report back 
 
 # Tools
 
-**SQL Network Analyzer** - a command-line tool that reads a network trace (or series of chained traces) and produces a report indicating potential problems.
+**[SQL Network Analyzer](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SQLNA)** - a command-line tool that reads a network trace (or series of chained traces) and produces a report indicating potential problems.
 
-**SQL Network Analyzer UI** - a GUI interface for SQL Network Analyzer.
+**[SQL Network Analyzer UI](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SQLNAUI)** - a GUI interface for SQL Network Analyzer.
 
-**SQL Check** - a command-line tool that records system information useful for analyzing SQL Server client-server connectivity issues.
+**[SQL Check](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SQLCHECK)** - a command-line tool that records system information useful for analyzing SQL Server client-server connectivity issues.
 
-**SQL Benchmark Tool** - a command-line tool that performs a standard set of operations on a file folder/share or database, so you can compare systems and databases.
+**[SQL Benchmark Tool](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SQLBENCH)** - a command-line tool that performs a standard set of operations on a file folder/share or database, so you can compare systems and databases.
 
 Various scripts referenced by workflows.
 
