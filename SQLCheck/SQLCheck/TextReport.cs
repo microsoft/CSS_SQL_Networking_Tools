@@ -416,7 +416,7 @@ namespace SQLCheck
             DataTable dtProtocolOrder = ds.Tables["ProtocolOrder"]; // there should be exactly 1 row ... unless there was a problem
             if (dtProtocolOrder.Rows.Count == 1)
             {
-                s.WriteLine("Cipher Suite Protcol Order:");
+                s.WriteLine("Cipher Suite Protocol Order:");
                 s.WriteLine();
                 DataRow ProtocolOrder = dtProtocolOrder.Rows[0];
                 string registryCSV = ProtocolOrder.GetString("RegistryList");

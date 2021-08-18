@@ -1557,7 +1557,7 @@ namespace SQLCheck
                         dtClientSNI.Rows.Add(ClientSNI);
                         ClientSNI["Name"] = "SuperSocketNetLib";
                         ClientSNI["64Bit"] = is64bit && (i == 0);
-                        // protcol list
+                        // protocol list
                         prot = Registry.GetValue($@"{regPath[i]}\MSSqlServer\SuperSocketNetLib", "ProtocolList", null);
                         if (prot != null) ClientSNI["ProtocolOrder"] = string.Join(" ", (string[])prot);
                         // force encryption

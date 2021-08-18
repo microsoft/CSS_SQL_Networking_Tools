@@ -96,7 +96,7 @@ namespace SQLBench
             for (int a = 0; a < 100; a++)
             {
                 fileStream6.Seek((long)Math.Round((512f * (double)(intrand.Next() * 100000f))), SeekOrigin.Begin);
-                fileStream6.WriteAsync(array, 0, 512);
+                fileStream6.Write(array, 0, 512);
             }
             fileStream6.Close();
             RndWritefile.Stop();
