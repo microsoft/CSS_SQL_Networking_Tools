@@ -9,15 +9,15 @@ These tools all run locally and do not use any external services or report back 
 
 # Tools
 
-**[SQL Network Analyzer](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SQLNA)** - a command-line tool that reads a network trace (or series of chained traces) and produces a report indicating potential problems.
+**[SQL Network Analyzer (SQLNA)](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SQLNA)** - a command-line tool that reads a network trace (or series of chained traces) and produces a report indicating potential problems.
 
-**[SQL Network Analyzer UI](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SQLNAUI)** - a GUI interface for SQL Network Analyzer.
+**[SQL Network Analyzer UI (SQLNAUI)](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SQLNAUI)** - a GUI interface for SQL Network Analyzer.
 
-**[SQL Check](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SQLCHECK)** - a command-line tool that records system information useful for analyzing SQL Server client-server connectivity issues.
+**[SQL Check (SQLCHECK)](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SQLCHECK)** - a command-line tool that records system information useful for analyzing SQL Server client-server connectivity issues.
 
-**[SQL Benchmark Tool](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SQLBENCH)** - a command-line tool that performs a standard set of operations on a file folder/share or database, so you can compare systems and databases.
+**[SQL Benchmark Tool (SQLBENCH)](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SQLBENCH)** - a command-line tool that performs a standard set of operations on a file folder/share or database, so you can compare systems and databases.
 
-**[SQL Driver Security API Trace](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SSPICLIENT)** - an MFC Windows C++ Tool that can be run on client machines having SSPI or Kerberos errors and will log a detailed trace for analysis.
+**[SQL Driver Security API Trace (SSPICLIENT)](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SSPICLIENT)** - an MFC Windows C++ Tool that can be run on client machines having SSPI or Kerberos errors and will log a detailed trace for analysis.
 
 Various scripts referenced by workflows.
 
