@@ -17,6 +17,8 @@ These tools all run locally and do not use any external services or report back 
 
 **[SQL Benchmark Tool](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SQLBENCH)** - a command-line tool that performs a standard set of operations on a file folder/share or database, so you can compare systems and databases.
 
+**[SQL Driver Security API Trace](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SSPICLIENT)** - an MFC Windows C++ Tool that can be run on client machines having SSPI or Kerberos errors and will log a detailed trace for analysis.
+
 Various scripts referenced by workflows.
 
 # Documentation
