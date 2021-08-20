@@ -265,6 +265,34 @@ namespace SQLNA
                                     // Test file: \Documents\Interesting Network Traces\WifiTrace\
                                     break;
                                 }
+                            case 101:  // Raw - first byte of payload - high nybble = 0x4n -> IPV4; high nybble = 0x6n -> IPV6
+                                {
+                                    byte payloadType = (byte)(frame.data[0] & 0xF0);
+                                    switch (payloadType)
+                                    {
+                                        case 0x40:
+                                            {
+                                                ParseIPV4Frame(frame.data, 0, t, f);
+                                                break;
+                                            }
+                                        case 0x60:
+                                            {
+                                                ParseIPV6Frame(frame.data, 0, t, f);
+                                                break;
+                                            }
+                                        default:
+                                            {
+                                                if (!f_ReportedOther)
+                                                {
+                                                    Program.logDiagnostic($"Frame {frame.frameNumber}: Raw Protocol {frame.linkType} (0x{frame.linkType.ToString("X4")}). Payload header type {frame.data[0]} is not IPV4 or IPV6.");
+                                                    f_ReportedOther = true;
+                                                }
+                                                break;
+                                            }
+
+                                    }
+                                    break;
+                                }
                             case 0x0071:  // Linux Cooked Capture - no MAC addresses, just IP and higher protocols
                             case 0xE071:  // Linux Cooked Capture - no MAC addresses, just IP and higher protocols
                                 {
@@ -317,6 +345,7 @@ namespace SQLNA
         // Link Type: Ethernet                 -> IPV4/IPV6/VNETTag
         // Link Type: Wifi/LLC/SNAP            -> IPV4/IPV6/VNETTag
         // Link Type: Linux Cooked Capture     -> IPV4/IPV6/VNETTag
+        // Link Type: Raw 101 (0x65)           -> IPV4/IPV6
         //
         // GRE                                 -> ERSPAN/IPV4/IPV6
         // ERSPAN                              -> Ethernet
@@ -423,14 +452,6 @@ namespace SQLNA
             try
             {
                 ParseNextProtocol(NextProtocol, b, offset, t, f);
-                //if (NextProtocol == 0x800)
-                //{
-                //    ParseIPV4Frame(b, offset, t, f);
-                //}
-                //else if (NextProtocol == 0x86DD)
-                //{
-                //    ParseIPV6Frame(b, offset, t, f);
-                //}
             }
             catch (IndexOutOfRangeException)
             {
@@ -449,7 +470,6 @@ namespace SQLNA
                 }
                 if (f.conversation.endTick < f.ticks) f.conversation.endTick = f.ticks;
                 if (f.isFromClient) f.conversation.sourceFrames++; else f.conversation.destFrames++;
-                f.conversation.totalBytes += (ulong)b.Length;
             }
         }
 
@@ -585,26 +605,6 @@ namespace SQLNA
             }
 
             ParseNextProtocol(NextProtocol, b, offset, t, f);
-            //switch (NextProtocol)
-            //{
-            //    case 0x0800:   // IPV4
-            //        {
-            //            ParseIPV4Frame(b, offset, t, f);
-            //            break;
-            //        }
-            //    case 0x86DD:   // IPV6
-            //        {
-            //            ParseIPV6Frame(b, offset, t, f);
-            //            break;
-            //        }
-            //    case 0x88BE:   // ERSPAN Type II
-            //    case 0x22EB:   // ERSPAN Type III
-            //        {
-            //            ParseERSPANFrame(b, offset, t, f);
-            //            break;
-            //        }
-            //}
-
         }
 
         public static void ParseERSPANFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
@@ -653,29 +653,9 @@ namespace SQLNA
             NextProtocol = utility.B2UInt16(b, offset + 12);
             NextProtocolOffset = offset + 14;
 
-            //// VLAN detection - may have more than one shim
-            //while (NextProtocol == 0x8100)
-            //{
-            //    NextProtocol = utility.B2UInt16(b, NextProtocolOffset + 2);
-            //    NextProtocolOffset += 4;
-            //}
-
             try
             {
                 ParseNextProtocol(NextProtocol, b, NextProtocolOffset, t, f);  // handles the VLAN as well
-
-                //if (NextProtocol == 0x800)  // IPV4
-                //{
-                //    ParseIPV4Frame(b, NextProtocolOffset, t, f);
-                //}
-                //else if (NextProtocol == 0x86DD)  // IPV6
-                //{
-                //    ParseIPV6Frame(b, NextProtocolOffset, t, f);
-                //}
-                //else if (NextProtocol == 0x8926)  // VNETTag
-                //{
-                //    ParseVNTagFrame(b, NextProtocolOffset, t, f);
-                //}
             }
             catch (IndexOutOfRangeException)
             {
@@ -694,7 +674,6 @@ namespace SQLNA
                 }
                 if (f.conversation.endTick < f.ticks) f.conversation.endTick = f.ticks;
                 if (f.isFromClient) f.conversation.sourceFrames++; else f.conversation.destFrames++;
-                f.conversation.totalBytes += (ulong)b.Length;
             }
         }
 
@@ -823,18 +802,6 @@ namespace SQLNA
             try
             {
                 ParseNextProtocol(NextProtocol, b, offset, t, f);
-                //if (NextProtocol == 0x800)
-                //{
-                //    ParseIPV4Frame(b, offset, t, f);
-                //}
-                //else if (NextProtocol == 0x86DD)
-                //{
-                //    ParseIPV6Frame(b, offset, t, f);
-                //}
-                //else if (NextProtocol == 0x8926)
-                //{
-                //    ParseVNTagFrame(b, offset, t, f);
-                //}
             }
             catch (IndexOutOfRangeException)
             {
@@ -853,7 +820,6 @@ namespace SQLNA
                 }
                 if (f.conversation.endTick < f.ticks) f.conversation.endTick = f.ticks;
                 if (f.isFromClient) f.conversation.sourceFrames++; else f.conversation.destFrames++;
-                f.conversation.totalBytes += (ulong)b.Length;
             }
         }
 
@@ -874,19 +840,6 @@ namespace SQLNA
             offset += 6;
 
             ParseNextProtocol(NextProtocol, b, offset, t, f);
-
-            //if (NextProtocol == 0x0800)  // IPV4
-            //{
-            //    ParseIPV4Frame(b, offset, t, f);
-            //}
-            //else if (NextProtocol == 0x86DD)  // IPV6
-            //{
-            //    ParseIPV6Frame(b, offset, t, f);
-            //}
-            //else if (NextProtocol == 0x8100)  // 802.1Q Virtual LAN - seems to be next per WireShark parser
-            //{
-            //    Parse8021QFrame(b, offset, t, f);
-            //}
         }
 
         public static void Parse8021QFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
@@ -901,15 +854,6 @@ namespace SQLNA
             offset += 4;
 
             ParseNextProtocol(NextProtocol, b, offset, t, f);
-
-            //if (NextProtocol == 0x0800)  // IPV4
-            //{
-            //    ParseIPV4Frame(b, offset, t, f);
-            //}
-            //else if (NextProtocol == 0x86DD)  // IPV6
-            //{
-            //    ParseIPV6Frame(b, offset, t, f);
-            //}
         }
 
         public static void ParseIPV4Frame(byte[] b, int offset, NetworkTrace t, FrameData f)
@@ -1030,18 +974,6 @@ namespace SQLNA
              }
 
             ParseNextProtocol(NextProtocol, b, offset + HeaderLength, t, f);
-            //if (NextProtocol == 6)
-            //{
-            //    ParseTCPFrame(b, offset + HeaderLength, t, f);
-            //}
-            //else if (NextProtocol == 0x11)
-            //{
-            //    ParseUDPFrame(b, offset + HeaderLength, t, f);
-            //}
-            //else if (NextProtocol == 0x2f)
-            //{
-            //    ParseGenericRoutingEncapsulation(b, offset + HeaderLength, t, f);
-            //}
         }
 
         public static void ParseIPV6Frame(byte[] b, int offset, NetworkTrace t, FrameData f)
@@ -1147,39 +1079,6 @@ namespace SQLNA
             }
 
             ParseNextProtocol(NextProtocol, b, offset + HeaderLength, t, f);
-            //switch (NextProtocol)
-            //{
-            //    case 6:       //TCP
-            //        {
-            //            ParseTCPFrame(b, offset + HeaderLength, t, f);
-            //            break;
-            //        }
-            //    case 0x11:    // UDP
-            //        {
-            //            ParseUDPFrame(b, offset + HeaderLength, t, f);
-            //            break;
-            //        }
-            //    case 0x2F:    // Generic Routing Encapsulation (GRE)
-            //        {
-            //            ParseGenericRoutingEncapsulation(b, offset + HeaderLength, t, f);
-            //            break;
-            //        }
-            //    case 0:
-            //    case 60:
-            //    case 43:
-            //    case 44:
-            //    case 51:
-            //    case 135:
-            //        {
-            //            Program.logDiagnostic("Warn: IPV6 packet has extension header " + NextProtocol + ". Frame " + f.frameNo + " in " + f.file.filePath);
-            //            break;
-            //        }
-            //    default:
-            //        {
-            //            // Program.logDiagnostic("Ignored protocol " + NextProtocol.ToString());
-            //            break;
-            //        }
-            //}
        }
 
         public static ushort GetESPTrailerLength(byte[] b, int offset, int LastByteOffset, ref byte NextProtocol)
@@ -1240,6 +1139,22 @@ namespace SQLNA
             // raw payload length
             int payloadLen = f.lastByteOffSet - offset - headerLength + 1;
             if (payloadLen != 0) canTestChecksum = false;  // want to keep it simple - don't test if there's a payload
+
+            // accumulate captured bytes
+            f.conversation.totalBytes += (ulong)b.Length;                  // total packet size
+            f.conversation.totalPayloadBytes += (ulong)payloadLen;         // tcp payload length
+            if (b.Length > f.conversation.maxPayloadSize)
+            {
+                f.conversation.maxPayloadSize = payloadLen;
+                if (f.hasPUSHFlag || payloadLen < 2) // Definitely not the max if just an ACK flag (len=0) or a Keep-ALive packet (len=1) or has a PUSH flag
+                {
+                    f.conversation.maxPayloadLimit = false;
+                }
+                else
+                {
+                    f.conversation.maxPayloadLimit = true; // Payload > 1 + no PUSH flag, means this should be the maximum frame size
+                }
+            }
 
             // captured payload length may be less than actual frame length
             if (f.lastByteOffSet >= b.Length) f.lastByteOffSet = (ushort)(b.Length - 1); // last element position = Length - 1
@@ -1593,7 +1508,7 @@ namespace SQLNA
             {
                 if (f.payload[i] == backslash)  // ignore the null byte between letters
                 {
-                    pos2 = i - 2; // we stop on the first on found. Subtract to to get the one closer to the start of the byte array
+                    pos2 = i - 2; // we stop on the first one found. Subtract to to get the one closer to the start of the byte array
                     break;
                 }
             }
