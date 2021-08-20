@@ -33,6 +33,7 @@ namespace SQLNA
             DisplayAttentions(Trace);
             DisplayTLSIssues(Trace);
             DisplayRedirectedConnections(Trace);
+            DisplayMTUReport(Trace);
             DisplayClientPortUsage(Trace);
             DisplaySSRPReport(Trace);
             DisplayKerberosResponseReport(Trace);
@@ -79,6 +80,7 @@ namespace SQLNA
         private static void DisplayTrafficStatistics(NetworkTrace Trace)
         {
             ulong tcpBytes = 0, tdsBytes = 0;
+            ulong tcpPayloadBytes = 0, tdsPayloadBytes = 0;
             int tcpConversations = 0, tdsConversations = 0;
             int tcpFrames = 0, tdsFrames = 0;
 
@@ -87,11 +89,13 @@ namespace SQLNA
                 if (c.isUDP == false)
                 {
                     tcpBytes += c.totalBytes;
+                    tcpPayloadBytes += c.totalPayloadBytes;
                     tcpFrames += c.frames.Count;
                     tcpConversations++;
                     if (c.isSQL)
                     {
                         tdsBytes += c.totalBytes;
+                        tdsPayloadBytes += c.totalPayloadBytes;
                         tdsFrames += c.frames.Count;
                         tdsConversations++;
                     }
@@ -99,10 +103,10 @@ namespace SQLNA
             }
 
             ReportFormatter rf = new ReportFormatter();
-            rf.SetColumnNames("Statistic:L", "Bytes:R", "Frames:R", "Conversations:R");
+            rf.SetColumnNames("Statistic:L", "Packet Bytes:R", "Payload Bytes:R", "Frames:R", "Conversations:R");
             rf.indent = 4;
-            rf.SetcolumnData("TCP Traffic", tcpBytes.ToString("#,##0"), tcpFrames.ToString("#,##0"), tcpConversations.ToString("#,##0"));
-            rf.SetcolumnData("SQL Traffic", tdsBytes.ToString("#,##0"), tdsFrames.ToString("#,##0"), tdsConversations.ToString("#,##0"));
+            rf.SetcolumnData("TCP Traffic", tcpBytes.ToString("#,##0"), tcpPayloadBytes.ToString("#,##0"), tcpFrames.ToString("#,##0"), tcpConversations.ToString("#,##0"));
+            rf.SetcolumnData("SQL Traffic", tdsBytes.ToString("#,##0"), tdsPayloadBytes.ToString("#,##0"), tdsFrames.ToString("#,##0"), tdsConversations.ToString("#,##0"));
 
             Program.logMessage(rf.GetHeaderText());
             Program.logMessage(rf.GetSeparatorText());
@@ -1646,9 +1650,7 @@ namespace SQLNA
                 }
             }
 
-            Program.logMessage("The following Named Pipes conversations were detected in the network trace:\r\n");
             ReportFormatter rf = new ReportFormatter();
-
 
             // "Client Address:L", "Port:R", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Login Progress:L", "Keep-Alives:R", "Retransmits:R", "NullCreds:R", "DHE:R", "LoginAck:L", "Error:L");
             switch (Program.filterFormat)
@@ -1713,18 +1715,20 @@ namespace SQLNA
                 }
             }
 
-            Program.logMessage(rf.GetHeaderText());
-            Program.logMessage(rf.GetSeparatorText());
-
-            for (int i = 0; i < rf.GetRowCount(); i++)
+            if (PipeRecords.Count != 0)
             {
-                Program.logMessage(rf.GetDataText(i));
+                Program.logMessage("The following Named Pipes conversations were detected in the network trace:\r\n");
+                Program.logMessage(rf.GetHeaderText());
+                Program.logMessage(rf.GetSeparatorText());
+
+                for (int i = 0; i < rf.GetRowCount(); i++)
+                {
+                    Program.logMessage(rf.GetDataText(i));
+                }
+
+                Program.logMessage();
             }
-
-            Program.logMessage();
-
-
-            if (PipeRecords.Count == 0)
+            else
             {
                 Program.logMessage("No Named Pipes conversations found.");
                 Program.logMessage();
@@ -2203,6 +2207,42 @@ namespace SQLNA
             Program.logMessage();
         }
 
+        private static void DisplayMTUReport(NetworkTrace Trace)
+        {
+            ArrayList MTUSizes = new ArrayList();
+            int maxPayloadSize = 0;
+
+            // gather unique max payload sizes
+            foreach (ConversationData c in Trace.conversations)
+            {
+                if (c.maxPayloadSize > maxPayloadSize) maxPayloadSize = c.maxPayloadSize;
+                if (c.maxPayloadLimit && MTUSizes.IndexOf(c.maxPayloadSize) < 0) MTUSizes.Add(c.maxPayloadSize);
+            }
+
+            Program.logMessage($"The maximum payload size observed was {maxPayloadSize}.");
+
+            // how many did we find?
+            if (MTUSizes.Count == 1)
+            {
+                Program.logMessage($"The MTU maximum payload size observed was {(int)MTUSizes[0]}.");
+            }
+            else if (MTUSizes.Count > 0)
+            {
+                string rowList = "";
+                var OrderedRows = from row in MTUSizes.ToArray() orderby (int)row ascending select row;
+                foreach (var row in OrderedRows) rowList += ", " + row.ToString();
+                rowList = rowList.Substring(2);  // get rid of leading ", "
+                Program.logMessage($"Multiple MTU maximum payload sizes were observed: {rowList}");
+                
+            }
+            else
+            {
+                Program.logMessage("MTU maximum payload size was not determined.");
+            }
+
+            Program.logMessage();
+        }
+
         private static void DisplayRedirectedConnections(NetworkTrace Trace)
         {
             //
@@ -2387,7 +2427,7 @@ namespace SQLNA
 
         private static void OutputStats(NetworkTrace Trace)
         {
-            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,Retransmit,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ServerName,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
+            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,Retransmit,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,MaxPayloadSize,PayloadSizeLimit,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ServerName,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
             foreach (ConversationData c in Trace.conversations)
             {
                 int firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
@@ -2421,6 +2461,8 @@ namespace SQLNA
                                 (c.hasLogin7 ? "Y" : "") + "," +
                                 (c.isEncrypted ? "Y" : "") + "," +
                                 (c.isSQL && (c.isMARSEnabled || (c.smpAckCount + c.smpSynCount + c.smpFinCount + c.smpDataCount) > 0) ? "Y" : "") + "," +
+                                c.maxPayloadSize + "," +
+                                (c.maxPayloadLimit ? "Y": "") + "," +
                                 c.frames.Count + "," +
                                 c.totalBytes + "," +
                                 "," +   // do not have a separate counter for sent bytes      TODO ? do we really need it?

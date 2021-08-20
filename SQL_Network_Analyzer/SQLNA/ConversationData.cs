@@ -64,7 +64,8 @@ namespace SQLNA
         public uint threadID = 0;                   //   - set in GetClientPreloginInfo
         // Conversation statistics
         public int tdsFrames = 0;       //               - set in ProcessTDS
-        public ulong totalBytes = 0;    //               - set in ParseEthernetFrame
+        public ulong totalBytes = 0;    //               - set in ParseTCPFrame
+        public ulong totalPayloadBytes = 0;         //   - set in ParseTCPFrame
         public long startTick = 0;      //               - set in ParseEthernetFrame
         public long endTick = 0;        //               - set in ParseEthernetFrame
         public int ackCount = 0;        //               - accumulated in ParseTCPFrame - can be in combination with other flags
@@ -84,9 +85,11 @@ namespace SQLNA
         public uint sourceFrames = 0;   //               - accumulated in ParseEthernetFrame
         public uint destFrames = 0;     //               - accumulated in ParseEthernetFrame
         public uint keepAliveCount = 0; //               - accumulated in ParseTCPFrame
-        public ushort maxKeepAliveRetransmits = 0; //    - accoumulated in FindKeepAliveRetransmits
-        public uint truncatedFrameLength = 0; //         
-        public uint truncationErrorCount = 0; //         
+        public ushort maxKeepAliveRetransmits = 0;  //   - accoumulated in FindKeepAliveRetransmits
+        public uint truncatedFrameLength = 0;       //         
+        public uint truncationErrorCount = 0;       //         
+        public int maxPayloadSize = 0;              //   - accumulated in ParseTCPFrame
+        public bool maxPayloadLimit = false;        //   - accumulated in ParseTCPFrame
         public long synTime = 0;                    //
         public long ackSynTime = 0;                 //
         public long PreLoginTime = 0;               //   - set in TDS Parser - so we can time the PreLogin packet delay
