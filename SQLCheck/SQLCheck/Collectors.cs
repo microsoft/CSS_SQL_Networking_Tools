@@ -441,19 +441,27 @@ namespace SQLCheck
             //
             // Get related domain - additional attributes
             //
-            //Console.WriteLine("Getting Related Domain Additional Attributes");
+            Console.WriteLine("Trace: Getting Related Domain Additional Attributes");
             DirectorySearcher searcher = null;
             SearchResultCollection results = null;
             try
             {
                 searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{domain.Name}"), $"objectCategory=trustedDomain", new string[] { "name", "trustAttributes", "msDS-SupportedEncryptionTypes" }, SearchScope.Subtree);
+                Console.WriteLine($"Trace: searcher is {(searcher == null ? "Null" : "not Null")}");
                 results = searcher.FindAll();
+                Console.WriteLine($"Trace: results is {(results == null ? "Null" : "not Null")}");
                 foreach (SearchResult result in results)
                 {
+                    // Tracing code
+                    Console.WriteLine("Trace: Attribute Loop");
                     DirectoryEntry entry = result.GetDirectoryEntry();
+                    Console.WriteLine($"Trace: entry is {(entry == null ? "Null" : "not Null")}");
                     string name = entry.Properties["name"][0].ToString();
+                    Console.WriteLine($"Trace: Got name {name}");
                     int trustAttributes = entry.Properties["trustAttributes"][0].ToInt();
+                    Console.WriteLine("Trace: Got trustAttributes");
                     int supportedEncryptionTypes = entry.Properties["msDS-SupportedEncryptionTypes"][0].ToInt();
+                    Console.WriteLine("Trace: Got supportedEncryptionTypes");
                     Debug.WriteLine($"name: {name}, trustAttributes: 0x{trustAttributes.ToString("X8")}, Enc: {supportedEncryptionTypes.ToString("X8")}");
                     DataRow[] rows = dtRelatedDomain.Select($"TargetDomain='{name}'");
                     if (rows.Length == 0)
@@ -483,6 +491,7 @@ namespace SQLCheck
                 if (searcher != null) { searcher.Dispose(); searcher = null; }
                 DomainRow.LogException("Failed to look up trusted domain additional attributes.", ex);
             }
+            Console.WriteLine("Trace: finished looking up trusted domain additional attributes.");
 
             //
             // Get root domain and forest related domain - additional attributes
