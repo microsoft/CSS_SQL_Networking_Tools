@@ -366,7 +366,7 @@ namespace SQLCheck
             // Get related domains to root domain
             //
 
-            //Console.WriteLine("Getting Root Domain Related Domain Table");
+            // Console.WriteLine("Trace: Getting Root Domain Related Domain Table");
             DataTable dtRootDomainRelatedDomain = ds.Tables["RootDomainRelatedDomain"];  // referenced further down in the method
             if (rootDomain != null)
             {
@@ -374,7 +374,7 @@ namespace SQLCheck
 
                 try
                 {
-                    Console.WriteLine("Getting Root Domain Related Domains");
+                    // Console.WriteLine("Trace: Getting Root Domain Related Domains");
                     TrustRelationshipInformationCollection relatedDomains = rootDomain.GetAllTrustRelationships();
                     foreach (TrustRelationshipInformation rd in relatedDomains)
                     {
@@ -412,7 +412,7 @@ namespace SQLCheck
 
                 try
                 {
-                    Console.WriteLine("Getting Forest Related Domains");
+                    // Console.WriteLine("Trace: Getting Forest Related Domains");
                     TrustRelationshipInformationCollection relatedDomains = forest.GetAllTrustRelationships();
                     foreach (TrustRelationshipInformation rd in relatedDomains)
                     {
@@ -462,7 +462,7 @@ namespace SQLCheck
                     Console.WriteLine("Trace: Got trustAttributes");
                     int supportedEncryptionTypes = entry.Properties["msDS-SupportedEncryptionTypes"][0].ToInt();
                     Console.WriteLine("Trace: Got supportedEncryptionTypes");
-                    Debug.WriteLine($"name: {name}, trustAttributes: 0x{trustAttributes.ToString("X8")}, Enc: {supportedEncryptionTypes.ToString("X8")}");
+                    // Debug.WriteLine($"name: {name}, trustAttributes: 0x{trustAttributes.ToString("X8")}, Enc: {supportedEncryptionTypes.ToString("X8")}");
                     DataRow[] rows = dtRelatedDomain.Select($"TargetDomain='{name}'");
                     if (rows.Length == 0)
                     {
@@ -497,7 +497,7 @@ namespace SQLCheck
             // Get root domain and forest related domain - additional attributes
             //
 
-            //Console.WriteLine("Getting Root Domain and Forest additional attributes");
+            Console.WriteLine("Trace: Getting Root Domain and Forest additional attributes");
             searcher = null;
             results = null;
             int FOREST_TRANSITIVE = 8;
@@ -506,14 +506,21 @@ namespace SQLCheck
                 try
                 {
                     searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{rootDomain.Name}"), $"objectCategory=trustedDomain", new string[] { "name", "trustAttributes", "msDS-SupportedEncryptionTypes" }, SearchScope.Subtree);
+                    Console.WriteLine($"Trace: searcher is {(searcher == null ? "Null" : "not Null")}");
                     results = searcher.FindAll();
+                    Console.WriteLine($"Trace: results is {(results == null ? "Null" : "not Null")}");
                     foreach (SearchResult result in results)
                     {
+                        Console.WriteLine("Trace: Attribute Loop");
                         DirectoryEntry entry = result.GetDirectoryEntry();
+                        Console.WriteLine($"Trace: entry is {(entry == null ? "Null" : "not Null")}");
                         string name = entry.Properties["name"][0].ToString();
+                        Console.WriteLine($"Trace: Got name {name}");
                         int trustAttributes = entry.Properties["trustAttributes"][0].ToInt();
+                        Console.WriteLine("Trace: Got trustAttributes");
                         int supportedEncryptionTypes = entry.Properties["msDS-SupportedEncryptionTypes"][0].ToInt();
-                        Debug.WriteLine($"name: {name}, trustAttributes: 0x{trustAttributes.ToString("X8")}, Enc: {supportedEncryptionTypes.ToString("X8")}");
+                        Console.WriteLine("Trace: Got supportedEncryptionTypes");
+                        // Debug.WriteLine($"name: {name}, trustAttributes: 0x{trustAttributes.ToString("X8")}, Enc: {supportedEncryptionTypes.ToString("X8")}");
 
                         DataTable dt = ((trustAttributes & FOREST_TRANSITIVE) != 0) ? dtForestRelatedDomain : dtRootDomainRelatedDomain;
                         DataRow[] rows = dt.Select($"TargetDomain='{name}'");

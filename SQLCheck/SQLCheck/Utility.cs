@@ -473,9 +473,11 @@ namespace SQLCheck
 
         public static string CompareVersion(string a, string b)
         {
+            // input may be "10.0.1234.5"
+            // input may be "Microsoft Windows NT 6.1.7601 Service Pack 1" - just compare the 6.1.7601 portion
             int aVal = 0, bVal = 0;
-            string[] aParts = a.Split('.');
-            string[] bParts = b.Split('.');
+            string[] aParts = ExtractVersion(a).Split('.');
+            string[] bParts = ExtractVersion(b).Split('.');
             int partLength = Math.Min(aParts.Length, bParts.Length);  // only compare the parts in common
 
             try
@@ -491,11 +493,24 @@ namespace SQLCheck
             }
             catch (Exception ex)
             {
-                Console.WriteLine($@"Utility.CompareVersion: Error comparing ""{a}"" and ""{b}"".");
+                Console.WriteLine($@"Utility.CompareVersion: Error comparing ""{a}"" -> ""{ExtractVersion(a)}"" and ""{b}"" -> {ExtractVersion(b)}.");
                 Console.WriteLine(ex.Message);
                 Console.WriteLine(ex.StackTrace);
                 return "";
             }
+        }
+
+        public static string ExtractVersion(string v)
+        {
+            // input may be 10.0.1234.5 - return unchanged
+            // input may be Microsoft Windows NT 6.1.7601 Service Pack 1 - just return the 6.1.7601 portion
+            if (v == null || v == "" || v.Substring(0, 1).IsInt()) return v;
+            string[] words = v.Split(' ');
+            foreach (string word in words)
+            {
+                if (word.Substring(0, 1).IsInt()) return word;
+            }
+            return v;
         }
     }
 }
