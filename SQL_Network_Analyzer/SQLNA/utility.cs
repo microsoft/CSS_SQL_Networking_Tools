@@ -164,25 +164,25 @@ namespace SQLNA
 
         public static String FormatIPV6Address(ulong Hi, ulong Lo)
         {
-            string s = "";
+            string sHi = "", sLo = "";
 
-            s = (Hi & 0xffff).ToString("X");
+            sHi = (Hi & 0xffff).ToString("X");
             Hi >>= 16;
-            s = (Hi & 0xffff).ToString("X") + ":" + s;
+            sHi = (Hi & 0xffff).ToString("X") + ":" + sHi;
             Hi >>= 16;
-            s = (Hi & 0xffff).ToString("X") + ":" + s;
+            sHi = (Hi & 0xffff).ToString("X") + ":" + sHi;
             Hi >>= 16;
-            s = (Hi & 0xffff).ToString("X") + ":" + s;
+            sHi = (Hi & 0xffff).ToString("X") + ":" + sHi;
 
-            s = (Lo & 0xffff).ToString("X") + ":" + s;
+            sLo = (Lo & 0xffff).ToString("X");
             Lo >>= 16;
-            s = (Lo & 0xffff).ToString("X") + ":" + s;
+            sLo = (Lo & 0xffff).ToString("X") + ":" + sLo;
             Lo >>= 16;
-            s = (Lo & 0xffff).ToString("X") + ":" + s;
+            sLo = (Lo & 0xffff).ToString("X") + ":" + sLo;
             Lo >>= 16;
-            s = (Lo & 0xffff).ToString("X") + ":" + s;
+            sLo = (Lo & 0xffff).ToString("X") + ":" + sLo;
 
-            return s;
+            return sHi + ":" + sLo;
         }
 
         public static void ParseIPPortString(string value, ref bool isIPV6, ref ushort port, ref uint ipv4, ref ulong ipv6hi, ref ulong ipv6lo)
@@ -195,6 +195,7 @@ namespace SQLNA
             addr = System.Net.IPAddress.Parse(words[0]);
             if (addr.AddressFamily == System.Net.Sockets.AddressFamily.InterNetwork)
             {
+                isIPV6 = false;
                 ipv4 = B2UInt32(addr.GetAddressBytes(),0);
             }
             else if (addr.AddressFamily == System.Net.Sockets.AddressFamily.InterNetworkV6)

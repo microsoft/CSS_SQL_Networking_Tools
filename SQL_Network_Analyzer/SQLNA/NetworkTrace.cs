@@ -124,6 +124,7 @@ namespace SQLNA
 
             // not found - create new SQLServer and return it
             SQLServer s2 = new SQLServer();
+            s2.isIPV6 = isIPV6;
             s2.sqlIP = IP;
             s2.sqlIPHi = IPHi;
             s2.sqlIPLo = IPLo;
@@ -173,6 +174,7 @@ namespace SQLNA
 
             // not found - create new SSRPRequestr and return it
             SSRPData s2 = new SSRPData();
+            s2.isIPV6 = isIPV6;
             s2.sqlIP = IP;
             s2.sqlIPHi = IPHi;
             s2.sqlIPLo = IPLo;

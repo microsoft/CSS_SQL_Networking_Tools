@@ -205,7 +205,7 @@ namespace SQLNA
                     ulong totalBytes = 0;
                     int totalFrames = 0, totalResets = 0, totalRetransmits = 0;
                     ArrayList clientIPs = new ArrayList();
-                    string IPAddress = null;  // client IP address
+                    string IPAddress = null;  // client IP address or Server IP address
                     string sqlIP = (s.isIPV6) ? utility.FormatIPV6Address(s.sqlIPHi, s.sqlIPLo) : utility.FormatIPV4Address(s.sqlIP);
                     int firstFile = 0;
                     if (s.conversations.Count > 0) firstFile = Trace.files.IndexOf(((FrameData)(((ConversationData)s.conversations[0]).frames[0])).file);
@@ -244,6 +244,11 @@ namespace SQLNA
                     }
 
                     if (totalResets > 0) s.hasResets = true;
+
+                    if (s.isIPV6)
+                        IPAddress = utility.FormatIPV6Address(s.sqlIPHi, s.sqlIPLo);
+                    else
+                        IPAddress = utility.FormatIPV4Address(s.sqlIP);
 
                     rf.SetcolumnData(sqlIP,
                          s.sqlHostName,

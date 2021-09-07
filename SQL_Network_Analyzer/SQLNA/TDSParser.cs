@@ -237,18 +237,39 @@ namespace SQLNA
                             (firstByte != (int)TDSPacketType.DTC) &&        //   14   0x0E
                             (firstByte != (int)TDSPacketType.SSPI) &&       //   17   0x11
                             (firstByte != (int)TDSPacketType.PRELOGIN) &&   //   18   0x12
-                            (firstByte != (int)TDSPacketType.APPDATA))      //   23   0x17
+                            (firstByte != (int)TDSPacketType.APPDATA))      //   23   0x17 - next 2 bytes give TLS version 0200, 0300 to 0303
                         {
                             continue;
                         }
 
-                        // read header parts that we are interested in
-                        bool tdsEOM = (fd.payload[1] & 0x1) == 1;
-                        ushort tdsLength = utility.B2UInt16(fd.payload, 2);
+                        // define TDS header fields
+                        byte status = 0;
+                        bool tdsEOM = false;
+                        bool tdsResetConnection = false;
+                        ushort tdsLength = 0;  // length of current packet data (includes 8 bytes for the header)
+                        ushort SPID = 0;
+                        byte PacketID = 0;
+                        byte Window = 0;
 
                         // APPDATA does not have a TDS payload, but a TLS payload, so skip these tests if APPDATA
-                        if (firstByte != (int)TDSPacketType.APPDATA)
+                        if (firstByte == (int)TDSPacketType.APPDATA) // TLS version 0200, 0300 to 0303
                         {
+                            byte sslMajor = fd.payload[1];
+                            byte sslMinor = fd.payload[2];
+                            bool validPayload = (sslMajor == 2 && sslMinor == 0) || (sslMajor == 3 && sslMinor < 4);
+                            // do something here - ignore if validPayload == false??? TODO
+                        }
+                        else   // (firstByte != (int)TDSPacketType.APPDATA)
+                        {
+                            // get header values
+                            status = fd.payload[1];
+                            tdsEOM = (status & 0x1) == 1;
+                            tdsResetConnection = (status & 0x18) != 0;
+                            tdsLength = utility.B2UInt16(fd.payload, 2);  // length of current packet data (includes 8 bytes for the header)
+                            SPID = utility.B2UInt16(fd.payload, 4);
+                            PacketID = fd.payload[6];
+                            Window = fd.payload[7];
+
                             // TDS header Length argument needs to be non-zero and also >= payload length
                             if (tdsLength == 0 || tdsLength < fd.payloadLength) continue;
 
