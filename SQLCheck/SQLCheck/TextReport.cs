@@ -83,6 +83,8 @@ namespace SQLCheck
             DataRow Domain = null;
             bool is64bit = Computer.GetBoolean("CPU64Bit");
 
+            s.WriteLine($"Report run by:              {Computer.GetString("CurrentUser")}");
+            s.WriteLine();
             s.WriteLine($"NETBIOS Name:               {Computer.GetString("NETBIOSName")}");       // use of extension methods in case a field does not exist
             s.WriteLine($"FQDN:                       {Computer.GetString("FQDN")}");
             s.WriteLine($"DNS Suffix:                 {Computer.GetString("DNSSuffix")}");
@@ -464,7 +466,7 @@ namespace SQLCheck
             s.WriteLine();
 
             ReportFormatter rf = new ReportFormatter();
-            rf.SetColumnNames("Friendly Name:L", "CN:L", "SAN:L", "Thumbprint:L", "Server Cert:L", "Usage:L", "Private Key:L", "Not Before:L", "Not After:L", "Problem:L");
+            rf.SetColumnNames("Friendly Name:L", "CN:L", "SAN:L", "Thumbprint:L", "Server Cert:L", "Key Len:R", "Sig Type:L", "Usage:L", "Private Key:L", "Not Before:L", "Not After:L", "Problem:L");
             foreach (DataRow Certificate in dtCertificate.Rows)
             {
                 rf.SetcolumnData(Certificate.GetString("FriendlyName"),
@@ -472,6 +474,8 @@ namespace SQLCheck
                                  Certificate.GetString("SubjectAlternativeName"),
                                  Certificate.GetString("ThumbPrint"),
                                  Certificate.GetBoolean("ServerCert") ? "Yes" : "",
+                                 Certificate.GetString("KeySize"),
+                                 Certificate.GetString("SignatureAlgorithm"),
                                  Certificate.GetString("KeySpec"),
                                  Certificate.GetBoolean("HasPrivateKey") ? "Yes" : "",
                                  Certificate.GetString("NotBefore"),
@@ -626,10 +630,10 @@ namespace SQLCheck
             DataTable dtDatabaseDriver = ds.Tables["DatabaseDriver"];
             ReportFormatter rf = new ReportFormatter();
 
-            rf.SetColumnNames("Name:L", "Type:L", "Version:L", "Supported:L", "TLS 1.2:L", "TLS 1.3:L", "MSF:L", "GUID:L", "Path:L");
+            rf.SetColumnNames("Name:L", "Type:L", "Version:L", "Supported:L", "TLS 1.2:L", "TLS 1.3:L", "MSF:L", "GUID:L", "Path:L", "Message:L");
             foreach (DataRow DatabaseDriver in dtDatabaseDriver.Rows)
             {
-                if (DatabaseDriver.GetString("Supported") != "")  // only SQL drivres and providers have this set
+                if (DatabaseDriver.GetString("Supported") != "")  // only SQL drivers and providers have this set
                 {
                     rf.SetcolumnData(DatabaseDriver.GetString("DriverName"),
                                      DatabaseDriver.GetString("DriverType"),
@@ -639,7 +643,8 @@ namespace SQLCheck
                                      DatabaseDriver.GetString("TLS13"),
                                      DatabaseDriver.GetString("MultiSubnetFailoverSupport"),
                                      DatabaseDriver.GetString("Guid"),
-                                     DatabaseDriver.GetString("Path"));
+                                     DatabaseDriver.GetString("Path"),
+                                     DatabaseDriver.GetString("Message"));
                 }
             }
             s.WriteLine(rf.GetHeaderText());
@@ -653,16 +658,17 @@ namespace SQLCheck
 
             s.WriteLine("Other OLE DB Providers and ODBC Drivers:");
             s.WriteLine();
-            rf.SetColumnNames("Name:L", "Type:L", "Version:L", "GUID:L", "Path:L");
+            rf.SetColumnNames("Name:L", "Type:L", "Version:L", "GUID:L", "Path:L", "Message:L");
             foreach (DataRow DatabaseDriver in dtDatabaseDriver.Rows)
             {
-                if (DatabaseDriver.GetString("Supported") == "")  // only SQL drivres and providers have this set
+                if (DatabaseDriver.GetString("Supported") == "")  // only SQL drivers and providers have this set
                 {
                     rf.SetcolumnData(DatabaseDriver.GetString("DriverName"),
                                  DatabaseDriver.GetString("DriverType"),
                                  DatabaseDriver.GetString("Version"),
                                  DatabaseDriver.GetString("Guid"),
-                                 DatabaseDriver.GetString("Path"));
+                                 DatabaseDriver.GetString("Path"),
+                                 DatabaseDriver.GetString("Message"));
                 }
             }
             s.WriteLine(rf.GetHeaderText());

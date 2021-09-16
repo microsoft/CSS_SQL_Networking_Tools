@@ -118,6 +118,7 @@ namespace SQLCheck
             dt.AddColumn("ID", "Integer");
             dt.Columns["ID"].AutoIncrement = true;
             dt.AddColumn("ParentID", "Integer");
+            dt.AddColumn("CurrentUser", "String");
             dt.AddColumn("NETBIOSName", "String");
             dt.AddColumn("FQDN", "String");
             dt.AddColumn("DNSSuffix", "String");
@@ -323,6 +324,7 @@ namespace SQLCheck
             dt.AddColumn("ServerCompatibility", "String");
             dt.AddColumn("Supported", "String");
             dt.AddColumn("MultiSubnetFailoverSupport", "String");
+            dt.AddColumn("Message", "String");
             ds.Tables.Add(dt);
 
             //

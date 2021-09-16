@@ -111,6 +111,11 @@ namespace SQLCheck
                 case "SQLNCLI10":
                 case "SQL Server Native Client 10.0":
                     // SQLNCLI10 and SQL Server Native Client 10.0
+                    if (versionInfo == null)
+                    {
+                        TLS12 = "Unknown";
+                        break;
+                    }
                     if (versionInfo.ProductMajorPart == 10 && versionInfo.ProductMinorPart ==  0 && versionInfo.ProductBuildPart >= 6543) TLS12 = "Yes";   // 10.0
                     if (versionInfo.ProductMajorPart == 10 && versionInfo.ProductMinorPart == 50 && versionInfo.ProductBuildPart >= 6537) TLS12 = "Yes";   // 10.50
                     if (versionInfo.ProductMajorPart == 10 && versionInfo.ProductMinorPart == 51 && versionInfo.ProductBuildPart >= 6537) TLS12 = "Yes";   // 10.51
@@ -118,10 +123,20 @@ namespace SQLCheck
                 case "SQLNCLI11":
                 case "SQL Server Native Client 11.0":
                     // SQLNCLI11 and SQL Server Native Client 11.0
+                    if (versionInfo == null)
+                    {
+                        TLS12 = "Unknown";
+                        break;
+                    }
                     if (versionInfo.ProductMajorPart == 11 && versionInfo.ProductMinorPart == 0 && versionInfo.ProductBuildPart >= 6538) TLS12 = "Yes";
                     break;
                 case "ODBC Driver 11 for SQL Server":
                     // ODBC Driver 11 for SQL Server
+                    if (versionInfo == null)
+                    {
+                        TLS12 = "Unknown";
+                        break;
+                    }
                     if (versionInfo.ProductMajorPart == 12 && versionInfo.ProductMinorPart == 0 && versionInfo.ProductBuildPart >= 4219) TLS12 = "Yes";
                     break;
             }

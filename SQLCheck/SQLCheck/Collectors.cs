@@ -63,11 +63,22 @@ namespace SQLCheck
             dt.Rows.Add(Computer);
 
             //
+            // Current User - should not be run by a local account
+            //
+
+            System.Security.Principal.WindowsIdentity w = System.Security.Principal.WindowsIdentity.GetCurrent();
+            Computer["CurrentUser"] = w.Name;
+
+            //
             // Computer NETBIOS name, fully qualified domain name (FQDN), and DNS suffix
             //
 
             string NETBIOSName = Environment.MachineName;
             Computer["NETBIOSName"] = NETBIOSName;
+            if (w.Name.ToUpper().Contains($@"{NETBIOSName.ToUpper()}\"))
+            {
+                Computer.LogWarning($"The application is being run from a local account: {w.Name}. Please run using a domain account with local Admin priviledges.");
+            }
 
             IPHostEntry Hostentry = Dns.GetHostEntry(NETBIOSName);
             string FQDN = Hostentry.HostName;
@@ -441,27 +452,32 @@ namespace SQLCheck
             //
             // Get related domain - additional attributes
             //
-            Console.WriteLine("Trace: Getting Related Domain Additional Attributes");
+            Program.Trace("Trace: Getting Related Domain Additional Attributes");
             DirectorySearcher searcher = null;
             SearchResultCollection results = null;
             try
             {
                 searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{domain.Name}"), $"objectCategory=trustedDomain", new string[] { "name", "trustAttributes", "msDS-SupportedEncryptionTypes" }, SearchScope.Subtree);
-                Console.WriteLine($"Trace: searcher is {(searcher == null ? "Null" : "not Null")}");
+                Program.Trace($"Trace: searcher is {(searcher == null ? "Null" : "not Null")}");
                 results = searcher.FindAll();
-                Console.WriteLine($"Trace: results is {(results == null ? "Null" : "not Null")}");
+                Program.Trace($"Trace: results is {(results == null ? "Null" : "not Null")}");
                 foreach (SearchResult result in results)
                 {
                     // Tracing code
-                    Console.WriteLine("Trace: Attribute Loop");
+                    Program.Trace("Trace: Attribute Loop");
                     DirectoryEntry entry = result.GetDirectoryEntry();
-                    Console.WriteLine($"Trace: entry is {(entry == null ? "Null" : "not Null")}");
+                    Program.Trace($"Trace: entry is {(entry == null ? "Null" : "not Null")}");
                     string name = entry.Properties["name"][0].ToString();
-                    Console.WriteLine($"Trace: Got name {name}");
+                    Program.Trace($"Trace: Got name {name}");
                     int trustAttributes = entry.Properties["trustAttributes"][0].ToInt();
-                    Console.WriteLine("Trace: Got trustAttributes");
-                    int supportedEncryptionTypes = entry.Properties["msDS-SupportedEncryptionTypes"][0].ToInt();
-                    Console.WriteLine("Trace: Got supportedEncryptionTypes");
+                    Program.Trace("Trace: Got trustAttributes");
+                    int supportedEncryptionTypes = 0;
+                    PropertyValueCollection suppType = entry.Properties["msDS-SupportedEncryptionTypes"];
+                    if (suppType != null && suppType.Count > 0)
+                    {
+                        supportedEncryptionTypes = entry.Properties["msDS-SupportedEncryptionTypes"][0].ToInt();  // this breaks things
+                    }
+                    Program.Trace("Trace: Got supportedEncryptionTypes");
                     // Debug.WriteLine($"name: {name}, trustAttributes: 0x{trustAttributes.ToString("X8")}, Enc: {supportedEncryptionTypes.ToString("X8")}");
                     DataRow[] rows = dtRelatedDomain.Select($"TargetDomain='{name}'");
                     if (rows.Length == 0)
@@ -490,14 +506,15 @@ namespace SQLCheck
                 if (results != null) { results.Dispose(); results = null; }
                 if (searcher != null) { searcher.Dispose(); searcher = null; }
                 DomainRow.LogException("Failed to look up trusted domain additional attributes.", ex);
+                Program.Trace($"Trusted Domain Exception: {ex.Message}");
             }
-            Console.WriteLine("Trace: finished looking up trusted domain additional attributes.");
+            Program.Trace("Trace: finished looking up trusted domain additional attributes.");
 
             //
             // Get root domain and forest related domain - additional attributes
             //
 
-            Console.WriteLine("Trace: Getting Root Domain and Forest additional attributes");
+            Program.Trace("Trace: Getting Root Domain and Forest additional attributes");
             searcher = null;
             results = null;
             int FOREST_TRANSITIVE = 8;
@@ -506,20 +523,25 @@ namespace SQLCheck
                 try
                 {
                     searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{rootDomain.Name}"), $"objectCategory=trustedDomain", new string[] { "name", "trustAttributes", "msDS-SupportedEncryptionTypes" }, SearchScope.Subtree);
-                    Console.WriteLine($"Trace: searcher is {(searcher == null ? "Null" : "not Null")}");
+                    Program.Trace($"Trace: searcher is {(searcher == null ? "Null" : "not Null")}");
                     results = searcher.FindAll();
-                    Console.WriteLine($"Trace: results is {(results == null ? "Null" : "not Null")}");
+                    Program.Trace($"Trace: results is {(results == null ? "Null" : "not Null")}");
                     foreach (SearchResult result in results)
                     {
-                        Console.WriteLine("Trace: Attribute Loop");
+                        Program.Trace("Trace: Attribute Loop");
                         DirectoryEntry entry = result.GetDirectoryEntry();
-                        Console.WriteLine($"Trace: entry is {(entry == null ? "Null" : "not Null")}");
+                        Program.Trace($"Trace: entry is {(entry == null ? "Null" : "not Null")}");
                         string name = entry.Properties["name"][0].ToString();
-                        Console.WriteLine($"Trace: Got name {name}");
+                        Program.Trace($"Trace: Got name {name}");
                         int trustAttributes = entry.Properties["trustAttributes"][0].ToInt();
-                        Console.WriteLine("Trace: Got trustAttributes");
-                        int supportedEncryptionTypes = entry.Properties["msDS-SupportedEncryptionTypes"][0].ToInt();
-                        Console.WriteLine("Trace: Got supportedEncryptionTypes");
+                        Program.Trace("Trace: Got trustAttributes");
+                        int supportedEncryptionTypes = 0;
+                        PropertyValueCollection suppType = entry.Properties["msDS-SupportedEncryptionTypes"];
+                        if (suppType != null && suppType.Count > 0)
+                        {
+                            supportedEncryptionTypes = entry.Properties["msDS-SupportedEncryptionTypes"][0].ToInt();  // this breaks things
+                        }
+                        Program.Trace("Trace: Got supportedEncryptionTypes");
                         // Debug.WriteLine($"name: {name}, trustAttributes: 0x{trustAttributes.ToString("X8")}, Enc: {supportedEncryptionTypes.ToString("X8")}");
 
                         DataTable dt = ((trustAttributes & FOREST_TRANSITIVE) != 0) ? dtForestRelatedDomain : dtRootDomainRelatedDomain;
@@ -550,6 +572,7 @@ namespace SQLCheck
                     if (results != null) { results.Dispose(); results = null; }
                     if (searcher != null) { searcher.Dispose(); searcher = null; }
                     DomainRow.LogException("Failed to look up root domain and forest additional attributes.", ex);
+                    Program.Trace($"Root Domain Exception: {ex.Message}");
                 }
             }
         }
@@ -1227,14 +1250,26 @@ namespace SQLCheck
                             DatabaseDriver["DriverType"] = "OLE DB";
                             DatabaseDriver["Guid"] = guid;
                             DatabaseDriver["Path"] = inprocServer32;
-                            versionInfo = FileVersionInfo.GetVersionInfo(inprocServer32);
+                            try
+                            {
+                                versionInfo = FileVersionInfo.GetVersionInfo(inprocServer32);
+                            }
+                            catch (FileNotFoundException)
+                            {
+                                versionInfo = null;
+                                DatabaseDriver["Message"] = "File not found";
+                            }
                             info = DriverInfo.GetDriverInfo(Provider, versionInfo, windowsVersion, windowsReleaseID);
-                            DatabaseDriver["Version"] = versionInfo.ProductVersion;
+                            DatabaseDriver["Version"] = versionInfo == null ? "Unknown" : versionInfo.ProductVersion;
                             DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
                             DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
                             DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
                             DatabaseDriver["Supported"] = info == null ? "" : info.Supported;
                             DatabaseDriver["MultiSubnetFailoverSupport"] = info == null ? "" : info.MultiSubnetFailover;
+                        }
+                        catch (FileNotFoundException)
+                        {
+                            DatabaseDriver["Message"] = "File not found";
                         }
                         catch (Exception ex)
                         {
@@ -1259,9 +1294,17 @@ namespace SQLCheck
                                 DatabaseDriver["DriverType"] = "OLE DB";
                                 DatabaseDriver["Path"] = inprocServer32;
                                 DatabaseDriver["Guid"] = guid;
-                                versionInfo = FileVersionInfo.GetVersionInfo(inprocServer32);
+                                try
+                                {
+                                    versionInfo = FileVersionInfo.GetVersionInfo(inprocServer32);
+                                }
+                                catch (FileNotFoundException)
+                                {
+                                    versionInfo = null;
+                                    DatabaseDriver["Message"] = "File not found";
+                                }
                                 info = DriverInfo.GetDriverInfo(Provider, versionInfo, windowsVersion, windowsReleaseID);
-                                DatabaseDriver["Version"] = versionInfo.ProductVersion;
+                                DatabaseDriver["Version"] = versionInfo == null ? "Unknown" : versionInfo.ProductVersion;
                                 DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
                                 DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
                                 DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
@@ -1325,9 +1368,17 @@ namespace SQLCheck
                                     DatabaseDriver["DriverType"] = "ODBC";
                                     DatabaseDriver["Path"] = path;
                                     DatabaseDriver["Guid"] = "";
-                                    versionInfo = FileVersionInfo.GetVersionInfo(path);
+                                    try
+                                    {
+                                        versionInfo = FileVersionInfo.GetVersionInfo(path);
+                                    }
+                                    catch (FileNotFoundException)
+                                    {
+                                        versionInfo = null;
+                                        DatabaseDriver["Message"] = "File not found";
+                                    }
                                     info = DriverInfo.GetDriverInfo(valueName, versionInfo, windowsVersion, windowsReleaseID);
-                                    DatabaseDriver["Version"] = versionInfo.ProductVersion;
+                                    DatabaseDriver["Version"] = versionInfo == null ? "Unknown" : versionInfo.ProductVersion;
                                     DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
                                     DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
                                     DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
@@ -1403,9 +1454,17 @@ namespace SQLCheck
                                     DatabaseDriver["DriverType"] = "ODBC";
                                     DatabaseDriver["Path"] = path;
                                     DatabaseDriver["Guid"] = "";
-                                    versionInfo = FileVersionInfo.GetVersionInfo(path);
+                                    try
+                                    {
+                                        versionInfo = FileVersionInfo.GetVersionInfo(path);
+                                    }
+                                    catch (FileNotFoundException)
+                                    {
+                                        versionInfo = null;
+                                        DatabaseDriver["Message"] = "File not found";
+                                    }
                                     info = DriverInfo.GetDriverInfo(valueName, versionInfo, windowsVersion, windowsReleaseID);
-                                    DatabaseDriver["Version"] = versionInfo.ProductVersion;
+                                    DatabaseDriver["Version"] = versionInfo == null ? "Unknown" : versionInfo.ProductVersion;
                                     DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
                                     DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
                                     DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
@@ -1626,7 +1685,7 @@ namespace SQLCheck
                     if (cert.NotBefore > DateTime.Now) msg += ", Future cert";
                     Certificate["NotAfter"] = cert.NotAfter.ToString();
                     if (cert.NotAfter < DateTime.Now) msg += ", Expired cert";
-                    Certificate["KeySize"] = cert.PublicKey.Key.KeySize;
+                    Certificate["KeySize"] = cert.PublicKey.Key.KeySize.ToString();
                     Certificate["SignatureAlgorithm"] = cert.SignatureAlgorithm.FriendlyName;
 
                     dtCertificate.Rows.Add(Certificate);
@@ -2368,30 +2427,47 @@ namespace SQLCheck
                             }
                             else if (line != "")
                             {
-                                string msg = "";
-                                line = SmartString.GetBetween(line, @"[", @"]", false, true);  // auto trim the result
-                                DataRow[] Certificates = ds.Tables["Certificate"].Select($@"ThumbPrint Like 'Cert Hash(*) ""{line}""'");
+                                string msg = " (Certifcate not hard-coded";
+                                line = SmartString.GetBetween(line, @") """, @"""]", false, true);  // auto trim the result
+                                DataRow[] Certificates = ds.Tables["Certificate"].Select($@"ThumbPrint = '{line}'");
                                 if (Certificates.Length == 0)
                                 {
-                                    msg = " (no certs match the thumbprint)";
+                                    msg += "; no certs match the thumbprint";
                                 }
                                 else if (Certificates.Length > 1)
                                 {
-                                    msg = " (multiple certs match the thumbprint)";
+                                    msg += "; multiple certs match the thumbprint";
                                 }
                                 else
                                 {
                                     DataRow Certificate = Certificates[0];
                                     string problems = Certificate.GetString("Message");
-                                    if (problems != "") msg = $" (problems: {problems})";
+                                    if (problems != "") msg += $"; problems: {problems}";
                                 }
-                                SQLServer["Certificate"] = line + msg;  // thumbprint + problems, if any
+                                SQLServer["Certificate"] = line + msg + ")";  // thumbprint + problems, if any
                             }
                         }
                     }
                     else
                     {
-                        SQLServer["Certificate"] = cert; // use the thumbprint from the registry
+                        string line = cert;
+                        string msg = " (Thumbprint is hard-coded";
+                        DataRow[] Certificates = ds.Tables["Certificate"].Select($@"ThumbPrint = '{line}'");
+                        if (Certificates.Length == 0)
+                        {
+                            msg += "; no certs match the thumbprint";
+                        }
+                        else if (Certificates.Length > 1)
+                        {
+                            msg += "; multiple certs match the thumbprint";
+                        }
+                        else
+                        {
+                            DataRow Certificate = Certificates[0];
+                            string problems = Certificate.GetString("Message");
+                            if (problems != "") msg = $"; problems: {problems}";
+                        }
+                        SQLServer["Certificate"] = line + msg + ")";  // thumbprint + problems, if any
                     }
                     SQLServer["ForceEncryption"] = (SSNetLib.GetValue("Encrypt", 0).ToInt() != 0 || SSNetLib.GetValue("ForceEncryption", 0).ToInt() != 0);
                     bool hidden = SSNetLib.GetValue("HideInstance", 0).ToInt() != 0;
