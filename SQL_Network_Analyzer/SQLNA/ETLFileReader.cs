@@ -58,13 +58,10 @@ namespace SQLNA
             m_handle = TraceEventInterop.OpenTraceFile(ref m_logFile);
 
             m_sessionStartTime = DateTime.FromFileTime(m_logFile.LogfileHeader.StartTime);
-            m_sessionEndTime = DateTime.FromFileTime(m_logFile.LogfileHeader.EndTime);
             Program.logDiagnostic("There were " + m_logFile.EventsLost + " events lost.");
             m_QPCFreq = m_logFile.LogfileHeader.PerfFreq;
 
             if (m_QPCFreq == 0) m_QPCFreq = Stopwatch.Frequency;
-
-            Debug.Assert(m_sessionStartTime.Ticks != 0 && m_sessionEndTime.Ticks != 0 && m_sessionStartTime < m_sessionEndTime);
 
             // We ask for raw timestamps, but the log file may have used system time as its raw timestamp.
             // SystemTime is like a QPC time that happens 10M times a second (100ns).  

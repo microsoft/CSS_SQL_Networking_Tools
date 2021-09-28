@@ -120,7 +120,10 @@ namespace SQLNA
                 if (filePath.ToLower().EndsWith(".etl"))  // ETL files have no magic number. Must be done by file name.
                 {
                     er = new ETLFileReader(filePath);
-                    initialTick = er.GetStartTime().Ticks;
+                    // initialTick = er.GetStartTime().Ticks;
+                    er.Init();
+                    Frame frame = er.Read();
+                    if (frame != null) initialTick = frame.ticks;   // extract tick information
                     if (Program.filterFormat == "A") Program.filterFormat = "N";   // format for "AUTO" format mode based on file type
                 }
                 else
