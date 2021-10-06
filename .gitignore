@@ -4,7 +4,6 @@
 *.suo
 *.ide-shm
 *.ide-wal
-.suo
 **/bin
 **/obj
 **/publish
@@ -12,6 +11,4 @@
 **/v15
 
 SQL_Network_Analyzer/.vs/SQLNetworkAnalyzer/v15/.suo
-*.ide-shm
-*.ide-wal
-*.ide-shm
+
