@@ -448,13 +448,12 @@ namespace SQLBench
             Console.WriteLine();
             Console.WriteLine(@"Examples:");
             Console.WriteLine();
-            Console.WriteLine(@"     SQLBench.exe                                                                         Open in a GUI.");
             Console.WriteLine(@"     SQLBench.exe -cpu -output ""c:\temp""                                                  Command line: CPU and Memory tests.");
             Console.WriteLine(@"     SQLBench.exe -cpu -file ""c:\temp"" -file ""\\datastore\files\test""                     Command line: multple tests.");
             Console.WriteLine();
             Console.WriteLine(@"     SQLBench.exe -n 5 -sql ""server=(local);database=northwind;integrated security=sspi""  Command line: run the database test 5 times.");
             Console.WriteLine();
-            Console.WriteLine(@"     If no output is defined, SqlBench.txt will be created in the same folder as the executable.");
+            Console.WriteLine(@"     If no output is defined, SqlTest.txt will be created in the same folder as the executable.");
         }
     }
 }
