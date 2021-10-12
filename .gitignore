@@ -12,3 +12,4 @@
 
 SQL_Network_Analyzer/.vs/SQLNetworkAnalyzer/v15/.suo
 
+*.ide-wal
