@@ -1,8 +1,6 @@
 ﻿// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 using System;
-using System.Collections.Generic;
-using System.IO;
 using System.Data.SqlClient;
 using System.Data;
 using System.Diagnostics;
@@ -16,48 +14,16 @@ namespace SQLBench
     //
     class DBTests
     {
+        const int OPEN_COUNT = 1000;
+        const int LOOP_COUNT = 1000;
         public string connstr = "";
         public DBTests(string connStr)
         {
             connstr = connStr;
-            //if (Source == "File")//this is command line
-            //{
-            //    if (myFile != "")
-            //    {
-            //        if (File.Exists(myFile))
-            //        {
-            //            Console.WriteLine(myFile);
-            //            ReadFile(myFile);
-            //        }
-            //        else
-            //        {
-            //            connstr.Add(myFile);
-            //        }
-            //    }
-            //    else
-            //    {
-            //        connstr.Add("server=(local);database=Tempdb;Integrated Security=SSPI");
-            //    }
-            //}
-            //if (Source == "TextBox")//this comes from the GUI interface 
-            //{
-            //    string[] strArray = myFile.Split('\r');
-            //    foreach(string a in strArray)
-            //    {
-            //        connstr.Add(a);
-            //    }
-            //}
+            if (connstr.ToLower().Contains("pooling") == false) connstr += ";Pooling=false";
         }
-        //private void ReadFile(string myFile)
-        //{
-        //    //Stream lines from the file to the list 
-        //    string line;
-        //    StreamReader SR = new StreamReader(myFile);
-        //    while((line = SR.ReadLine()) != null)
-        //    {
-        //            connstr.Add(line);
-        //    }
-        //}
+
+
         public void Test()
         {
             //command line. 
@@ -73,7 +39,7 @@ namespace SQLBench
             SqlConnection connection = new SqlConnection(connstr);
             opentotal = 0.0;
             closetotal = 0.0;
-            for (int a = 0; a < 1000; a++)
+            for (int a = 0; a < OPEN_COUNT; a++)
             {
                 // start timers
                 //OPen connection 
@@ -86,9 +52,9 @@ namespace SQLBench
                 connection.Close();
                 closeconn.Stop();
             }
-            //calculate ops er second
-            opentotal = 4000.0 / openconn.Elapsed.TotalMilliseconds*1000;
-            closetotal = 4000.0 /closeconn.Elapsed.TotalMilliseconds*1000;
+            //calculate ops per second
+            opentotal = OPEN_COUNT * 1000.0 / openconn.Elapsed.TotalMilliseconds;
+            closetotal = OPEN_COUNT * 1000.0 / closeconn.Elapsed.TotalMilliseconds;
             
         }
         public void InsertRow(out double myInsert)
@@ -122,7 +88,7 @@ namespace SQLBench
             sqlCommand.ExecuteNonQuery(); //execute query
             connection.Close(); // close connection
             
-            for (int a = 0; a < 1000; a++)
+            for (int a = 0; a < LOOP_COUNT; a++)
             {
                 //insert concat string
                 connection.Open(); //open connection
@@ -132,7 +98,7 @@ namespace SQLBench
                 myInsertwatch.Stop(); //stop time
                 connection.Close(); // close connection
             }
-            myInsert = 1000.0 / myInsertwatch.Elapsed.TotalMilliseconds* 1000; // Caclulate ops er second
+            myInsert = LOOP_COUNT * 1000.0 / myInsertwatch.Elapsed.TotalMilliseconds; // Caclulate ops per second
         }
         public void ReadRowsTest(out double TotalReadRec)
         {
@@ -144,7 +110,7 @@ namespace SQLBench
             //creat stopwatches
             Stopwatch ReadRecord = new Stopwatch();
             SqlCommand sqlCommand;//create sqlcommand
-            for(int a = 0;a<1000;a++)
+            for(int a = 0; a < LOOP_COUNT; a++)
             {
                 connection.Open(); //open connectoin
                 sqlCommand = new SqlCommand("SELECT ID,Description FROM P1", connection); //create query
@@ -159,7 +125,7 @@ namespace SQLBench
                 sqlDataReader.Close(); // close reader
                 connection.Close();//close connection
             }
-            TotalReadRec = 1000000.0 / ReadRecord.Elapsed.TotalMilliseconds* 1000.0; // calculate operation per second
+            TotalReadRec = LOOP_COUNT * 1000.0 / ReadRecord.Elapsed.TotalMilliseconds; // calculate operations per second
         }
         public void ReadBlobTest(out double TotalReadBlob)
         {
@@ -170,7 +136,7 @@ namespace SQLBench
             //creat stopwatches
             Stopwatch ReadRecord = new Stopwatch();
             SqlCommand sqlCommand; //create SQLcommand
-            for (int a = 0; a < 1000; a++)
+            for (int a = 0; a < LOOP_COUNT; a++)
             {
                 connection.Open();//open connection
                 sqlCommand = new SqlCommand("SELECT ID,Description, BLOB FROM P1 WHERE ID=" + Convert.ToString(a), connection);//create query
@@ -186,7 +152,7 @@ namespace SQLBench
                 sqlDataReader.Close();
                 connection.Close();
             }
-            TotalReadBlob = 1000000.0 / ReadRecord.Elapsed.TotalMilliseconds * 1000.0;
+            TotalReadBlob = LOOP_COUNT * 1000.0 / ReadRecord.Elapsed.TotalMilliseconds;
 
         }
         public void  WriteBlobTest(out double myBlobWrite)
@@ -197,7 +163,7 @@ namespace SQLBench
             SqlConnection connection = new SqlConnection(connstr); //create SQL Connection
             connection.Open(); //open connection
             SqlCommand sqlCommand;
-            for (int a = 0; a < 1000; a++)
+            for (int a = 0; a < LOOP_COUNT; a++)
             {
                 sqlCommand = new SqlCommand( "select * from P1",connection); //create query
                 sqlCommand.CommandText = "UPDATE P1 SET BLOB=@BLOB WHERE ID=" + Convert.ToString(a); 
@@ -208,7 +174,7 @@ namespace SQLBench
                 sqlCommand.Parameters.Clear();
             }
             connection.Close();
-            myBlobWrite = 1000.0 / BlobWrite.Elapsed.TotalMilliseconds * 1000; // calculate operations per second
+            myBlobWrite = LOOP_COUNT * 1000.0 / BlobWrite.Elapsed.TotalMilliseconds; // calculate operations per second
         }
         public void Cleanup()
         {

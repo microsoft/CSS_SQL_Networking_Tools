@@ -40,20 +40,12 @@ namespace SQLBench
             // string Connfile = "";
 
             CommandLineParser cp = new CommandLineParser();
-            //cp.AddRule(new ArgRule("t", true, true, false, false));
-            //cp.AddRule(new ArgRule("fdir", true, false, true, false));
-            //cp.AddRule(new ArgRule("output", true, true, false, false));
-            //cp.AddRule(new ArgRule("n", true, false, false, false));
-            //cp.AddRule(new ArgRule("clustered", false, true, true, false));
-            //cp.AddRule(new ArgRule("image", false, true, true, false));
-            //cp.AddRule(new ArgRule("varbinary", false, true, true,false));
-            //cp.AddRule(new ArgRule("constr", true, false, true, false));
 
-            cp.AddRule(new ArgRule("n", true, false, true, false));
-            cp.AddRule(new ArgRule("cpu", false, false, true, false));
-            cp.AddRule(new ArgRule("file", true, true, true, false));
-            cp.AddRule(new ArgRule("sql", true, true, true, false));
-            cp.AddRule(new ArgRule("output", true, false, true, false));
+            cp.AddRule(new ArgRule("n", true, false, true, false));           // -n loopcount
+            cp.AddRule(new ArgRule("cpu", false, false, true, false));        // -cpu
+            cp.AddRule(new ArgRule("file", true, true, true, false));         // -file filepath without file name
+            cp.AddRule(new ArgRule("sql", true, true, true, false));          // -sql connectionstr
+            cp.AddRule(new ArgRule("output", true, false, true, false));      // -output filepath\filename
 
             //
             // Are we going to run as a GUI or a command-line application?
@@ -62,9 +54,7 @@ namespace SQLBench
             // GUI - no arguments
             if (args.Length == 0)
             {
-                Application.EnableVisualStyles();
-                Application.SetCompatibleTextRenderingDefault(false);
-                Application.Run(new Form1());
+                displayUsage();
             }
             else  // command-line - interpret the arguments
             {
@@ -129,64 +119,6 @@ namespace SQLBench
                         outFile = Environment.CurrentDirectory;
                     }
 
-                    //values = cp.GetArgs("t");
-                    //foreach (CommandLineArgs value in values)
-                    //{
-                    //    string myvalue = value.value.ToUpper();
-                    //    switch (myvalue)
-                    //    {
-                    //        case "CPU":
-                    //            {
-                    //                mathTests = true;
-                    //                break;
-                    //            }
-                    //        case "FILE":
-                    //            {
-                    //                fileTests = true;
-                    //                break;
-                    //            }
-                    //        case "DB":
-                    //            {
-                    //                databaseTests = true;
-                    //                break;
-                    //            }
-                    //        default:
-                    //            {
-                    //                Console.WriteLine($"Bad Agurment: {myvalue}");
-                    //                displayUsage();
-                    //                break;
-                    //            }
-                    //    }
-
-                    //}
-                    //values = cp.GetArgs("fdir");
-                    //if (values.Count != 0)
-                    //{
-                    //    fileDir = ((CommandLineArgs)values[0]).value;
-                    //}
-                    //else 
-                    //    fileDir = "";
-                    //values = cp.GetArgs("clustered");
-                    //if (values.Count != 0)
-                    //    ClustedIndex = true;
-                    //values = cp.GetArgs("image");
-                    //if (values.Count != 0)
-                    //{
-                    //    dbtesttype = "IMAGE";
-                    //}
-                    //values = cp.GetArgs("varbinary");
-                    //if (values.Count != 0)
-                    //{
-                    //    dbtesttype = "VARBINARY";
-                    //}
-                    //if (databaseTests == true)
-                    //{
-                    //    values = cp.GetArgs("constr");
-                    //    if (values.Count != 0)
-                    //    {
-                    //        Connfile = ((CommandLineArgs)values[0]).value;
-                    //    }
-                    //}
                     StartTests(looptest, mathTests, fileTests, databaseTests, outFile, ConnectionStrings, FolderPaths);
                 }
             }
@@ -507,22 +439,22 @@ namespace SQLBench
 
         static public void displayUsage()
         {
-            Console.WriteLine("SQL Benchmark - Invalid command line argument");
-            Console.WriteLine("Written by the Microsoft CSS SQL Networking Team");
+            Console.WriteLine(@"SQL Benchmark - Invalid command line argument");
+            Console.WriteLine(@"Written by the Microsoft CSS SQL Networking Team");
             Console.WriteLine();
-            Console.WriteLine("Usage:");
+            Console.WriteLine(@"Usage:");
             Console.WriteLine();
-            Console.WriteLine("   SQLBench.exe [-n number] [-cpu] [[-file \"FolderPath\"]...] [[-sql \"ConnectionString\"]...] [-output \"FolderPath\"]");
+            Console.WriteLine(@"   SQLBench.exe [-n number] [-cpu] [[-file ""FolderPath""]...] [[-sql ""ConnectionString""]...] [-output ""FolderPath""]");
             Console.WriteLine();
-            Console.WriteLine("Examples:");
+            Console.WriteLine(@"Examples:");
             Console.WriteLine();
-            Console.WriteLine("     SQLBench.exe                                                                           Open in a GUI.");
-            Console.WriteLine("     SQLBench.exe -cpu -output \"c:\\temp\"                                                 Command line: CPU and Memory tests.");
-            Console.WriteLine("     SQLBench.exe -cpu -file \"c:\temp\" -file \"\\\\datastore\files\test\"                 Command line: multple tests.");
+            Console.WriteLine(@"     SQLBench.exe                                                                         Open in a GUI.");
+            Console.WriteLine(@"     SQLBench.exe -cpu -output ""c:\temp""                                                  Command line: CPU and Memory tests.");
+            Console.WriteLine(@"     SQLBench.exe -cpu -file ""c:\temp"" -file ""\\datastore\files\test""                     Command line: multple tests.");
             Console.WriteLine();
-            Console.WriteLine("     SQLBench.exe -n 5 -sql \"server=(local);database=northwind;integrated security=sspi\"  Command line: run the database test 5 times.");
+            Console.WriteLine(@"     SQLBench.exe -n 5 -sql ""server=(local);database=northwind;integrated security=sspi""  Command line: run the database test 5 times.");
             Console.WriteLine();
-            Console.WriteLine("     If no output is defined, SqlBench.txt will be created in the same folder as the executable.");
+            Console.WriteLine(@"     If no output is defined, SqlBench.txt will be created in the same folder as the executable.");
         }
     }
 }

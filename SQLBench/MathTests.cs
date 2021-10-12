@@ -15,6 +15,7 @@ namespace SQLBench
     //</summary>
     public class MathTest
     {
+        const int LOOP_COUNT = 100000;
         public string CPU_Integer_Addition()
         {
             Stopwatch timer = new Stopwatch();
@@ -25,7 +26,7 @@ namespace SQLBench
             //populate arrays
             try
             {
-                for (int a = 0; a < 100000; a++)
+                for (int a = 0; a < LOOP_COUNT; a++)
                 {
                     num1.Add(myrand.Next(1000));
                     num2.Add(myrand.Next(1000));
@@ -43,7 +44,7 @@ namespace SQLBench
                 }
                 timer.Stop();
                 TimeSpan Totaltime = timer.Elapsed;
-                return Convert.ToString(100000 / Totaltime.TotalMilliseconds);
+                return Convert.ToString(LOOP_COUNT / Totaltime.TotalMilliseconds);
             }
             catch (Exception ex)
             {
@@ -61,7 +62,7 @@ namespace SQLBench
             //populate arrays
             try
             {
-                for (int a = 0; a < 100000; a++)
+                for (int a = 0; a < LOOP_COUNT; a++)
                 {
                     num1.Add(myrand.Next(1000));
                     num2.Add(myrand.Next(1000));
@@ -79,7 +80,7 @@ namespace SQLBench
                 }
                 timer.Stop();
                 TimeSpan Totaltime = timer.Elapsed;
-                return Convert.ToString(100000 / Totaltime.TotalMilliseconds);
+                return Convert.ToString(LOOP_COUNT / Totaltime.TotalMilliseconds);
             }
             catch (Exception ex)
             {
@@ -97,7 +98,7 @@ namespace SQLBench
             //populate arrays
             try
             {
-                for (int a = 0; a < 100000; a++)
+                for (int a = 0; a < LOOP_COUNT; a++)
                 {
                     num1.Add(myrand.Next(1000));
                     num2.Add(myrand.Next(1000));
@@ -115,7 +116,7 @@ namespace SQLBench
                 }
                 timer.Stop();
                 TimeSpan Totaltime = timer.Elapsed;
-                return Convert.ToString(100000 / Totaltime.TotalMilliseconds);
+                return Convert.ToString(LOOP_COUNT / Totaltime.TotalMilliseconds);
             }
             catch (Exception ex)
             {
@@ -132,7 +133,7 @@ namespace SQLBench
             //populate arrays
             try
             {
-                for (int a = 0; a < 100000; a++)
+                for (int a = 0; a < LOOP_COUNT; a++)
                 {
                     num1.Add(myrand.Next(1,1000));
                     num2.Add(myrand.Next(1,1000));
@@ -150,7 +151,7 @@ namespace SQLBench
                 }
                 timer.Stop();
                 TimeSpan Totaltime = timer.Elapsed;
-                return Convert.ToString(100000 / Totaltime.TotalMilliseconds);
+                return Convert.ToString(LOOP_COUNT / Totaltime.TotalMilliseconds);
             }
             catch (Exception ex)
             {
@@ -167,7 +168,7 @@ namespace SQLBench
             //populate arrays
             try
             {
-                for (int a = 0; a < 100000; a++)
+                for (int a = 0; a < LOOP_COUNT; a++)
                 {
                     num1.Add(myrand.NextDouble() * (1.0 - 1000000.0) + 1.0);
                     num2.Add(myrand.NextDouble() * (1.0 - 1000000.0) + 1.0);
@@ -185,7 +186,7 @@ namespace SQLBench
                 }
                 timer.Stop();
                 TimeSpan Totaltime = timer.Elapsed;
-                return Convert.ToString(100000 / Totaltime.TotalMilliseconds);
+                return Convert.ToString(LOOP_COUNT / Totaltime.TotalMilliseconds);
             }
             catch (Exception ex)
             {
@@ -202,7 +203,7 @@ namespace SQLBench
             //populate arrays
             try
             {
-                for (int a = 0; a < 100000; a++)
+                for (int a = 0; a < LOOP_COUNT; a++)
                 {
                     num1.Add(myrand.NextDouble() * (1.0 - 1000000.0) + 1.0);
                     num2.Add(myrand.NextDouble() * (1.0 - 1000000.0) + 1.0);
@@ -220,7 +221,7 @@ namespace SQLBench
                 }
                 timer.Stop();
                 TimeSpan Totaltime = timer.Elapsed;
-                return Convert.ToString(100000 / Totaltime.TotalMilliseconds);
+                return Convert.ToString(LOOP_COUNT / Totaltime.TotalMilliseconds);
             }
             catch (Exception ex)
             {
@@ -237,7 +238,7 @@ namespace SQLBench
             //populate arrays
             try
             {
-                for (int a = 0; a < 100000; a++)
+                for (int a = 0; a < LOOP_COUNT; a++)
                 {
                     num1.Add(myrand.NextDouble() * (1.0 - 1000000.0) + 1.0);
                     num2.Add(myrand.NextDouble() * (1.0 - 1000000.0) + 1.0);
@@ -255,7 +256,7 @@ namespace SQLBench
                 }
                 timer.Stop();
                 TimeSpan Totaltime = timer.Elapsed;
-                return Convert.ToString(100000 / Totaltime.TotalMilliseconds);
+                return Convert.ToString(LOOP_COUNT / Totaltime.TotalMilliseconds);
             }
             catch (Exception ex)
             {
@@ -272,7 +273,7 @@ namespace SQLBench
             //populate arrays
             try
             {
-                for (int a = 0; a < 100000; a++)
+                for (int a = 0; a < LOOP_COUNT; a++)
                 {
                     num1.Add(myrand.NextDouble() * (1.0 - 1000000.0) + 1.0);
                     num2.Add(myrand.NextDouble() * (1.0 - 1000000.0) + 1.0);
@@ -290,7 +291,7 @@ namespace SQLBench
                 }
                 timer.Stop();
                 TimeSpan Totaltime = timer.Elapsed;
-                return Convert.ToString(100000 / Totaltime.TotalMilliseconds);
+                return Convert.ToString(LOOP_COUNT / Totaltime.TotalMilliseconds);
             }
             catch (Exception ex)
             {
@@ -309,7 +310,7 @@ namespace SQLBench
             //populate arrays
             try
             {
-                for (int a = 0; a < 100000; a++)
+                for (int a = 0; a < LOOP_COUNT; a++)
                 {
                     num1.Add(myrand.NextDouble() * myrand2.Next(10000));
                     num2.Add(myrand.NextDouble() * myrand2.Next(10000));
@@ -327,7 +328,7 @@ namespace SQLBench
                 }
                 timer.Stop();
                 TimeSpan Totaltime = timer.Elapsed;
-                return Convert.ToString(100000 / Totaltime.TotalMilliseconds);
+                return Convert.ToString(LOOP_COUNT / Totaltime.TotalMilliseconds);
             }
             catch (Exception ex)
             {
@@ -345,7 +346,7 @@ namespace SQLBench
             //populate arrays
             try
             {
-                for (int a = 0; a < 100000; a++)
+                for (int a = 0; a < LOOP_COUNT; a++)
                 {
                     num1.Add(myrand.NextDouble() * myrand2.Next(10000));
                     num2.Add(myrand.NextDouble() * myrand2.Next(10000));
@@ -363,7 +364,7 @@ namespace SQLBench
                 }
                 timer.Stop();
                 TimeSpan Totaltime = timer.Elapsed;
-                return Convert.ToString(100000 / Totaltime.TotalMilliseconds);
+                return Convert.ToString(LOOP_COUNT/ Totaltime.TotalMilliseconds);
             }
             catch (Exception ex)
             {
@@ -381,7 +382,7 @@ namespace SQLBench
             //populate arrays
             try
             {
-                for (int a = 0; a < 100000; a++)
+                for (int a = 0; a < LOOP_COUNT; a++)
                 {
                     num1.Add(myrand.NextDouble() * myrand2.Next(10000));
                     num2.Add(myrand.NextDouble() * myrand2.Next(10000));
@@ -399,7 +400,7 @@ namespace SQLBench
                 }
                 timer.Stop();
                 TimeSpan Totaltime = timer.Elapsed;
-                return Convert.ToString(100000 / Totaltime.TotalMilliseconds);
+                return Convert.ToString(LOOP_COUNT / Totaltime.TotalMilliseconds);
             }
             catch (Exception ex)
             {
@@ -417,7 +418,7 @@ namespace SQLBench
             //populate arrays
             try
             {
-                for (int a = 0; a < 100000; a++)
+                for (int a = 0; a < LOOP_COUNT; a++)
                 {
                     num1.Add(myrand.NextDouble() * myrand2.Next(10000));
                     num2.Add(myrand.NextDouble() * myrand2.Next(10000));
@@ -435,7 +436,7 @@ namespace SQLBench
                 }
                 timer.Stop();
                 TimeSpan Totaltime = timer.Elapsed;
-                return Convert.ToString(100000 / Totaltime.TotalMilliseconds);
+                return Convert.ToString(LOOP_COUNT / Totaltime.TotalMilliseconds);
             }
             catch (Exception ex)
             {

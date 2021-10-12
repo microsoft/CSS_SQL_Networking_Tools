@@ -14,7 +14,7 @@ namespace SQLBench
     //    string result = Parse(args)                    - once, result contains error message or "" if okay
     //    ArrayList List = GetArgs(argname)              - once per arg, returns an ArrayList of 0..n CommandlineArgs
     //
-    // Arguments can have the following prioperties:
+    // Arguments can have the following properties:
     //
     //    Case sensitive or case-insensitive
     //    Required or optional
@@ -26,12 +26,16 @@ namespace SQLBench
     //
     //    appname.exe filename [-out filename] [-g value] [-G] -h value [-flags value [-flags value [...]]]
     //
-    //    cp.AddRule(new ArgRule("", true, false, true, true));            // file name is required
-    //    cp.AddRule(new ArgRule("flags", true, true, true, false));       // flags is optional but may appear more than once
-    //    cp.AddRule(new ArgRule("out", true, false, true, false));        // out is optional but may only appear once
-    //    cp.AddRule(new ArgRule("g", true, false, false, false));         // g is optional and case-sensitive
-    //    cp.AddRule(new ArgRule("G", false, false, false, false));        // G is optional and takes no value and is case sensitive
-    //    cp.AddRule(new ArgRule("h", true, false, true, true));           // h is required and takes an argument
+    //    ArgRule(string argName, bool hasValue, bool allowDuplicates = false, bool caseInsensitive = true, bool required = true)
+    //
+    //                                                  ignore
+    //                           name     value  dup    case   req
+    //    cp.AddRule(new ArgRule("",      true,  false, true,  true));            // file name is required
+    //    cp.AddRule(new ArgRule("flags", true,  true,  true,  false));           // flags is optional but may appear more than once
+    //    cp.AddRule(new ArgRule("out",   true,  false, true,  false));           // out is optional but may only appear once
+    //    cp.AddRule(new ArgRule("g",     true,  false, false, false));           // g is optional and case-sensitive
+    //    cp.AddRule(new ArgRule("G",     false, false, false, false));           // G is optional and takes no value and is case sensitive
+    //    cp.AddRule(new ArgRule("h",     true,  false, true,  true));            // h is required and takes an argument
     //
     //    argements can appear in any order, as long as name/value pairs are adjacent
     //    arguments other than -g and -G are case-insensitive
