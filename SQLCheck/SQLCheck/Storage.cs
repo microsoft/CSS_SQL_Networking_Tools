@@ -328,6 +328,19 @@ namespace SQLCheck
             ds.Tables.Add(dt);
 
             //
+            // Process with our drivers in them (and maybe some other drivers and DLLs)
+            //
+
+            dt = new DataTable("ProcessDrivers");
+            dt.AddColumn("ID", "Integer");
+            dt.Columns["ID"].AutoIncrement = true;
+            dt.AddColumn("ParentID", "Integer");
+            dt.AddColumn("ProcessName", "String");
+            dt.AddColumn("ProcessID", "String");
+            dt.AddColumn("DriverList", "String");
+            ds.Tables.Add(dt);
+
+            //
             // SQL Client SNI Settings
             //
 

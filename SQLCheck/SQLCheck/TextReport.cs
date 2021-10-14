@@ -680,6 +680,35 @@ namespace SQLCheck
             s.WriteLine();
 
             //
+            // Process Drivers
+            //
+            // A list of all the database drivers in each process that has them loaded
+            // The bulk are SQL drivers and some non-SQL drivers are also displayed, as well as if MSDADIAG.DLL has been loaded
+            //
+
+            s.WriteLine("Processes that have SQL Server (and some other) Drivers Loaded:");
+            s.WriteLine();
+
+            DataTable dtProcessDrivers = ds.Tables["ProcessDrivers"];
+            rf = new ReportFormatter();
+
+            rf.SetColumnNames("Process Name:L", "Process ID:R", "Drivers Loaded:L");
+            foreach (DataRow ProcessDrivers in dtProcessDrivers.Rows)
+            {
+                rf.SetcolumnData(ProcessDrivers.GetString("ProcessName"),
+                                    ProcessDrivers.GetString("ProcessID"),
+                                    ProcessDrivers.GetString("DriverList"));
+            }
+            s.WriteLine(rf.GetHeaderText());
+            s.WriteLine(rf.GetSeparatorText());
+            for (int i = 0; i < rf.GetRowCount(); i++)
+            {
+                s.WriteLine(rf.GetDataText(i));
+            }
+            s.WriteLine();
+            ReportMessages(ds, s, "ProcessDrivers", -1);  // returns a blank line at the end ... -1 = messages for all rows
+
+            //
             // SQL Aliases
             //
 

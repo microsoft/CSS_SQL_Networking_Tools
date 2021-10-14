@@ -40,6 +40,7 @@ namespace SQLCheck
             CollectIPAddress(ds);
             CollectFLTMC(ds);
             CollectDatabaseDriver(ds);
+            CollectProcessDrivers(ds);
             CollectSQLAlias(ds);
             CollectClientSNI(ds);
             CollectCertificate(ds);
@@ -659,8 +660,9 @@ namespace SQLCheck
             // Kerbeos enabled encryption methods
             //
 
-            string kerbEncrypt = Utility.GetRegistryValueAsString(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\LSA\Kerberos\Parameters", "SupportedEncryptionTypes", RegistryValueKind.DWord, 0);
-            int encrypt = kerbEncrypt.ToInt();
+            string kerbEncrypt = Utility.GetRegistryValueAsString(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\LSA\Kerberos\Parameters", "SupportedEncryptionTypes", RegistryValueKind.DWord, "");
+            if (kerbEncrypt == "") kerbEncrypt = "Not Specified"; 
+            int encrypt = kerbEncrypt == "Not Specified" ? 28 : kerbEncrypt.ToInt();  // 0x1C = 28 decimal = RC4 + AES128 + AES256
             if (encrypt == 0) encrypt = 4; // RC4
             string encryptNames = Utility.KerbEncryptNames(encrypt);
             Security["KerberosLocalEncryption"] = $"{kerbEncrypt} ({encryptNames})";
@@ -1491,6 +1493,68 @@ namespace SQLCheck
                 if (hive != null) hive.Dispose();
             }
 
+        }
+
+        public static void CollectProcessDrivers(DataSet ds)
+        {
+            //
+            // Data looks like this:
+            //
+            // "WacomHost.exe","12852","N/A"
+            // "RuntimeBroker.exe","12860","ntdll.dll,KERNEL32.DLL,KERNELBASE.dll,ucrtbase.dll,combase.dll,RPCRT4.dll,bcryptPrimitives.dll,powrprof.dll,sechost.dll,kernel.appcore.dll,msvcrt.dll,RMCLIENT.dll,ole32.dll,advapi32.dll,GDI32.dll,gdi32full.dll,msvcp_win.dll,USER32.dll,win32u.dll,IMM32.DLL,clbcatq.dll,windows.cortana.onecore.dll,SHCORE.dll,windows.storage.dll,wintypes.dll,XmlLite.dll,profapi.dll,shlwapi.dll,policymanager.dll,msvcp110_win.dll,OLEAUT32.dll,PROPSYS.dll,cfgmgr32.dll,ntmarta.dll,uxtheme.dll,shell32.dll,cryptsp.dll,CLDAPI.dll,bcrypt.dll,FLTLIB.DLL,edputil.dll,StructuredQuery.dll,Windows.Storage.Search.dll,apphelp.dll,comctl32.dll,WindowsCodecs.dll,ntshrui.dll,SspiCli.dll,srvcli.dll,cscapi.dll,coml2.dll,LINKINFO.dll,MPR.dll,windows.cortana.Desktop.dll,dfshim.dll,mscoree.dll,VERSION.dll,urlmon.dll,iertutil.dll,netutils.dll,CRYPTBASE.DLL,mscoreei.dll,clr.dll,ucrtbase_clr0400.dll,VCRUNTIME140_CLR0400.dll,IconCodecService.dll,MrmCoreR.dll,msIso.dll,Secur32.dll,MLANG.dll,WININET.dll,mssprxy.dll,NetworkExplorer.dll,drprov.dll,WINSTA.dll,ntlanman.dll"
+            // "Wacom_Tablet.exe","13232","N/A"
+            // ...
+            //
+
+            DataRow Computer = ds.Tables["Computer"].Rows[0];
+            DataTable dtProcessDrivers = ds.Tables["ProcessDrivers"];
+            DataRow ProcessDrivers = null;
+
+            string[] dllNames = new string[] { "msdadiag.dll",     "system.data.dll", "oledb32.dll",     "odbc32.dll",             "msado15.dll",
+                                               "sqloledb.dll",     "sqlsrv32.dll",    "sqlncli.dll",     "sqlncli10.dll",          "sqlncli11.dll",
+                                               "msodbcsql11.dll",  "msodbcsql13.dll", "msodbcsql17.dll", "msoledbsql.dll",         "sqlnclirda11.dll",
+                                               // some non SQL driver DLLs
+                                               "aceodbc.dll",      "aceoledb.dll",    "msolap.dll",      "activeds.dll",           "odbcjt32.dll",
+                                               "msjetoledb40.dll", "ibmdadb2.dll",    "ibmdadb264.dll",  "system.data.entity.dll", "system.data.oracleclient.dll"
+                                               };
+
+            // get command results - output the data in CSV format, 3 columns; the last has sub-columns in it
+            string taskListLines = Utility.GetExecutableSTDOUT("TASKLIST.EXE", "/M /FO CSV");
+
+            // read lines and separate the columns and subcolumns
+            StringReader sr = new StringReader(taskListLines);
+            string line = sr.ReadLine();
+            while (line != null)
+            {
+                line = line.Trim();
+                if (line == "") continue;
+
+                string[] parts = line.Split(new char[] { ',' }, 3);    // crack the row into 3 fields: process name, process id, dll list
+                string procName = parts[0].Trim('"');                  // remove quotes around the value
+                string procNum = parts[1].Trim('"');
+                string[] driverNames = parts[2].Trim('"').Split(',');  // crack the dll list into individual parts
+                string dllList = "";                                   // we build the dll list here to add to the table
+
+                foreach (string word in driverNames)
+                {
+                    string lword = word.ToLower();                     // our list is in lower case
+                    foreach (string dllName in dllNames)
+                    {
+                        if (dllName == lword) dllList += $", {lword}";
+                    }
+                }
+
+                if (dllList != "")  // did we match anything?
+                {
+                    ProcessDrivers = dtProcessDrivers.NewRow();
+                    ProcessDrivers["ProcessName"] = procName;
+                    ProcessDrivers["ProcessID"] = procNum;
+                    ProcessDrivers["DriverList"] = dllList.Substring(2);  // remove the leading comma and space
+                    dtProcessDrivers.Rows.Add(ProcessDrivers);
+                }
+
+                line = sr.ReadLine();
+            }
         }
 
         public static void CollectSQLAlias(DataSet ds)

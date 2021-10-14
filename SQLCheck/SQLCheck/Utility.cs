@@ -357,12 +357,12 @@ namespace SQLCheck
             string s = "";
             if (bitmask == 0) return "RC4_HMAC_MD5";
             if ((bitmask & 0x00000001) != 0) s += "DES_CBC_CRC";
-            if ((bitmask & 0x00000002) != 0) s += "|DES_CBC_MD5";
-            if ((bitmask & 0x00000004) != 0) s += "|RC4_HMAC_MD5";
-            if ((bitmask & 0x00000008) != 0) s += "|AES128_HMAC_SHA1";
-            if ((bitmask & 0x00000010) != 0) s += "|AES256_HMAC_SHA1";
-            if (bitmask > 0x0000001F) s += "|Future";
-            return (s.StartsWith("|") ? s.Substring(1) : s);
+            if ((bitmask & 0x00000002) != 0) s += "+DES_CBC_MD5";
+            if ((bitmask & 0x00000004) != 0) s += "+RC4_HMAC_MD5";
+            if ((bitmask & 0x00000008) != 0) s += "+AES128_HMAC_SHA1";
+            if ((bitmask & 0x00000010) != 0) s += "+AES256_HMAC_SHA1";
+            if (bitmask > 0x0000001F) s += "+Future";
+            return (s.StartsWith("+") ? s.Substring(1) : s);
         }
 
         //
