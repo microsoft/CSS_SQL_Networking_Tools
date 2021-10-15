@@ -302,6 +302,24 @@ namespace SQLCheck
                 }
             }
             Computer["DiffieHellmanVersion"] = dheVersion;
+
+            //
+            // Check if a reboot is recommended
+            //
+            // Reboot if the value is present.
+            //
+            // HKLM\SYSTEM\CurrentControlSet\Control\Session Manager ! PendingFileRenameOperations
+            // HKLM\SYSTEM\CurrentControlSet\Control\Session Manager ! PendingFileRenameOperations2
+            //
+
+            bool rebootRequired = false;
+            if (Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager", "PendingFileRenameOperations", "") != "") rebootRequired = true;
+            if (Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Session Manager", "PendingFileRenameOperations2", "") != "") rebootRequired = true;
+            Computer["RebootNeeded"] = rebootRequired;
+            if (rebootRequired)
+            {
+                Computer.LogWarning($@"Reboot is recommended due to pending file rename operations being present.");
+            }
         }
 
         public static void CollectDomain(DataSet ds)

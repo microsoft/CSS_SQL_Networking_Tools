@@ -99,6 +99,8 @@ namespace SQLCheck
             s.WriteLine($"Clustered:                  {Computer.GetBoolean("Clustered")}");
             s.WriteLine($"IIS Running:                {Computer.GetBoolean("IISRunning")}");
             s.WriteLine();
+            s.WriteLine($"Reboot Recommended:         {Computer.GetBoolean("RebootNeeded")}");
+            s.WriteLine();
             s.WriteLine($"Computer Role:              {Computer.GetString("ComputerRole")}");
             s.WriteLine($"Domain/Workgroup:           {Computer.GetString("DomainOrWorkgroupName")}");
             s.WriteLine($"Joined to Domain:           {Computer.GetString("JoinedToDomain")}");

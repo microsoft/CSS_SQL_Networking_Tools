@@ -145,6 +145,7 @@ namespace SQLCheck
             dt.AddColumn("IISRunning", "Boolean");  // added when enumerating services
             dt.AddColumn("Clustered", "Boolean");
             dt.AddColumn("DiffieHellmanVersion", "String");
+            dt.AddColumn("RebootNeeded", "Boolean");
             ds.Tables.Add(dt);
 
             //
