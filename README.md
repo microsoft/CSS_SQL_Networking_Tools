@@ -5,7 +5,7 @@ Welcome to the CSS SQL Networking team's tools repository.
 
 Here, you will find a number of tools that we use when supporting our customers to help find solutions to problems faster and easier.
 
-These tools all run locally and do not use any external services or report back to Microsoft or anyone else. For example, the SQL Network Analyzer tool reads a network trace on your local machine and writes the report to the same folder or to some location you explicitly designate. Some tools may connect to a SQL Server, such as SSPIClient, or make some LDAP queries regarding account or machine properties, such as SQLCheck. Results are written to a local file of the user's specification. More detail is provided in the individual tool documentation.
+These tools all run locally and do not use any external services or report back to Microsoft or anyone else. For example, the SQL Network Analyzer tool reads a network trace on your local machine and writes the report to the same folder or to some location you explicitly designate. Some tools may connect to a SQL Server, such as SSPIClient and DBTest, or make some LDAP queries regarding account or machine properties, such as SQLCheck. Results are written to the console window or to a local file of the user's specification. More detail is provided in the individual tool documentation.
 
 # Tools
 
