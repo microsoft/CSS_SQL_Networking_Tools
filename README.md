@@ -19,7 +19,7 @@ These tools all run locally and do not use any external services or report back 
 
 **[SQL Driver Security API Trace (SSPICLIENT)](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SSPICLIENT)** - an MFC Windows C++ Tool that can be run on client machines having SSPI or Kerberos errors and will log a detailed trace for analysis.
 
-**[Database Connection Test (DBTEST)](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/DBTEST)** - a command-line tool that allows you to perform ad hoc database connection and command tests and reliability tests to SQL Server and other OLE DB and ODBC data sources.
+**[Database Connection Test (DBTEST)](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/DBTEST)** - a command-line tool that allows you to perform ad hoc database connection and command tests, and reliability tests to SQL Server and other OLE DB and ODBC data sources.
 
 Various scripts referenced by workflows.
 
