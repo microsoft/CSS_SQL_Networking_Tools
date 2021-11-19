@@ -169,7 +169,7 @@ namespace SQLCheck
             Computer["CLR4Version"] = CLR4Version;
             if (CLR4Version.StartsWith("4.0.") || CLR4Version.StartsWith("4.5."))  // No versions 4.1, 4.2, 4.3, or 4.4
             {
-                Computer.LogWarning(".NET 2.x/3.x Framework is present but has not been updated to support TLS 1.2.");
+                Computer.LogWarning(".NET 4.x Framework is present but has not been updated to support TLS 1.2.");
             }
 
 
@@ -740,7 +740,7 @@ namespace SQLCheck
                     effVal = "";
                     TLS["ClientOrServer"] = cs;
                     TLS["TLSVersion"] = tlsVersion;
-                    defVal = tlsInfo.GetComputerDefault(tlsVersion);
+                    defVal = tlsInfo.GetComputerDefault(tlsVersion, cs);
                     TLS["Defaultvalue"] = defVal;
                     temp = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\{tlsVersion}\{cs}", "Enabled", "");
                     enVal = temp == null ? "" : ((temp.ToInt() != 0) ? $"True " : "False") + $" (0x{temp.ToInt().ToString("X8")})" + CheckTLS(tlsVersion, "Enabled", temp.ToInt());

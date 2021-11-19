@@ -310,6 +310,15 @@ namespace SQLCheck
             return val;
         }
 
+        public static bool In(this string value, params string[] values)
+        {
+            foreach (string val in values)
+            {
+                if (string.Compare(value, val, true) == 0) return true;
+            }
+            return false;
+        }
+
         //
         // Indexes a string with range checking - int index or numeric string index
         //

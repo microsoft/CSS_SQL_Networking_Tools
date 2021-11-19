@@ -117,7 +117,8 @@ namespace SQLNA
                 {
                     PartialFrameBuffer.Remove(pf); // Houston, we lost an event somewhere
                     // *** TODO *** Log it properly
-                    Program.logDiagnostic("Lost end of partial frame " + pf.f.frameNumber + " (PID=" + pf.ProcessID + ", TID=" + pf.ThreadID + ").");
+                    // causes a race condition in memory for some traces...
+                    // Program.logDiagnostic("Lost end of partial frame " + pf.f.frameNumber + " (PID=" + pf.ProcessID + ", TID=" + pf.ThreadID + ").");
                     // Console.WriteLine("Lost end of partial frame " + pf.f.frameNumber + " (PID=" + pf.ProcessID + ", TID=" + pf.ThreadID + ").");
                 }
 
@@ -158,7 +159,8 @@ namespace SQLNA
                 {
                     // Houston, something happened; toss the event and log
                     // *** TODO *** Log it properly
-                    Program.logDiagnostic("Lost start of partial frame ~ " + (m_eventCount + 1) + " (PID=" + ProcessID + ", TID=" + ThreadID + ").");
+                    // causes a race condition in memory
+                    // Program.logDiagnostic("Lost start of partial frame ~ " + (m_eventCount + 1) + " (PID=" + ProcessID + ", TID=" + ThreadID + ").");
                     // Console.WriteLine("Lost start of partial frame ~ " + (m_eventCount + 1) + " (PID=" + ProcessID + ", TID=" + ThreadID + ").");
                     return;
                 }
