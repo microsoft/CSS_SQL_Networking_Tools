@@ -5,7 +5,7 @@ Welcome to the CSS SQL Networking team's tools repository.
 
 Here, you will find a number of tools that we use when supporting our customers to help find solutions to problems faster and easier.
 
-These tools all run locally and do not use any external services or report back to Microsoft or anyone else. For example, the SQL Network Analyzer tool reads a network trace on your local machine and writes the report to the same folder or to some location you explicitly designate. Some tools may connect to a SQL Server, such as SSPIClient, or make some LDAP queries regarding account or machine properties, such as SQLCheck. Results are written to a local file of the user's specification. More detail is provided in the individual tool documentation.
+These tools all run locally and do not use any external services or report back to Microsoft or anyone else. For example, the SQL Network Analyzer tool reads a network trace on your local machine and writes the report to the same folder or to some location you explicitly designate. Some tools may connect to a SQL Server, such as SSPIClient and DBTest, or make some LDAP queries regarding account or machine properties, such as SQLCheck. Results are written to the console window or to a local file of the user's specification. More detail is provided in the individual tool documentation.
 
 # Tools
 
@@ -18,6 +18,8 @@ These tools all run locally and do not use any external services or report back 
 **[SQL Benchmark Tool (SQLBENCH)](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SQLBENCH)** - a command-line tool that performs a standard set of operations on a file folder/share or database, so you can compare systems and databases.
 
 **[SQL Driver Security API Trace (SSPICLIENT)](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/SSPICLIENT)** - an MFC Windows C++ Tool that can be run on client machines having SSPI or Kerberos errors and will log a detailed trace for analysis.
+
+**[Database Connection Test (DBTEST)](https://github.com/microsoft/CSS_SQL_Networking_Tools/wiki/DBTEST)** - a command-line tool that allows you to perform ad hoc database connection and command tests, and reliability tests to SQL Server and other OLE DB and ODBC data sources.
 
 Various scripts referenced by workflows.
 
