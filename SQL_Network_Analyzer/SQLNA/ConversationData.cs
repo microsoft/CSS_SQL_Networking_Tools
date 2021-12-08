@@ -30,6 +30,7 @@ namespace SQLNA
         public bool isUDP = false;      //               - set in ParseUDPFrame; ParseTCPFrame leaves it at default
         public byte nextProtocol = 0;   //               - set in ParseIPV4Frame and ParseIPV6Frame (6 or 17)
         public ArrayList frames = new ArrayList();  //   - frame added in ParseIPV4Frame and ParseIPV6Frame
+        public ArrayList packets = new ArrayList(); //   - packet added in CreatingPacketsFromFrames
         // SQL-specific values
         public bool hasTDS = false;                 //   - set in ProcessTDS
         public bool isSQL = false;                  //   - set in ProcessTDS
@@ -79,12 +80,14 @@ namespace SQLNA
         public int smpDataCount = 0;    //               - accumulated in ParseTCPFrame
         public int smpMaxSession = -1;  //               - accumulated in ParseTCPFrame
         public uint missingPackets = 0;
-        public uint rawRetransmits = 0; //               - accumulated in FindRetransmits
-        public uint sigRetransmits = 0; //               - accumulated in FindRetransmits
-        public ushort maxRetransmitCount = 0; //         - accumulated in FindRetransmits
-        public uint sourceFrames = 0;   //               - accumulated in ParseEthernetFrame
-        public uint destFrames = 0;     //               - accumulated in ParseEthernetFrame
-        public uint keepAliveCount = 0; //               - accumulated in ParseTCPFrame
+        public uint duplicateClientPackets = 0;     //   - accumulated in ParseIPV4Frame - unfortunately IPV6 does not have a packet identifier ****
+        public uint duplicateServerPackets = 0;     //   - accumulated in ParseIPV4Frame - unfortunately IPV6 does not have a packet identifier ****
+        public uint rawRetransmits = 0;             //   - accumulated in FindRetransmits
+        public uint sigRetransmits = 0;             //   - accumulated in FindRetransmits
+        public ushort maxRetransmitCount = 0;       //   - accumulated in FindRetransmits
+        public uint sourceFrames = 0;               //   - accumulated in ParseEthernetFrame
+        public uint destFrames = 0;                 //   - accumulated in ParseEthernetFrame
+        public uint keepAliveCount = 0;             //   - accumulated in ParseTCPFrame
         public ushort maxKeepAliveRetransmits = 0;  //   - accoumulated in FindKeepAliveRetransmits
         public uint truncatedFrameLength = 0;       //         
         public uint truncationErrorCount = 0;       //         

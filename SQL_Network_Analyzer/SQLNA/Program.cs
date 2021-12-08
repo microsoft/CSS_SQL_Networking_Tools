@@ -33,7 +33,7 @@ namespace SQLNA
 
         //public const string VERSION_NUMBER = "1.5.1760.0";
         public static string VERSION_NUMBER = Assembly.GetExecutingAssembly().GetName().Version.ToString();
-        public const string UPDATE_DATE = "2021/07/31";
+        public const string UPDATE_DATE = "2021/12/08";
         public const string GITHUB_PROJECT_URL = "https://github.com/microsoft/CSS_SQL_Networking_Tools";
 
         static void Main(string[] args)
@@ -198,6 +198,10 @@ namespace SQLNA
 
                 T.start("Finding stray SQL Servers");
                 TDSParser.FindStraySQLServers(Trace);
+                T.stop();
+
+                T.start("Creating packets from frames for SQL Conversations");
+                TDSParser.CreatingPacketsFromFrames(Trace);
                 T.stop();
 
                 T.start("Parsing UDP frames");

@@ -98,6 +98,7 @@
     <Compile Include="NetMonReader.cs" />
     <Compile Include="NetworkTrace.cs" />
     <Compile Include="OutputText.cs" />
+    <Compile Include="PacketData.cs" />
     <Compile Include="Parser.cs" />
     <Compile Include="PcapNGReader.cs" />
     <Compile Include="ReaderBase.cs" />

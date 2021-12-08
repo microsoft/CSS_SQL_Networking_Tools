@@ -765,6 +765,57 @@ namespace SQLNA
             }
         }
 
+        public static void CreatingPacketsFromFrames(NetworkTrace trace)
+        {
+            //
+            // Go through each Conversation and look for SQL and Kerberos
+            // These are the only ones where we may need to reassemble packets
+            //
+            // Use this to improve the parsers
+            //
+
+            PacketData clientPacket = new PacketData();   // may have overlapping packets. Not likely, but just in case.
+            PacketData serverPacket = new PacketData();
+
+            foreach (ConversationData c in trace.conversations)
+            {
+                if (c.isSQL || c.destPort == 88)  // do this for SQL and Kerberos both - may be able to remove code from Kerberos.cs
+                {
+                    foreach (FrameData frame in c.frames)
+                    {
+                        if ((frame.hasRESETFlag == false && frame.hasFINFlag ==false && frame.hasSYNFlag == false &&
+                             frame.hasACKFlag == true && frame.payloadLength > 1) || frame.hasPUSHFlag)
+                        {
+                            if (frame.isFromClient)
+                            {
+                                if (clientPacket.conversation == null)
+                                {
+                                    clientPacket.conversation = c;
+                                    c.packets.Add(clientPacket);  // adds packet with empty frames collection
+                                }
+                                // if packet truncation, only add the first frame, otherwise it would be a disjoint buffer
+                                // c.truncatedFrameLength is 0 if no truncation, or > 0 if truncation
+                                if (c.truncatedFrameLength == 0 || clientPacket.frames.Count ==0) clientPacket.frames.Add(frame);
+                                if (frame.hasPUSHFlag) clientPacket = new PacketData();
+                            }
+                            else
+                            {
+                                if (serverPacket.conversation == null)
+                                {
+                                    serverPacket.conversation = c;
+                                    c.packets.Add(serverPacket);  // adds packet with empty frames collection
+                                }
+                                // if packet truncation, only add the first frame, otherwise it would be a disjoint buffer
+                                // c.truncatedFrameLength is 0 if no truncation, or > 0 if truncation
+                                if (c.truncatedFrameLength == 0 || serverPacket.frames.Count == 0) serverPacket.frames.Add(frame);
+                                if (frame.hasPUSHFlag) serverPacket = new PacketData();
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // helper function
         public static void reverseSourceDest(ConversationData c)
         {

@@ -22,6 +22,7 @@ namespace SQLNA
             DisplayHeader();
             DisplayFileStatistics(Trace);
             DisplayTrafficStatistics(Trace);
+            DisplayDuplicatedPacketStatistics(Trace);
             DisplaySQLServerSummary(Trace);
             DisplayDomainControllerSummary(Trace);
             if (Program.outputConversationList) DisplaySucessfullLoginReport(Trace);  // optional section; must be explicitly requested
@@ -170,6 +171,57 @@ namespace SQLNA
                     }
                 }
                                
+                Program.logMessage();
+            }
+        }
+
+        private static void DisplayDuplicatedPacketStatistics(NetworkTrace Trace)
+        {
+            uint clientOnlyDupCount = 0, serverOnlyDupCount = 0, bidirectionalClientDupCount = 0, bidirectionalServerDupCount = 0;
+            uint clientOnlyConvCount = 0, serverOnlyConvCount = 0, bidirectionalConvCount = 0;
+
+            foreach (ConversationData c in Trace.conversations)
+            {
+                if (c.duplicateClientPackets > 0 && c.duplicateServerPackets > 0)
+                {
+                    bidirectionalConvCount++;
+                    bidirectionalClientDupCount += c.duplicateClientPackets;
+                    bidirectionalServerDupCount += c.duplicateServerPackets;
+                }
+                else if (c.duplicateClientPackets > 0 && c.duplicateServerPackets == 0)
+                {
+                    clientOnlyConvCount++;
+                    clientOnlyDupCount += c.duplicateClientPackets;
+                }
+                else if (c.duplicateClientPackets == 0 && c.duplicateServerPackets > 0)
+                {
+                    serverOnlyConvCount++;
+                    serverOnlyDupCount += c.duplicateServerPackets;
+                }
+            }
+
+            if (clientOnlyConvCount > 0 || serverOnlyConvCount > 0 || bidirectionalConvCount > 0)
+            {
+                ReportFormatter rf = new ReportFormatter();
+                rf.SetColumnNames("Duplicated IPV4 Packets:L", "Client Frames:R", "Server Frames:R", "Conversations:R");
+                rf.indent = 4;
+                rf.SetcolumnData("Client Only", clientOnlyDupCount.ToString("#,##0"), "", clientOnlyConvCount.ToString("#,##0"));
+                rf.SetcolumnData("Server Only", "", serverOnlyDupCount.ToString("#,##0"), serverOnlyConvCount.ToString("#,##0"));
+                rf.SetcolumnData("Bidirectional", bidirectionalClientDupCount.ToString("#,##0"), bidirectionalServerDupCount.ToString("#,##0"), bidirectionalConvCount.ToString("#,##0"));
+
+                Program.logMessage(rf.GetHeaderText());
+                Program.logMessage(rf.GetSeparatorText());
+                Program.logMessage(rf.GetDataText(0));
+                Program.logMessage(rf.GetDataText(1));
+                Program.logMessage(rf.GetDataText(2));
+                Program.logMessage();
+                Program.logMessage("Duplicated packets are ignored in the network analysis.");
+                Program.logMessage("For details on individual conversations, open the CSV file in Excel.");
+                Program.logMessage();
+            }
+            else
+            {
+                Program.logMessage("There were no duplicated IPV4 packets detected in the network trace.");
                 Program.logMessage();
             }
         }
@@ -2432,7 +2484,7 @@ namespace SQLNA
 
         private static void OutputStats(NetworkTrace Trace)
         {
-            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,Retransmit,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,MaxPayloadSize,PayloadSizeLimit,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ServerName,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
+            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,Retransmit,ClientDup,ServerDup,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,MaxPayloadSize,PayloadSizeLimit,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ServerName,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
             foreach (ConversationData c in Trace.conversations)
             {
                 int firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
@@ -2460,6 +2512,8 @@ namespace SQLNA
                                 c.finCount + "," +
                                 c.resetCount + "," +
                                 c.rawRetransmits + "," +
+                                c.duplicateClientPackets + "," +
+                                c.duplicateServerPackets + "," +
                                 c.keepAliveCount + "," +
                                 (c.hasIntegratedSecurity ? "Y" : "") + "," +
                                 (c.hasNTLMChallenge || c.hasNTLMResponse ? "Y" : "") + "," +

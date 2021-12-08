@@ -37,6 +37,7 @@ namespace SQLNA
         public bool isFromClient = false;                 // set in ParseIPV4Frame and ParseIPV6Frame
         public bool isContinuation = false;
         public ushort lastByteOffSet = 0;                 // set in ParseIPV4Frame and ParseIPV6Frame - offset of last byte in the IPV4 or IPV6 portion of the frame - should be the last byte of the payload
+        public ushort packetID = 0;                       // set in ParseIPV4Frame (not available in IPV6)
         public byte[] reassembledPayLoad = null;
 
         public TDSHeader GetTDSHeader()

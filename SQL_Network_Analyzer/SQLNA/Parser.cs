@@ -861,6 +861,28 @@ namespace SQLNA
 
         public static void ParseIPV4Frame(byte[] b, int offset, NetworkTrace t, FrameData f)
         {
+            //
+            // Frame Structure:
+            //
+            // 0      (lower nybble) Header Length in DWORDS (4 byte sections). This is typically 5, which means a 20 byte IPV4 header.
+            // 0      (upper nybble) ignored
+            // 1      ignored
+            // 2..3   IPV4 total length, including payload, which includes the higher protocol headers and data
+            // 4..5   Packet ID
+            // 6..7   ignored
+            // 8      Time To Live (TTL)
+            // 9      Next Protocol (TCP = 6, UDP = 0x11)
+            // 10..11 IPV4 CheckSum (ignored, we look at the TCP CheckSum)
+            // 12..15 Source IP Address
+            // 16..19 Destination IP Address
+            // 20..59 Options (ignored) if Header Length is between 6 and 15 (15 * 4 = 60 bytes) - absent for most packets
+            //
+            // payload comes after the header, which may start anywhere from byte 20 to 60 depending on the length of the Options section
+            // payload length = IPV4 total length - (Header Length * 4)
+            //
+            // https://en.wikipedia.org/wiki/IPv4
+            //
+
             ushort HeaderLength = 0;
             ushort Length = 0;
             byte NextProtocol = 0;     // TCP = 6    UDP = 0x11 (17)
@@ -871,6 +893,7 @@ namespace SQLNA
 
             HeaderLength = (ushort)((b[offset] & 0xf) * 4);
             Length = utility.B2UInt16(b, offset + 2);
+            f.packetID = utility.B2UInt16(b, offset + 4);
             NextProtocol = b[offset + 9];
             sourceIP = utility.B2UInt32(b, offset + 12);
             destIP = utility.B2UInt32(b, offset + 16);
@@ -919,13 +942,54 @@ namespace SQLNA
                 SPort = utility.B2UInt16(b, offset + HeaderLength);
                 DPort = utility.B2UInt16(b, offset + HeaderLength + 2);
                 ConversationData c = t.GetIPV4Conversation(sourceIP, SPort, destIP, DPort);  // adds conversation if new
+
                 //
-                // Determine whether the TCP client port has rolled around and this should be a new conversation
+                // Purpose: Do not record duplicate frames
                 //
-                // The rule is if we see a SYN packet, then if there is a RESET or FIN packet already in the conversation, and is it older than 10 seconds. If so, then new conversation.
+                // Why:     This is an artifact of taking the trace and is not the same as retransmitted frames,
+                //          which have the same TCP sequence # but different PacketID values
                 //
+                // Why:     This will improve statistics.
+                //
+                // Symptom: The current IPV4 frame has the same IPV4.PacketID as a previous frame.
+                // 
+                // Action:  Do not add the frame to the conversation.
+                // Action:  Increment the duplicate packet count in the conversation.
+                //          Sometimes only the client traffic or server traffic will be duplicated but not both, so we have separate counts.
+                //
+                // Note:    Only IPV4 has a PacketID. IPV6 does not.
+                //
+
+                int backCount = 0;
+                
+                for (int j = c.frames.Count - 1; j >= 0; j--) // look in descending order for the same Packet ID number
+                {
+                    FrameData priorFrame = (FrameData)c.frames[j];
+                    if (f.isFromClient == priorFrame.isFromClient)  // only consider packets going in the same direction as the current packet
+                    {
+                        backCount++;
+                        if (f.packetID == priorFrame.packetID)
+                        {
+                            if (f.isFromClient) c.duplicateClientPackets++; else c.duplicateServerPackets++;
+                            return;    // do not record this duplicate frame
+                        }
+                        if (backCount >= BACK_COUNT_LIMIT) break;  // none found in last 20 frames from the same side of the conversation
+                    }
+                }
+
+                //
+                // What:   Determine whether the TCP client port has rolled around and is re-used and this should be a new conversation
+                //
+                // Rule:   We see a SYN packet and there is a prior RESET or FIN packet already in the conversation, and is it older than 10 seconds.
+                //
+                // Action: Create a new conversation based on certain key fields of the current conversation.
+                // Action: Add the frame to the new conversation.
+                // Action: Add the new conversation to the conversations collection. 
+                //
+
                 if (NextProtocol == 6) // TCP
                 {
+
                     f.flags = b[offset + HeaderLength + 13];
                     if ((f.flags & (byte)TCPFlag.SYN) != 0 && (c.finCount > 0 || (c.resetCount > 0) && (f.ticks - ((FrameData)(c.frames[c.frames.Count - 1])).ticks) > 10 * utility.TICKS_PER_SECOND))
                     {
@@ -959,21 +1023,8 @@ namespace SQLNA
                 t.frames.Add(f);
                 c.frames.Add(f);
 
-
-                //// determine the last element of b[] that contains IPV4 data - also the last byte of TCP payload - ethernet may extend beyond this
-                //if (Length == 0)
-                //{
-                //    f.lastByteOffSet = (ushort)(b.Length - 1);
-                //}
-                //else
-                //{
-                //    f.lastByteOffSet = (ushort)(offset + Length - 1);
-                //}
-
-
-                //Is the Frame from Client or Server?
-                if (sourceIP == c.sourceIP)
-                    f.isFromClient = true;
+                // Is the Frame from Client or Server? This may be reversed later in ReverseBackwardConversations.
+                if (sourceIP == c.sourceIP) f.isFromClient = true;
              }
 
             ParseNextProtocol(NextProtocol, b, offset + HeaderLength, t, f);
@@ -1112,7 +1163,7 @@ namespace SQLNA
 
         public static void ParseTCPFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
         {
-            int headerLength = (b[offset + 12] >> 4) * 4; // upper nibble * 4
+            int headerLength = (b[offset + 12] >> 4) * 4; // upper nybble * 4
             int smpLength = 0;
             bool canTestChecksum = true;
             ushort CheckSum = 0;
