@@ -131,7 +131,9 @@ namespace SQLCheck
                     DataTable dtRelatedDomain = ds.Tables["RelatedDomain"];
                     ReportFormatter rf = new ReportFormatter();
                     rf.SetColumnNames("Target Domain:L","Trust Type:L", "Direction:L", "Selective Auth:L", "Encryption:L", "Attributes:L", "Message:L");
-                    foreach (DataRow RelatedDomain in dtRelatedDomain.Rows)
+                    DataView dvRelatedDomains = new DataView(dtRelatedDomain);
+                    dvRelatedDomains.Sort = "TargetDomain";
+                    foreach (DataRowView RelatedDomain in dvRelatedDomains)
                     {
                         rf.SetcolumnData(RelatedDomain.GetString("TargetDomain"),
                                          RelatedDomain.GetString("TrustType"),
@@ -162,7 +164,9 @@ namespace SQLCheck
                     DataTable dtRelatedDomain = ds.Tables["RootDomainRelatedDomain"];
                     ReportFormatter rf = new ReportFormatter();
                     rf.SetColumnNames("Target Domain:L", "Trust Type:L", "Direction:L", "Selective Auth:L", "Encryption:L", "Attributes:L", "Message:L");
-                    foreach (DataRow RelatedDomain in dtRelatedDomain.Rows)
+                    DataView dvRelatedDomains = new DataView(dtRelatedDomain);
+                    dvRelatedDomains.Sort = "TargetDomain";
+                    foreach (DataRowView RelatedDomain in dvRelatedDomains)
                     {
                         rf.SetcolumnData(RelatedDomain.GetString("TargetDomain"),
                                          RelatedDomain.GetString("TrustType"),
@@ -193,7 +197,9 @@ namespace SQLCheck
                     DataTable dtRelatedDomain = ds.Tables["ForestRelatedDomain"];
                     ReportFormatter rf = new ReportFormatter();
                     rf.SetColumnNames("Target Forest:L", "Trust Type:L", "Direction:L", "Selective Auth:L", "Encryption:L", "Attributes:L", "Message:L");
-                    foreach (DataRow RelatedDomain in dtRelatedDomain.Rows)
+                    DataView dvRelatedDomains = new DataView(dtRelatedDomain);
+                    dvRelatedDomains.Sort = "TargetDomain";
+                    foreach (DataRowView RelatedDomain in dvRelatedDomains)
                     {
                         rf.SetcolumnData(RelatedDomain.GetString("TargetDomain"),
                                          RelatedDomain.GetString("TrustType"),
@@ -320,12 +326,14 @@ namespace SQLCheck
 
             // FLTMC Filters
 
-            string filterNames = "";
-            foreach (DataRow FLTMC in dtFLTMC.Rows)
+            string filterNames = "", FltMCDelimiter = " | ";
+            DataView dvFLTMC = new DataView(dtFLTMC);
+            dvFLTMC.Sort = "Name";
+            foreach (DataRowView FLTMC in dvFLTMC)
             {
-                filterNames += "|" + FLTMC.GetString("Name");
+                filterNames += FltMCDelimiter + FLTMC.GetString("Name");
             }
-            filterNames = filterNames == "" ? "<none>" : filterNames.Substring(1);
+            filterNames = filterNames == "" ? "<none>" : filterNames.Substring(FltMCDelimiter.Length);   // trim the initial ' | ' ... 3 characters
             s.WriteLine($"FLTMC Filters: {filterNames}");
             s.WriteLine();
 
@@ -344,7 +352,9 @@ namespace SQLCheck
 
                 rf = new ReportFormatter();
                 rf.SetColumnNames("Service Name:L", "Filter Media Types:L", "Help Text:L");
-                foreach (DataRow NetworkMiniDriver in dtNetworkMiniDriver.Rows)
+                DataView dvNetworkMiniDriver = new DataView(dtNetworkMiniDriver);
+                dvNetworkMiniDriver.Sort = "Service";
+                foreach (DataRowView NetworkMiniDriver in dvNetworkMiniDriver)
                 {
                     rf.SetcolumnData(NetworkMiniDriver.GetString("Service"),
                                      NetworkMiniDriver.GetString("FilterMediaTypes"),
@@ -362,7 +372,7 @@ namespace SQLCheck
             s.WriteLine("Network Adapters:");
             s.WriteLine();
 
-            foreach (DataRow NetworkAdapter in dtNetworkAdapter.Rows)
+            foreach (DataRow NetworkAdapter in dtNetworkAdapter.Select("", "Name"))  // .Select is alternate to DataView and Sort
             {
                 s.WriteLine($"Name:                       {NetworkAdapter.GetString("Name")}");
                 s.WriteLine($"Adapter Type:               {NetworkAdapter.GetString("AdapterType")}");
@@ -505,7 +515,7 @@ namespace SQLCheck
 
             ReportFormatter rf = new ReportFormatter();
             rf.SetColumnNames("Name:L", "Instance:L", "Description:L", "PID:R", "Service Account:L", "Domain Account:L", "Start Mode:L", "Started:L", "Status:L");
-            foreach (DataRow Service in dtService.Rows)
+            foreach (DataRow Service in dtService.Select("","Name"))
             {
                 rf.SetcolumnData(Service.GetString("Name"),
                                  Service.GetString("Instance"),
@@ -559,7 +569,7 @@ namespace SQLCheck
                 s.WriteLine();
                 rf = new ReportFormatter();
                 rf.SetColumnNames("Account:L", "SPN:L");
-                foreach (DataRow ConstrainedDelegationSPN in dtConstrainedDelegationSPN.Rows)
+                foreach (DataRow ConstrainedDelegationSPN in dtConstrainedDelegationSPN.Select("","Account,SPN"))
                 {
                     rf.SetcolumnData(ConstrainedDelegationSPN.GetString("ServiceAccount"),
                                      ConstrainedDelegationSPN.GetString("SPN"));
@@ -583,7 +593,7 @@ namespace SQLCheck
                 s.WriteLine();
                 rf = new ReportFormatter();
                 rf.SetColumnNames("Account:L", "SPN:L", "Has Duplicates:L");
-                foreach (DataRow SPN in dtSPN.Rows)
+                foreach (DataRow SPN in dtSPN.Select("", "ServiceAccount,SPN"))
                 {
                     rf.SetcolumnData(SPN.GetString("ServiceAccount"),
                                      SPN.GetString("SPN"),
@@ -695,7 +705,7 @@ namespace SQLCheck
             rf = new ReportFormatter();
 
             rf.SetColumnNames("Process Name:L", "Process ID:R", "Drivers Loaded:L");
-            foreach (DataRow ProcessDrivers in dtProcessDrivers.Rows)
+            foreach (DataRow ProcessDrivers in dtProcessDrivers.Select("", "ProcessName"))
             {
                 rf.SetcolumnData(ProcessDrivers.GetString("ProcessName"),
                                     ProcessDrivers.GetString("ProcessID"),
@@ -725,7 +735,7 @@ namespace SQLCheck
                 s.WriteLine();
                 rf = new ReportFormatter();
                 rf.SetColumnNames("Alias Name:L", "Protocol:L", "Server Name:L", "Port:R", "32-bit:R");
-                foreach (DataRow SQLAlias in dtSQLAlias.Rows)
+                foreach (DataRow SQLAlias in dtSQLAlias.Select("", "AliasName"))
                 {
                     rf.SetcolumnData(SQLAlias.GetString("AliasName"),
                                      SQLAlias.GetString("Protocol"),
@@ -800,7 +810,7 @@ namespace SQLCheck
                 s.WriteLine("Note: Only SQL 2008 and later are checked. There may be SQL 2000 instances.");
                 s.WriteLine();
                 rf.SetColumnNames("Service Type:L", "Instance Name:L", "32-bit:L");
-                foreach (DataRow SQLInstance in dtSQLInstance.Rows)
+                foreach (DataRow SQLInstance in dtSQLInstance.Select("", "InstanceType,InstanceName"))
                 {
                     rf.SetcolumnData(SQLInstance.GetString("InstanceType"),
                                      SQLInstance.GetString("InstanceName"),
@@ -814,10 +824,10 @@ namespace SQLCheck
                 }
                 s.WriteLine();
 
-                foreach (DataRow SQLServer in dtSQLServer.Rows)
+                foreach (DataRow SQLServer in dtSQLServer.Select("", "InstanceName"))
                 {
                     DataRow SQLInstance = dtSQLInstance.Rows[SQLServer.GetInteger("ParentID")];
-                    s.WriteLine($"Details for SQL Server Instance: {SQLInstance.GetString("InstanceName")} ({SQLServer.GetString("Edition")})");
+                    s.WriteLine($"Details for SQL Server Instance: {SQLServer.GetString("InstanceName")} ({SQLServer.GetString("Edition")})");
                     s.WriteLine();
                     s.WriteLine($"Version:                    {SQLServer.GetString("Version")} SP {SQLServer.GetString("ServicePack")} Patch Level: {SQLServer.GetString("PatchLevel")}");
                     s.WriteLine($"Clustered:                  {SQLServer.GetBoolean("clustered")}");

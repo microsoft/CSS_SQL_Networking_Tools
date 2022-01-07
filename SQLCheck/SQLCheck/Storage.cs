@@ -465,6 +465,7 @@ namespace SQLCheck
             dt.AddColumn("ID", "Integer");
             dt.Columns["ID"].AutoIncrement = true;
             dt.AddColumn("ParentID", "Integer");
+            dt.AddColumn("InstanceName", "String");
             dt.AddColumn("Version", "String");
             dt.AddColumn("ServicePack", "String");
             dt.AddColumn("PatchLevel", "String");
@@ -609,6 +610,15 @@ namespace SQLCheck
             return "<not collected>";  // If the column does not exist, return "<not collected>" - necessary when reading older files that may not have every field
         }
 
+        public static string GetString(this DataRowView drv, string ColumnName)
+        {
+            if (drv.DataView.Table.Columns.Contains(ColumnName))
+            {
+                return drv[ColumnName].ToString();
+            }
+            return "<not collected>";  // If the column does not exist, return "<not collected>" - necessary when reading older files that may not have every field
+        }
+
         public static bool GetBoolean(this DataRow dr, string ColumnName)  // returns false if any issues at all
         {
             if (dr.Table.Columns.Contains(ColumnName) && dr[ColumnName] != DBNull.Value)
@@ -618,11 +628,29 @@ namespace SQLCheck
             return false;
         }
 
+        public static bool GetBoolean(this DataRowView drv, string ColumnName)  // returns false if any issues at all
+        {
+            if (drv.DataView.Table.Columns.Contains(ColumnName) && drv[ColumnName] != DBNull.Value)
+            {
+                return (bool)drv[ColumnName];
+            }
+            return false;
+        }
+
         public static int GetInteger(this DataRow dr, string ColumnName)  // returns 0 if any issues at all
         {
             if (dr.Table.Columns.Contains(ColumnName) && dr[ColumnName] != DBNull.Value)
             {
                 return (int)dr[ColumnName];
+            }
+            return 0;
+        }
+
+        public static int GetInteger(this DataRowView drv, string ColumnName)  // returns 0 if any issues at all
+        {
+            if (drv.DataView.Table.Columns.Contains(ColumnName) && drv[ColumnName] != DBNull.Value)
+            {
+                return (int)drv[ColumnName];
             }
             return 0;
         }

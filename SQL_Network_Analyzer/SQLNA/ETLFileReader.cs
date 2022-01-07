@@ -33,6 +33,7 @@ namespace SQLNA
     {
 
         private Guid NDIS = new Guid("2ED6006E-4729-4609-B423-3EE7BCD678EF");
+        private Guid PKTMON = new Guid("4d4f80d9-c8bd-4d73-bb5b-19c90402c5ac");
         private Int16 NDIS_HEADER_LENGTH = 12;
         private long FirstTimeStamp = 0;  // should be okay to use m_sessionStartTimeQPC
 
@@ -99,7 +100,19 @@ namespace SQLNA
             PartialFrame pf = null;
             byte[] userData = null;
 
-            if (gu != NDIS || (f_Ethernet8023 == false && f_Wifi == false))  // added Ethernet/Wi-Fi check to ignore non-parsable events
+            if (gu != NDIS && gu != PKTMON)
+            {
+                m_eventCount++; // assuming no fragmentation of events
+                return;         // process only NDIS and PKTMON events
+            }
+
+            if (gu == PKTMON)
+            {
+                m_eventCount++; //
+                return;         // stub for right now
+            }
+
+            if (gu == NDIS || (f_Ethernet8023 == false && f_Wifi == false))  // added Ethernet/Wi-Fi check to ignore non-parsable events
             {
                 m_eventCount++; // assuming no fragmentation of non-NDIS events. could be wrong, but no way of knowing.
                 return;         // process only NDIS events

@@ -2314,6 +2314,7 @@ namespace SQLCheck
             DataRow Computer = ds.Tables["Computer"].Rows[0];
             DataRow SQLServer = ds.Tables["SQLServer"].NewRow();
             SQLServer["ParentID"] = SQLInstance["ID"];
+            SQLServer["InstanceName"] = SQLInstance["InstanceName"];
             ds.Tables["SQLServer"].Rows.Add(SQLServer);
 
             try
