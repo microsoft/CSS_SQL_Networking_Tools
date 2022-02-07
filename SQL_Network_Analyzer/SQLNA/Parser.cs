@@ -187,7 +187,7 @@ namespace SQLNA
             BinaryReader r = null;
             ReaderBase rb = null;
             ETLFileReader er = null;
-            bool isETL = filePath.ToLower().EndsWith(".etl");   // ETL files have no maging number. Must be done by file name.
+            bool isETL = filePath.ToLower().EndsWith(".etl");   // ETL files have no magic number. Must be done by file name.
             Frame frame = null;
 
             bool f_ReportedOther = false;
@@ -254,69 +254,76 @@ namespace SQLNA
                         if (frame.ticks > file.endTick) file.endTick = frame.ticks;
                         file.frameCount++;
 
-                        switch (frame.linkType)
+                        if (frame.isPKTMON)
                         {
-                            case 0:  // unknown - default to ethernet
-                            case 1:  // Ethernet
-                                {
-                                    ParseEthernetFrame(frame.data, 0, t, f);
-                                    break;
-                                }
-                            case 6:  // WiFi
-                                {
-                                    ParseWifiFrame(frame.data, 0, t, f); // TODO flesh this out
-                                    // Test file: \Documents\Interesting Network Traces\WifiTrace\
-                                    break;
-                                }
-                            case 101:  // Raw - first byte of payload - high nybble = 0x4n -> IPV4; high nybble = 0x6n -> IPV6
-                                {
-                                    byte payloadType = (byte)(frame.data[0] & 0xF0);
-                                    switch (payloadType)
+                            ParsePktmonFrame(frame.data, 0, t, f, frame.pktmonEventType);
+                        }
+                        else
+                        {
+                            switch (frame.linkType)
+                            {
+                                case 0:  // unknown - default to ethernet
+                                case 1:  // Ethernet
                                     {
-                                        case 0x40:
-                                            {
-                                                ParseIPV4Frame(frame.data, 0, t, f);
-                                                break;
-                                            }
-                                        case 0x60:
-                                            {
-                                                ParseIPV6Frame(frame.data, 0, t, f);
-                                                break;
-                                            }
-                                        default:
-                                            {
-                                                if (!f_ReportedOther)
+                                        ParseEthernetFrame(frame.data, 0, t, f);
+                                        break;
+                                    }
+                                case 6:  // WiFi
+                                    {
+                                        ParseWifiFrame(frame.data, 0, t, f); // TODO flesh this out
+                                                                             // Test file: \Documents\Interesting Network Traces\WifiTrace\
+                                        break;
+                                    }
+                                case 101:  // Raw - first byte of payload - high nybble = 0x4n -> IPV4; high nybble = 0x6n -> IPV6
+                                    {
+                                        byte payloadType = (byte)(frame.data[0] & 0xF0);
+                                        switch (payloadType)
+                                        {
+                                            case 0x40:
                                                 {
-                                                    Program.logDiagnostic($"Frame {frame.frameNumber}: Raw Protocol {frame.linkType} (0x{frame.linkType.ToString("X4")}). Payload header type {frame.data[0]} is not IPV4 or IPV6.");
-                                                    f_ReportedOther = true;
+                                                    ParseIPV4Frame(frame.data, 0, t, f);
+                                                    break;
                                                 }
-                                                break;
-                                            }
+                                            case 0x60:
+                                                {
+                                                    ParseIPV6Frame(frame.data, 0, t, f);
+                                                    break;
+                                                }
+                                            default:
+                                                {
+                                                    if (!f_ReportedOther)
+                                                    {
+                                                        Program.logDiagnostic($"Frame {frame.frameNumber}: Raw Protocol {frame.linkType} (0x{frame.linkType.ToString("X4")}). Payload header type {frame.data[0]} is not IPV4 or IPV6.");
+                                                        f_ReportedOther = true;
+                                                    }
+                                                    break;
+                                                }
 
+                                        }
+                                        break;
                                     }
-                                    break;
-                                }
-                            case 0x0071:  // Linux Cooked Capture - no MAC addresses, just IP and higher protocols
-                            case 0xE071:  // Linux Cooked Capture - no MAC addresses, just IP and higher protocols
-                                {
-                                    ParseLinuxCookedFrame(frame.data, 0, t, f);
-                                    break;
-                                }
-                            case 0xFFE0:  // NetEvent (usually in ETL and parsed by now) - happens when NETMON saves ETL capture as a CAP file
-                                {
-                                    ParseNetEventFrame(frame.data, 0, t, f); // TODO flesh this out
-                                    // Test file: \Documents\Interesting Network Traces\Filtered ETL in a CAP File - fix SQLNA\*_filtered.cap
-                                    break;
-                                }
-                            default:
-                                {
-                                    if (!f_ReportedOther)
+                                case 0x0071:  // Linux Cooked Capture - no MAC addresses, just IP and higher protocols
+                                case 0xE071:  // Linux Cooked Capture - no MAC addresses, just IP and higher protocols
                                     {
-                                        Program.logDiagnostic($"Frame {frame.frameNumber}: Unknown Protocol {frame.linkType} (0x{frame.linkType.ToString("X4")}). Packet ignored.");
-                                        f_ReportedOther = true;
+                                        ParseLinuxCookedFrame(frame.data, 0, t, f);
+                                        break;
                                     }
-                                    break;
-                                }
+                                case 0xFFE0:  // NetEvent (usually in ETL and parsed by now) - happens when NETMON saves ETL capture as a CAP file
+                                    {
+                                        ParseNetEventFrame(frame.data, 0, t, f); // TODO flesh this out
+                                                                                 // Test file: \Documents\Interesting Network Traces\Filtered ETL in a CAP File - fix SQLNA\*_filtered.cap
+                                        break;
+                                    }
+                                default:
+                                    {
+                                        if (!f_ReportedOther)
+                                        {
+                                            Program.logDiagnostic($"Frame {frame.frameNumber}: Unknown Protocol {frame.linkType} (0x{frame.linkType.ToString("X4")}). Packet ignored.");
+                                            f_ReportedOther = true;
+                                        }
+                                        break;
+                                    }
+                            }
                         }
                         
                     }
@@ -479,6 +486,7 @@ namespace SQLNA
         public static void ParseNetEventFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
         {
             Guid NDIS = new Guid("2ED6006E-4729-4609-B423-3EE7BCD678EF");
+            Guid PKTMON = new Guid("4d4f80d9-c8bd-4d73-bb5b-19c90402c5ac");
             ushort eventID = 0;
             ushort flags = 0;
             long fileTicks = 0;
@@ -486,8 +494,9 @@ namespace SQLNA
             Boolean isEthernet = false;
             Boolean isWifi = false;
             Boolean isFragment = false;
+            Boolean isPktmon = false;
             ushort userDataLength = 0;
-            uint NDISFragmentSize = 0;
+            uint ETLFragmentSize = 0;
 
             // Read NetEvent Header
             offset = 4; // bypass size and header type, 2 bytes each; we get size later
@@ -502,12 +511,13 @@ namespace SQLNA
             byte[] GuidBytes = new byte[16];
             Array.Copy(b, offset, GuidBytes, 0, 16);
             Guid ProviderID = new Guid(GuidBytes); // 0x6E00D62E29470946B4233EE7BCD678EF yields GUID {2ed6006e-4729-4609-b423-3ee7bcd678ef}
-            if (!ProviderID.Equals(NDIS)) return;  // not the provider we want
+            isPktmon = ProviderID.Equals(PKTMON);
+            if (!ProviderID.Equals(NDIS) && !isPktmon) return;  // not the provider we want
             offset += 16;
 
             // Read Descriptor - Event ID
             eventID = utility.ReadUInt16(b, offset);
-            if (eventID != 1001) return;   // not the event we want
+            if (isPktmon == false && eventID != 1001) return;   // not the NDIS event we want
             offset += 2;
 
             offset += 6; // skip Version (1), Channel (1), Level (1), OpCode (1), Task (2)
@@ -515,7 +525,7 @@ namespace SQLNA
             // Read Descriptor KeyWord Bytes (8 bytes total)
             isEthernet = (b[offset] & 0x01) != 0;  // isEthernet and isWifi are mutually exclusive
             isWifi = (b[offset + 1] & 0x80) != 0;
-            if (isEthernet == false && isWifi == false) return;   // not a link layer we support
+            if (isPktmon == false && isEthernet == false && isWifi == false) return;   // not a link layer we support
 
             isFragment = (b[offset + 3] & 0xC0) != 0xC0;
             if (isFragment)   // we aren't supporting fragments right now, log it
@@ -535,22 +545,88 @@ namespace SQLNA
             // Read NDIS Header (12 bytes for eventID 1001)
 
             offset += 8;  // skip MiniportIfIndex (4), LowerIfIndex (4)
-            NDISFragmentSize = utility.ReadUInt32(b, offset);
-            if (NDISFragmentSize + 12 != userDataLength)
+            ETLFragmentSize = utility.ReadUInt32(b, offset);
+            if (ETLFragmentSize + 12 != userDataLength)
             {
-                Program.logDiagnostic("ParseNetEventFrame. Frame " + f.frameNo + ". userDataLength - NDISFragmentSize != 12 . Ignoring.");
+                Program.logDiagnostic("ParseNetEventFrame. Frame " + f.frameNo + ". userDataLength - ETLFragmentSize != 12 . Ignoring.");
                 return;
             }
             offset += 4;
 
             // one of these is guaranteed to be called; the case where both are false is tested above
-            if (isEthernet)
+            if (isPktmon)
+            {
+                ParsePktmonFrame(b, offset, t, f, eventID);
+            }
+            else if (isEthernet)
             {
                 ParseEthernetFrame(b, offset, t, f);
             }
             else if (isWifi)
             {
                 ParseWifiFrame(b, offset, t, f);
+            }
+        }
+
+        public static void ParsePktmonFrame(byte[] b, int offset, NetworkTrace t, FrameData f, ushort eventID)
+        {
+            switch (eventID)
+            {
+                case 10:  // PktMon_DriverEntryFailed DriverEntryFailed;
+		        case 20:  // PktMon_ComponentInfo ComponentInfo;
+		        case 30:  // PktMon_CompPropUint CompPropUint;
+		        case 40:  // PktMon_CompPropGuid CompPropGuid;
+		        case 50:  // PktMon_CompPropHex32 CompPropHex32;
+		        case 60:  // PktMon_CompPropNdisMedium CompPropNdisMedium;
+		        case 70:  // PktMon_CompPropBinary CompPropBinary;
+		        case 73:  // PktMon_CompPropString CompPropString;
+		        case 75:  // PktMon_CompPropEtherType CompPropEtherType;
+		        case 80:  // PktMon_PacketDropCounters PacketDropCounters;
+		        case 90:  // PktMon_PacketFlowCounters PacketFlowCounters;
+		        case 100: // PktMon_PktFilterIPv4 PktFilterIPv4;
+		        case 110: // PktMon_PktFilterIPv6 PktFilterIPv6;
+		        case 120: // PktMon_NblParsedIpv4 NblParsedIpv4;
+		        case 130: // PktMon_NblParsedIpv6 NblParsedIpv6;
+		        case 140: // PktMon_NblParsedDropIpv4 NblParsedDropIpv4;
+		        case 150: // PktMon_NblParsedDropIpv6 NblParsedDropIpv6;
+                case 180: // PktMon_PktNblInfo PktNblInfo;
+                case 190: // PktMon_PktDropNblInfo PktDropNblInfo;
+                    // ignore the frame
+                    break;
+		        case 160: // PktMon_FramePayload FramePayload;
+		        case 170: // PktMon_FrameDropPayload FrameDropPayload;
+                    // check the properties and parse the payload as Ethernet
+                    // both event types have the same data structure and is reflected in the PktmonData class
+                    PktmonData pkm           = new PktmonData();
+                    pkm.eventID              = eventID;   // 160 for the normal frame data event or 170 for the frame drop event
+                    pkm.PktGroupId           = utility.ReadUInt64(b, offset);     offset += 8;
+                    pkm.PktNumber            = utility.ReadUInt16(b, offset);     offset += 2;
+                    pkm.AppearanceCount      = utility.ReadUInt16(b, offset);     offset += 2;
+                    pkm.DirTag               = utility.ReadUInt16(b, offset);     offset += 2;
+                    pkm.PacketType           = utility.ReadUInt16(b, offset);     offset += 2;
+                    pkm.ComponentId          = utility.ReadUInt16(b, offset);     offset += 2;
+                    pkm.EdgeId               = utility.ReadUInt16(b, offset);     offset += 2;
+                    pkm.FilterId             = utility.ReadUInt16(b, offset);     offset += 2;
+                    pkm.DropReason           = utility.ReadUInt32(b, offset);     offset += 4;
+                    pkm.DropLocation         = utility.ReadUInt32(b, offset);     offset += 4;
+                    pkm.OriginalPayloadSize  = utility.ReadUInt16(b, offset);     offset += 2;
+                    pkm.LoggedPayloadSize    = utility.ReadUInt16(b, offset);     offset += 2;
+
+                    //
+                    // The ETLFileReader files make f.frameLength and f.capturedFrameLength the same even if the packet was truncated.
+                    // However, the PKTMON record logs the discrepancy.
+                    // Adjust f.capturedFrameLength down by the difference.
+                    //
+                    if (pkm.LoggedPayloadSize != pkm.OriginalPayloadSize && f.capturedFrameLength == f.frameLength) f.capturedFrameLength -= (ushort)(pkm.OriginalPayloadSize - pkm.LoggedPayloadSize);
+
+                    f.pktmon = pkm;
+                    t.hasPktmonRecords = true;
+                    if (pkm.eventID == 170) t.hasPktmonDropRecords = true;  // if it's a dropped packet event type
+                    ParseEthernetFrame(b, offset, t, f);
+                    break;
+                default:
+                    // ignore the frame
+                    break;
             }
         }
 
@@ -944,7 +1020,7 @@ namespace SQLNA
                 ConversationData c = t.GetIPV4Conversation(sourceIP, SPort, destIP, DPort);  // adds conversation if new
 
                 //
-                // Purpose: Do not record duplicate frames
+                // Purpose: Do not record duplicate frames unless it has a PktmonData record associated with it
                 //
                 // Why:     This is an artifact of taking the trace and is not the same as retransmitted frames,
                 //          which have the same TCP sequence # but different PacketID values
@@ -961,19 +1037,22 @@ namespace SQLNA
                 //
 
                 int backCount = 0;
-                
-                for (int j = c.frames.Count - 1; j >= 0; j--) // look in descending order for the same Packet ID number
+
+                if (f.pktmon == null)  // we want to see the pktmon trace points
                 {
-                    FrameData priorFrame = (FrameData)c.frames[j];
-                    if (f.isFromClient == priorFrame.isFromClient)  // only consider packets going in the same direction as the current packet
+                    for (int j = c.frames.Count - 1; j >= 0; j--) // look in descending order for the same Packet ID number
                     {
-                        backCount++;
-                        if (f.packetID == priorFrame.packetID)
+                        FrameData priorFrame = (FrameData)c.frames[j];
+                        if (f.isFromClient == priorFrame.isFromClient)  // only consider packets going in the same direction as the current packet
                         {
-                            if (f.isFromClient) c.duplicateClientPackets++; else c.duplicateServerPackets++;
-                            return;    // do not record this duplicate frame
+                            backCount++;
+                            if (f.packetID == priorFrame.packetID)
+                            {
+                                if (f.isFromClient) c.duplicateClientPackets++; else c.duplicateServerPackets++;
+                                return;    // do not record this duplicate frame
+                            }
+                            if (backCount >= BACK_COUNT_LIMIT) break;  // none found in last 20 frames from the same side of the conversation
                         }
-                        if (backCount >= BACK_COUNT_LIMIT) break;  // none found in last 20 frames from the same side of the conversation
                     }
                 }
 
@@ -1020,8 +1099,7 @@ namespace SQLNA
                     c.truncatedFrameLength = f.capturedFrameLength;
                 }
                 f.conversation = c;
-                t.frames.Add(f);
-                c.frames.Add(f);
+                c.AddFrame(f, t);  // optionally add to the NetworkTrace frames collection, too
 
                 // Is the Frame from Client or Server? This may be reversed later in ReverseBackwardConversations.
                 if (sourceIP == c.sourceIP) f.isFromClient = true;
@@ -1124,8 +1202,7 @@ namespace SQLNA
                     c.truncatedFrameLength = f.capturedFrameLength;
                 }
                 f.conversation = c;
-                t.frames.Add(f);
-                c.frames.Add(f);
+                c.AddFrame(f, t);
 
                 //Is the Frame from Client or Server?
                 if (sourceIPHi == c.sourceIPHi && sourceIPLo == c.sourceIPLo)
@@ -1343,14 +1420,12 @@ namespace SQLNA
             foreach (ConversationData c in t.conversations)
             {
                 FrameData f = (FrameData)c.frames[0];  // get first frame
-                //
-                // tests are done this way because the E flag may be set occasionally and must not let that interfere with the comparison
-                //
-                if (((f.flags & (byte)(TCPFlag.SYN)) != 0) && ((f.flags & (byte)(TCPFlag.ACK)) == 0) && !f.isFromClient)
+
+                if (f.hasSYNFlag && !f.hasACKFlag && !f.isFromClient)
                 {
                     TDSParser.reverseSourceDest(c);    // if the first packet is SYN and from the server - reverse the conversation
                 }
-                else if (((f.flags & (byte)(TCPFlag.SYN)) != 0) && ((f.flags & (byte)(TCPFlag.ACK)) != 0) && f.isFromClient)
+                else if (f.hasSYNFlag && f.hasACKFlag && f.isFromClient)
                 {
                     TDSParser.reverseSourceDest(c);    // if the first packet is ACK+SYN and from client - reverse the conversation
                 }
@@ -1368,6 +1443,7 @@ namespace SQLNA
                 for (int i = 0; i < c.frames.Count; i++) // process the frames in the current conversation in ascending order
                 {
                     FrameData f = (FrameData)c.frames[i];
+
                     int backCount = 0;
                     payloadLen = f.payloadLength;
                     if (payloadLen < 8) continue;   // skip non-TDS packets, especially keep-alive ACKs that have a payload length of 1 - may skip a retransmit of a continuation packet with a small residual payload
@@ -1375,9 +1451,11 @@ namespace SQLNA
                     for (int j = i - 1; j >= 0; j--) // look in descending order for the same sequence number and payload length
                     {
                         FrameData priorFrame = (FrameData)c.frames[j];
+
                         if (f.isFromClient == priorFrame.isFromClient)
                         {
                             backCount++;
+                            if (f.conversation.isIPV6 == false && f.packetID == priorFrame.packetID) continue;  // if packet is IPV4 and Packet IDs match, that's not a retransmitted packet
                             priorPayloadLen = priorFrame.payloadLength;
                             if ((payloadLen == priorPayloadLen) &&
                                 ((f.seqNo == priorFrame.seqNo) || ((f.seqNo > priorFrame.seqNo) && (f.seqNo < (priorFrame.seqNo + priorPayloadLen)))))
@@ -1406,11 +1484,13 @@ namespace SQLNA
                 {
                     FrameData f = (FrameData)c.frames[i];
                     if (!f.isKeepAlive) continue;   // skip non-Keep-Alive packets; payload = 1 and flags = ACK and no others
+
                     int backCount = 0;
 
                     for (int j = i - 1; j >= 0; j--) // look in descending order for the same sequence number and payload length
                     {
                         FrameData priorFrame = (FrameData)c.frames[j];
+
                         if (f.isFromClient == priorFrame.isFromClient)
                         {
                             backCount++;
@@ -1440,12 +1520,14 @@ namespace SQLNA
                 for (int i = 0; i < c.frames.Count; i++) // process the frames in the current conversation in ascending order
                 {
                     FrameData f = (FrameData)c.frames[i];
+
                     int backCount = 0;
                     if (f.payloadLength == 0) continue;   // not checking ACK packets
 
                     for (int j = i - 1; j >= 0; j--) // look in descending order for the same ack number - if push flag set, abort
                     {
                         FrameData priorFrame = (FrameData)c.frames[j];
+
                         if ((f.isFromClient == priorFrame.isFromClient)) // continuation frames have no SMP header, so no need to match on that field
                         {
                             backCount++;
@@ -1610,6 +1692,5 @@ namespace SQLNA
                 return pipeInfo;
             }
         }  // end of GetPipeName
-
     }  // end of class
 }      // end of namespace

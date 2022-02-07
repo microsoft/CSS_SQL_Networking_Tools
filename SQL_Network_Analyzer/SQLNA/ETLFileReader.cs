@@ -34,14 +34,13 @@ namespace SQLNA
 
         private Guid NDIS = new Guid("2ED6006E-4729-4609-B423-3EE7BCD678EF");
         private Guid PKTMON = new Guid("4d4f80d9-c8bd-4d73-bb5b-19c90402c5ac");
-        private Int16 NDIS_HEADER_LENGTH = 12;
+        private readonly Int16 NDIS_HEADER_LENGTH = 12;
         private long FirstTimeStamp = 0;  // should be okay to use m_sessionStartTimeQPC
 
         private long m_QPCFreq;
         private uint m_eventCount;
 
         private DateTime m_sessionStartTime;
-        private DateTime m_sessionEndTime;
 
         private TraceEventInterop.EVENT_TRACE_LOGFILEW m_logFile;
         private UInt64 m_handle;
@@ -96,9 +95,12 @@ namespace SQLNA
             bool f_Ethernet8023 = ((rawData->EventHeader.Keyword) & 0x1) != 0;  // process Ethernet events
             bool f_Wifi = ((rawData->EventHeader.Keyword) & 0x100) != 0;        // process Wi-Fi events - not yet implemented
             Guid gu = (&rawData->EventHeader)->ProviderId;
+            ushort eventID = rawData->EventHeader.Id;
             Frame f = null;
             PartialFrame pf = null;
             byte[] userData = null;
+
+            // Debug.WriteLine($"TraceEvent_EventCallback: Frame:{m_eventCount + 1}, ProviderID: {gu}, NDIS: {NDIS}, PKTMON: {PKTMON}");
 
             if (gu != NDIS && gu != PKTMON)
             {
@@ -106,21 +108,27 @@ namespace SQLNA
                 return;         // process only NDIS and PKTMON events
             }
 
-            if (gu == PKTMON)
-            {
-                m_eventCount++; //
-                return;         // stub for right now
-            }
-
-            if (gu == NDIS || (f_Ethernet8023 == false && f_Wifi == false))  // added Ethernet/Wi-Fi check to ignore non-parsable events
+            if (gu == NDIS && f_Ethernet8023 == false && f_Wifi == false)  // added Ethernet/Wi-Fi check to ignore non-parsable events
             {
                 m_eventCount++; // assuming no fragmentation of non-NDIS events. could be wrong, but no way of knowing.
                 return;         // process only NDIS events
             }
 
+            if (gu == PKTMON)
+            {
+                if (eventID != 160 && eventID != 170)
+                {
+                    m_eventCount++; // Track the count
+                    return;
+                }
+                // Only preocess PKTMON events that contain a network payload
+                f_start = true;   // these flags aren't set for PKTMON captures, but are used by the logic below, so set both to TRUE to get the effect we want
+                f_end = true;
+                // Debug.WriteLine($"TraceEvent_EventCallback: It's a PKTMON event.");
+            }
+
             if (f_start)  // data complete in a single event or the initial fragment of several
             {
-
                 m_eventCount++;   // only increment on the initial event
 
                 // remove partial event from the PartialFrameBuffer
@@ -134,19 +142,24 @@ namespace SQLNA
                     // Program.logDiagnostic("Lost end of partial frame " + pf.f.frameNumber + " (PID=" + pf.ProcessID + ", TID=" + pf.ThreadID + ").");
                     // Console.WriteLine("Lost end of partial frame " + pf.f.frameNumber + " (PID=" + pf.ProcessID + ", TID=" + pf.ThreadID + ").");
                 }
-
+                short arrayOffset = gu == PKTMON ? (short)0 : NDIS_HEADER_LENGTH;  // we want the pktmon header to be part of the data, not so with the NDIS header
                 f = new Frame();
                 f.frameNumber = m_eventCount;
                 f.ticks = m_sessionStartTime.Ticks + ((long)(((rawData->EventHeader).TimeStamp - FirstTimeStamp) * 10000000 / m_QPCFreq));
-                
-                userData = new byte[rawData->UserDataLength - NDIS_HEADER_LENGTH];
+                userData = new byte[rawData->UserDataLength - arrayOffset];
                 var x = ((byte*)rawData->UserData);
-                for (int i = 0; i < userData.Length; i++) userData[i] = x[i + NDIS_HEADER_LENGTH];
+                for (int i = 0; i < userData.Length; i++) userData[i] = x[i + arrayOffset];
                 f.length = userData.Length;
                 f.frameLength = (uint)userData.Length;
                 f.bytesAvailable = (uint)userData.Length;
                 f.data = userData;
                 f.linkType = (ushort)(f_Ethernet8023 ? 1 : f_Wifi ? 6 : 0);  // Ethernet -> 1, Wifi -> 6, else 0
+
+                if (gu == PKTMON)
+                {
+                    f.isPKTMON = true;
+                    f.pktmonEventType = eventID;
+                }
 
                 if (f_end) // add Frame to FrameBuffer directly
                 {
@@ -251,6 +264,7 @@ namespace SQLNA
                     {
                         Frame f = FrameBuffer[0];
                         FrameBuffer.RemoveAt(0);
+                        Program.logDiagnostic($"***** Frame # {f.frameNumber}, Len: {f.frameLength}, isPktmon: {f.isPKTMON}, Event Type: {f.pktmonEventType}");
                         return f;
                     }
                 }
@@ -523,18 +537,21 @@ namespace SQLNA
         };
 
         //	TRACEHANDLE handle type is a ULONG64 in evntrace.h.  Use UInt64 here.
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1060:MovePInvokesToNativeMethodsClass")]
         [DllImport("advapi32.dll", EntryPoint = "OpenTraceW", CharSet = CharSet.Unicode, SetLastError = true), SuppressUnmanagedCodeSecurityAttribute]
-        internal extern static UInt64 OpenTrace([In][Out] ref EVENT_TRACE_LOGFILEW logfile);
+        internal static extern UInt64 OpenTrace([In][Out] ref EVENT_TRACE_LOGFILEW logfile);
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1060:MovePInvokesToNativeMethodsClass")]
         [DllImport("advapi32.dll"), SuppressUnmanagedCodeSecurityAttribute]
-        internal extern static int ProcessTrace(
+        internal static extern int ProcessTrace(
             [In] UInt64[] handleArray,
             [In] uint handleCount,
             [In] IntPtr StartTime,
             [In] IntPtr EndTime);
 
+        [System.Diagnostics.CodeAnalysis.SuppressMessage("Microsoft.Design", "CA1060:MovePInvokesToNativeMethodsClass")]
         [DllImport("advapi32.dll"), SuppressUnmanagedCodeSecurityAttribute]
-        internal extern static int CloseTrace([In] UInt64 traceHandle);
+        internal static extern int CloseTrace([In] UInt64 traceHandle);
 
         // Values for ENABLE_TRACE_PARAMETERS.Version
         internal const uint ENABLE_TRACE_PARAMETERS_VERSION = 1;

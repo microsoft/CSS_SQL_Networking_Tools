@@ -92,14 +92,39 @@ namespace SQLNA
         public bool hasLowTLSVersion = false;                  // set in OutputText.DisplaySQLServerSummary
         public bool hasPostLogInResponse = false;
         public bool hasRedirectedConnections = false;
+        public bool hasPktmonDroppedEvent = false;             //
         public string serverVersion = "";
         public string instanceName = "";
         public string sqlHostName = "";
         public string namedPipe = "";
         public string isClustered = "";
         public ArrayList conversations = new ArrayList(1024);  // pre-size to moderate starting amount - SQL may have few or many conversations
+
+        public void AddConversation(ConversationData c)
+        {
+            conversations.Add(c);
+            if (serverVersion == "" && c.serverVersion != null) serverVersion = c.serverVersion;
+            if (sqlHostName == "" && c.serverName != null) sqlHostName = c.serverName;
+            if (hasPktmonDroppedEvent == false && c.hasPktmonDroppedEvent == true) hasPktmonDroppedEvent = true;
+        }
     }
 
+    public class PktmonData
+    {
+        public ushort eventID = 0;     // 160 for the normal record type or 170 for the drop record type
+        public ulong PktGroupId = 0;
+        public ushort PktNumber = 0;
+        public ushort AppearanceCount = 0;
+        public ushort DirTag = 0;
+        public ushort PacketType = 0;
+        public ushort ComponentId = 0;
+        public ushort EdgeId = 0;
+        public ushort FilterId = 0;
+        public uint DropReason = 0;   // drop reason and location only applies to eventID 170
+        public uint DropLocation = 0;
+        public ushort OriginalPayloadSize = 0;
+        public ushort LoggedPayloadSize = 0;
+    }
     public class DomainController                                         // constructed in DomainControllerParser
     {
         public uint IP = 0;
@@ -137,6 +162,40 @@ namespace SQLNA
         public string flags = null;
         public uint keepAliveCount = 0;
         public ushort maxKeepAliveRetransmitsInARow = 0;
+    }
+
+    public class PktmonDropConnectionData
+    {
+        public string clientIP = null;
+        public ushort sourcePort = 0;
+        public bool isIPV6 = false;
+        public int frames = 0;
+        public uint dropFrame = 0;
+        public int firstFile = 0;
+        public int lastFile = 0;
+        public long startOffset = 0;
+        public long endOffset = 0;
+        public long endTicks = 0;
+        public long duration = 0;
+        public uint dropComponent = 0;
+        public string dropReason = "";
+    }
+
+    public class PktmonDelayConnectionData
+    {
+        public string sourceIP = null;
+        public ushort sourcePort = 0;
+        public string destIP = null;
+        public ushort destPort = 0;
+        public bool isIPV6 = false;
+        public string protocolName = null;    // TCP/UDP/SQL/SSRP/KERBEROS/etc. The same as in the CSV file
+        public uint delayFrame = 0;
+        public int delayFile = 0;
+        public long delayOffset = 0;
+        public long delayTicks = 0;
+        public long delayDuration = 0;
+        public uint delayStartComponent = 0;
+        public uint delayEndComponent = 0;
     }
 
     public class FailedConnectionData

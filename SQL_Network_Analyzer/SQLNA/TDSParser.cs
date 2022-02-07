@@ -201,12 +201,11 @@ namespace SQLNA
 
                 foreach (FrameData fd in c.frames)
                 {
+                    if (fd.pktmon != null & fd.pktmon.AppearanceCount > 1) continue; // don't parse pktmon tracepoints more than once
                     try
                     {
-                        // increased < 7 to < 9. to fix exception in TCP ETW                     *** TODO TODO TODO
                         // weed out non-TDS packets
-                        //if (fd.payloadLength < 7) continue;  // ATTENTION payload is 8 bytes   *** should we be < 8 instead ??? *** TODO TODO TODO
-                        if (fd.payloadLength < 9 ) continue;  // ATTENTION payload is 8 bytes
+                        if (fd.payloadLength < 8 ) continue;  // ATTENTION payload is 8 bytes
 
                         // ignore continuation packets until we get a complete TDS message parser built
                         if (fd.isContinuation) continue;
@@ -704,9 +703,7 @@ namespace SQLNA
                 if (c.isSQL)
                 {
                     SQLServer Server = trace.GetSQLServer(c.destIP, c.destIPHi, c.destIPLo, c.destPort, c.isIPV6);
-                    Server.conversations.Add(c);
-                    if (Server.serverVersion == "" && c.serverVersion != null) Server.serverVersion = c.serverVersion;
-                    if (Server.sqlHostName == "" && c.serverName != null) Server.sqlHostName = c.serverName;
+                    Server.AddConversation(c);
                 }
             } // for each conversation
         }
@@ -723,11 +720,11 @@ namespace SQLNA
                     if (server != null)
                     {
                         c.isSQL = true;
-                        server.conversations.Add(c);
                         if (c.destIP != server.sqlIP || c.destIPHi != server.sqlIPHi || c.destIPLo != server.sqlIPLo || c.destPort != server.sqlPort)
                         {
                             reverseSourceDest(c);
                         }
+                        server.AddConversation(c);
                     }
                 }
             }
@@ -748,7 +745,7 @@ namespace SQLNA
                     if (s2 != null)
                     {
                         reverseSourceDest(c);
-                        s2.conversations.Add(c);
+                        s2.AddConversation(c);
                         s.conversations.Remove(c);
                         s.sqlIP = 0;
                         s.sqlIPHi = 0;
@@ -757,7 +754,7 @@ namespace SQLNA
                     }
                 }
             }
-            // remove bad entries from the trace.sqlServers collection - iterate backwards because of Remove method
+            // remove bad entries from the trace.sqlServers collection - iterate backwards because of RemoveAt method
             for (int i = trace.sqlServers.Count - 1; i > 0; i--)
             {
                 SQLServer s = (SQLServer)(trace.sqlServers[i]);
@@ -819,37 +816,51 @@ namespace SQLNA
         // helper function
         public static void reverseSourceDest(ConversationData c)
         {
-                    //Reverse isFromClient Flag in every frame.
-                    foreach (FrameData frameData in c.frames)
-                        frameData.isFromClient = !(frameData.isFromClient);
+            //Reverse isFromClient Flag in every frame.
+            foreach (FrameData frameData in c.frames)
+            {
+                if (frameData.pktmon != null)
+                {
+                    foreach (FrameData fd in frameData.pktmonComponentFrames)
+                    {
+                        fd.isFromClient = !(fd.isFromClient);
+                    }
+                    // Reversing frameData.isFromClient, as in the else clause, is to be avoided as the main frame is the first element of the pktmonComponentFrames ArrayList.
+                    // Reversing it there, reverses it in the main record. Do not want to do that twice or it would undo the change.
+                }
+                else
+                {
+                    frameData.isFromClient = !(frameData.isFromClient);
+                }
+            }
 
-                    // reverse client and dest fields so that SQL ends up on the destination side of things
-                    ulong temp = 0;
+            // reverse client and dest fields so that SQL ends up on the destination side of things
+            ulong temp = 0;
 
-                    temp = c.sourceMAC;
-                    c.sourceMAC = c.destMAC;
-                    c.destMAC = c.sourceMAC;
+            temp = c.sourceMAC;
+            c.sourceMAC = c.destMAC;
+            c.destMAC = c.sourceMAC;
 
-                    temp = c.sourceIP;
-                    c.sourceIP = c.destIP;
-                    c.destIP = (uint)temp;
+            temp = c.sourceIP;
+            c.sourceIP = c.destIP;
+            c.destIP = (uint)temp;
 
-                    temp = c.sourceIPHi;
-                    c.sourceIPHi = c.destIPHi;
-                    c.destIPHi = temp;
+            temp = c.sourceIPHi;
+            c.sourceIPHi = c.destIPHi;
+            c.destIPHi = temp;
 
 
-                    temp = c.sourceIPLo;
-                    c.sourceIPLo = c.destIPLo;
-                    c.destIPLo = temp;
+            temp = c.sourceIPLo;
+            c.sourceIPLo = c.destIPLo;
+            c.destIPLo = temp;
 
-                    temp = c.sourcePort;
-                    c.sourcePort = c.destPort;
-                    c.destPort = (ushort)temp;
+            temp = c.sourcePort;
+            c.sourcePort = c.destPort;
+            c.destPort = (ushort)temp;
 
-                    temp = c.sourceFrames;
-                    c.sourceFrames = c.destFrames;
-                    c.destFrames = (uint)temp;
+            temp = c.sourceFrames;
+            c.sourceFrames = c.destFrames;
+            c.destFrames = (uint)temp;
         }
 
         //Parse User name and domain name

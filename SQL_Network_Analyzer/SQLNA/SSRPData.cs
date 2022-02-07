@@ -13,7 +13,7 @@ namespace SQLNA
     // Helper function to find an existing conversation to be added to
     //
 
-    class SSRPData
+    public class SSRPData
     {
         public uint sqlIP = 0;
         public ulong sqlIPHi = 0;

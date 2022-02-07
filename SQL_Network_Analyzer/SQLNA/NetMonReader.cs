@@ -198,6 +198,14 @@ namespace SQLNA
             //
             nextOffset = (frameNumber < frameTable.Length) ? frameTable[frameNumber] : frameTableOffset;  // last frame ends right before the frame table
             linkLayerBytes = (int)(nextOffset - r.BaseStream.Position);
+
+            //
+            // Log the link types and where reading them from. NETMON files aren't 100% consistent.
+            //
+            // Program.logDiagnostic($"Frame={frameNumber} StartOffset=x{frameTable[frameNumber - 1].ToString("X8")} Length={nf.length} (x{nf.length.ToString("X4")}) " +
+            //                       $"LinkPos={r.BaseStream.Position} (x{r.BaseStream.Position.ToString("X8")}) " +
+            //                       $"NextOffset={nextOffset} (x{nextOffset.ToString("X8")})");
+
             switch (linkLayerBytes)
             {
                 case 0:
@@ -219,8 +227,17 @@ namespace SQLNA
                     }
                 default:
                     {
-                        nf.linkType = networkType; // Read in the file header
-                        Program.logDiagnostic($"NetMonReader: Invalid link type length of {linkLayerBytes} at frame {frameNumber}. Must be 0, 1, or 2.");
+                        bool fReadTwoBytes = false;
+                        if (linkLayerBytes > 2)  
+                        {
+                            fReadTwoBytes = true;
+                            nf.linkType = r.ReadUInt16();
+                        }
+                        else
+                        {
+                            nf.linkType = networkType; // Read in the file header
+                        }
+                        Program.logDiagnostic($"NetMonReader: Invalid link type length of {linkLayerBytes} at frame {frameNumber}. Should be 0, 1, or 2. {(fReadTwoBytes ? "Reading first 2 bytes." : "Using default link type.")}");
                         break;
                     }
             }
