@@ -119,7 +119,54 @@ namespace SQLNA
         public string RedirectServer = "";
         public string PipeAdminName = "";              // - set in TCP Parser
         public ArrayList PipeNames = new ArrayList();  // - set in TCP Parser
+        public bool hasPktmonDroppedEvent = false;     // - set in ConversationData.AddFrame
+        public uint pktmonDropReason = 0;              // - set in ConversationData.AddFrame
+        public long pktmonMaxDelay = 0;                // - set in OutputText.DisplayDelayedPktmonEvents
 
+        public void AddFrame(FrameData f, NetworkTrace t)  // replaces adding the frame directly to the frames ArrayList
+        {
+            //
+            // Rubrick:
+            //
+            // If the frame is not a pktmon frame, add the the frames ArrayData and exit. This will be the norm for almost all traces analyzed.
+            // If the frame is a pktmon frame, find the previous instance of this frame (go backwards for efficiency).
+            //    If no previous instance, create the pktmonComponentFrames ArrayList and add the frame to that and add the frame to the ArrayList and exit.
+            //    If there is a previous frame, add the frame to the pktmonComponentFrames ArrayList of that frame and exit.
+            //
+
+            if (f.pktmon == null)
+            {
+                frames.Add(f);
+                t.frames.Add(f);
+            }
+            else
+            {
+                // search and add - use the limit of 20 frames. For a single conversation, it can't be out of sequence that much
+                if (f.pktmon.eventID == 170)  // drop packet event
+                {
+                    this.hasPktmonDroppedEvent = true;
+                    this.pktmonDropReason = f.pktmon.DropReason;
+                }
+                const int BACK_COUNT_LIMIT = 20;
+                int backCount = 0;
+                for (int i = this.frames.Count - 1; i >= 0; i--)
+                {
+                    FrameData priorFrame = (FrameData)frames[i];
+                    backCount++;
+                    if (priorFrame.pktmon.PktGroupId == f.pktmon.PktGroupId)
+                    {
+                        priorFrame.pktmonComponentFrames.Add(f);  // found withing BACK_COUNT_LIMIT frames
+                        return;
+                    }
+                    if (backCount >= BACK_COUNT_LIMIT) break;
+                }
+                // not found within BACK_COUNT_LIMIT frames, so assume it's the first
+                f.pktmonComponentFrames = new ArrayList();
+                f.pktmonComponentFrames.Add(f);  // make sure the frame is first in the list, so we don't have to treat it differently when performing pktmon analyses
+                frames.Add(f);
+                t.frames.Add(f);
+            }
+        }
         public bool hasLateLoginAck  // added Dec 5, 2016
         {
             get

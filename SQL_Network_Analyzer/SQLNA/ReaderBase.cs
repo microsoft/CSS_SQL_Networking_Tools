@@ -15,13 +15,15 @@ namespace SQLNA
 
     public class Frame
     {
-        public UInt32 frameNumber;		// Frame number.
-        public UInt32 frameLength;		// actual length of packet
-        public UInt32 bytesAvailable;	// number of bytes available in packet.
-        public long ticks;				// Absolute ticks of frame (calculated)
-        public byte[] data;		   	    // Byte data for frame.
-        public long length = 0;		    // Length of data in bytes.
-        public ushort linkType = 0;     // what provider is it - Ethernet (1), Wifi, etc.
+        public UInt32 frameNumber;		   // Frame number.
+        public UInt32 frameLength;		   // actual length of packet
+        public UInt32 bytesAvailable;	   // number of bytes available in packet.
+        public long ticks;				   // Absolute ticks of frame (calculated)
+        public byte[] data;		   	       // Byte data for frame.
+        public long length = 0;		       // Length of data in bytes.
+        public bool isPKTMON = false;      // ETLFileReader sets this - if false, use the linkType to determine the parser
+        public ushort pktmonEventType = 0; // ETLFileReader sets this
+        public ushort linkType = 0;        // what provider is it - Ethernet (0 or 1), Wifi, etc.
     };
 
     public abstract class ReaderBase

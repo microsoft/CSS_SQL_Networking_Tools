@@ -31,9 +31,8 @@ namespace SQLNA
         public static string filterFormat = "";              // blank | A | N | W   if N or W, replace the Client IP and Port in reports with a filter string in either NETMON or WireShark format
                                                              // filterFormat A = AUTO, will perform NETMON or WirreShark filters based on the capture type ... ETL -> Netmon format
 
-        //public const string VERSION_NUMBER = "1.5.1760.0";
         public static string VERSION_NUMBER = Assembly.GetExecutingAssembly().GetName().Version.ToString();
-        public const string UPDATE_DATE = "2021/12/08";
+        public const string UPDATE_DATE = "2022/04/01";
         public const string GITHUB_PROJECT_URL = "https://github.com/microsoft/CSS_SQL_Networking_Tools";
 
         static void Main(string[] args)
@@ -229,28 +228,6 @@ namespace SQLNA
                 OutputText.TextReport(Trace);
                 statFile.Close();
                 statFile = null;
-
-                // dump conversations to console window
-                //if (dumpConversations)
-                //{
-                //    foreach (ConversationData c in Trace.conversations)
-                //    {
-                //        if (c.sourcePort != 62729) continue;
-                //        Console.WriteLine();
-                //        Console.WriteLine(c.ColumnHeader1());
-                //        Console.WriteLine(c.ColumnHeader2());
-                //        Console.WriteLine(c.ColumnData());
-                //        Console.WriteLine();
-                //        Console.WriteLine(((FrameData)(c.frames[0])).ColumnHeader1());
-                //        Console.WriteLine(((FrameData)(c.frames[0])).ColumnHeader2());
-
-                //        foreach (FrameData f in c.frames)
-                //        {
-                //            Console.WriteLine(f.ColumnData());
-                //        }
-                //    }
-                //    Console.ReadLine();
-                //}
             }
             catch (Exception ex)
             {

@@ -16,7 +16,7 @@ namespace SQLNA
     // conversationIndex used to look up conversations. Based on XOR-ing the client port and server port to form an index
     //
 
-    class NetworkTrace                                                // constructed in Main
+    public class NetworkTrace                                                // constructed in Main
     {
 
         public string fileExt = null;
@@ -31,6 +31,8 @@ namespace SQLNA
         public ArrayList DomainControllers = new ArrayList();
         public ArrayList[] conversationIndex = new ArrayList[65536];  // short-cut to look-up conversations
         public ArrayList BadChecksumFrames = new ArrayList();         // sample of frames with bad checksum; to determine where trace was taken
+        public bool hasPktmonRecords = false;                         // set in ParsePktmonFrame
+        public bool hasPktmonDropRecords = false;                     // set in ParsePktmonFrame
 
         public ArrayList GetConversationList(ushort index)            // used for conversationIndex to speed up searching
         {

@@ -1,6 +1,7 @@
 ﻿// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 using System;
+using System.Collections;
 
 namespace SQLNA
 {
@@ -12,11 +13,17 @@ namespace SQLNA
     // Helper methods for getting formatted data
     // Helper methods for dumping frames for debugging purposes
     //
+    // Handling of PKTMON additional events. Should they be in-line with other frames in the conversation?
+    // Probably not, since this would complicate all other analyses.
+    // Should probably be in a side collection in each regular frame, so we do not bloat the conversation itself.
+    //
 
-    public class FrameData                                       // constructed in ParseOneFile
+    public class FrameData                                // constructed in ParseOneFile
     {
         public ConversationData conversation = null;      // set in ParseIPV4Frame and ParseIPV6Frame
         public FileData file = null;                      // set in ParseOneFile
+        public PktmonData pktmon = null;                  // set in ParsePktmonFrame
+        public ArrayList pktmonComponentFrames = null;    // set in Conversation.AddFrame, which replaces Conversation.frames.Add; this frame will also be first in the ArrayList
         public uint frameNo = 0;                          // set in ParseOneFile
         public long ticks = 0;                            // set in ParseOneFile
         public uint frameLength = 0;                      // set in ParseOneFile

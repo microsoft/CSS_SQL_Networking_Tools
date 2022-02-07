@@ -27,8 +27,10 @@ namespace SQLNA
             DisplayDomainControllerSummary(Trace);
             if (Program.outputConversationList) DisplaySucessfullLoginReport(Trace);  // optional section; must be explicitly requested
             DisplayResetConnections(Trace);
+            DisplayPktmonDrops(Trace);
             DisplayLoginErrors(Trace);
             DisplayDelayedLogins(Trace);
+            DisplayDelayedPktmonEvents(Trace);
             DisplayDomainControllerLoginErrors(Trace);
             DisplayNamedPipesReport(Trace);
             DisplayAttentions(Trace);
@@ -76,6 +78,29 @@ namespace SQLNA
             }
 
             Program.logMessage();
+
+            // Report on PKTMON events
+
+            if (Trace.hasPktmonRecords)
+            {
+                Program.logMessage("This trace contains repeated packets due to multiple PKTMON trace component events.");
+                Program.logMessage("The total event count is reflected in the frame count above.");
+                Program.logMessage("Most reports below only count the first frame in each packet group.");
+                Program.logMessage();
+                if (Trace.hasPktmonDropRecords)
+                {
+                    Program.logMessage("PKTMON events show that packets were dropped in the TCP or virtual network stack.");
+                }
+                else
+                {
+                    Program.logMessage("PKTMON events do not show dropped packets in the TCP or virtual network stack.");
+                }
+            }
+            else
+            {
+                Program.logMessage("PKTMON events were not detected.");
+            }
+            Program.logMessage();
         }
 
         private static void DisplayTrafficStatistics(NetworkTrace Trace)
@@ -114,6 +139,8 @@ namespace SQLNA
             Program.logMessage(rf.GetDataText(0));
             Program.logMessage(rf.GetDataText(1));
             Program.logMessage();
+
+            // Report on truncated packets
 
             uint truncationErrors = 0;
             uint truncationLength = 0;
@@ -165,12 +192,12 @@ namespace SQLNA
                 }
                 else
                 {
-                    foreach(var row in GroupedRows)
+                    foreach (var row in GroupedRows)
                     {
                         Program.logMessage($"Trace was probably taken on this IP address: {row.Address}, MAC Addr {row.MAC}, ({row.AddrCount * 10}%)");
                     }
                 }
-                               
+
                 Program.logMessage();
             }
         }
@@ -233,23 +260,23 @@ namespace SQLNA
                 Program.logMessage("The following SQL Servers were visible in the network trace:\r\n");
 
                 ReportFormatter rf = new ReportFormatter();
-                rf.SetColumnNames("IP Address:L", 
-                                   "HostName:L", 
-                                   "Port:R", 
-                                   "ServerPipe:L", 
-                                   "Version:L", 
+                rf.SetColumnNames("IP Address:L",
+                                   "HostName:L",
+                                   "Port:R",
+                                   "ServerPipe:L",
+                                   "Version:L",
                                    "Files:R",
-                                   "Clients:R", 
-                                   "Conversations:R", 
+                                   "Clients:R",
+                                   "Conversations:R",
                                    "Kerb Conv:R",
                                    "NTLM Conv:R",
                                    "MARS Conv:R",
                                    "non-TLS 1.2 Conv:R",
                                    "Redirected Conv:R",
-                                   "Frames:R", 
-                                   "Bytes:R", 
-                                   "Resets:R", 
-                                   "Retransmits:R", 
+                                   "Frames:R",
+                                   "Bytes:R",
+                                   "Resets:R",
+                                   "Retransmits:R",
                                    "IsClustered:R");
 
                 foreach (SQLServer s in Trace.sqlServers)
@@ -283,7 +310,7 @@ namespace SQLNA
                         if (c.hasPostLoginResponse) s.hasPostLogInResponse = true;
                         if (c.AttentionTime > 0) s.hasAttentions = true;
                         // may see MARS enabled in PreLogin packet, or if that's missing, if the conversation has SMP packets
-                        if (c.isMARSEnabled  || (c.smpAckCount + c.smpDataCount + c.smpSynCount + c.smpFinCount > 0)) MARSCount++;
+                        if (c.isMARSEnabled || (c.smpAckCount + c.smpDataCount + c.smpSynCount + c.smpFinCount > 0)) MARSCount++;
                         if (c.hasLowTLSVersion)
                         {
                             s.hasLowTLSVersion = true;
@@ -627,7 +654,7 @@ namespace SQLNA
                         Program.logMessage($"All {ignoredMARSConnections} reset connections were due to the MARS connection closing sequence and were benign.");
                         Program.logMessage();
                     }
-                    
+
                 }
 
             }
@@ -638,6 +665,381 @@ namespace SQLNA
                 Program.logMessage();
             }
         }
+
+        private static void DisplayPktmonDrops(NetworkTrace Trace)
+        {
+            if (Trace.hasPktmonRecords == false)
+            {
+                Program.logMessage("No Pktmon trace events were found for drop reporting.");
+                Program.logMessage();
+            }
+            else if (Trace.hasPktmonDropRecords == false)
+            {
+                Program.logMessage("The trace contains Pktmon events but no drop events were found.");
+                Program.logMessage();
+            }
+            else  // pktmon with drop events
+            {
+                long firstTick = 0;
+                long lastTick = 0;
+
+                if (Trace.frames != null && Trace.frames.Count > 0)
+                {
+                    firstTick = ((FrameData)Trace.frames[0]).ticks;
+                    lastTick = ((FrameData)Trace.frames[Trace.frames.Count - 1]).ticks;
+                }
+
+                foreach (SQLServer s in Trace.sqlServers)
+                {
+                    if (s.hasPktmonDroppedEvent)
+                    {
+                        List<PktmonDropConnectionData> PktmonDropRecords = new List<PktmonDropConnectionData>();
+
+                        // initialize graph object
+                        TextGraph g = new TextGraph();
+                        g.startTime = new DateTime(firstTick);
+                        g.endTime = new DateTime(lastTick);
+                        g.SetGraphWidth(150);
+                        g.fAbsoluteScale = true;
+                        g.SetCutoffValues(1, 3, 9, 27, 81);
+
+                        string sqlIP = (s.isIPV6) ? utility.FormatIPV6Address(s.sqlIPHi, s.sqlIPLo) : utility.FormatIPV4Address(s.sqlIP);
+
+                        foreach (ConversationData c in s.conversations)
+                        {
+                            if (c.hasPktmonDroppedEvent)
+                            {
+                                PktmonDropConnectionData pd = new PktmonDropConnectionData();
+
+                                pd.clientIP = (c.isIPV6) ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP);
+                                pd.sourcePort = c.sourcePort;
+                                pd.isIPV6 = c.isIPV6;
+                                pd.frames = c.frames.Count;
+                                pd.dropFrame = 0;
+                                pd.firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
+                                pd.lastFile = Trace.files.IndexOf(((FrameData)(c.frames[c.frames.Count - 1])).file);
+                                pd.startOffset = ((FrameData)c.frames[0]).ticks - firstTick;
+                                pd.endTicks = ((FrameData)c.frames[c.frames.Count - 1]).ticks;
+                                pd.endOffset = pd.endTicks - firstTick;
+                                pd.duration = pd.endOffset - pd.startOffset;
+
+
+                                foreach (FrameData f in c.frames)   // search from beginning for first drop record
+                                {
+                                    if (f.pktmonComponentFrames != null)
+                                    {
+                                        foreach (FrameData pktmonEvent in f.pktmonComponentFrames)
+                                        {
+                                            if (pktmonEvent.pktmon.eventID == 170)   // this is a drop frame
+                                            {
+                                                pd.dropFrame = pktmonEvent.frameNo;
+                                                pd.dropComponent = pktmonEvent.pktmon.ComponentId;
+                                                pd.dropReason = GetPktmonDropReasonText(pktmonEvent.pktmon.DropReason) + $" ({pktmonEvent.pktmon.DropReason})";
+                                                g.AddData(new DateTime(f.ticks), 1.0); // for graphing
+                                                break;
+                                            }
+                                        }
+                                    }
+                                }
+
+                                PktmonDropRecords.Add(pd);
+                            }
+                        }
+                        if (PktmonDropRecords.Count > 0)
+                        {
+                            Program.logMessage("The following conversations with SQL Server " + sqlIP + " on port " + s.sqlPort + " had Pktmon drop events in the TCP or virtual network stack:\r\n");
+                            Program.logMessage("The drop events occurred on the machine on which the trace was collected.");
+                            Program.logMessage();
+                            ReportFormatter rf = new ReportFormatter();
+                            switch (Program.filterFormat)
+                            {
+                                case "N":
+                                    {
+                                        rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Drop Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Drop Component:R", "Reason:L");
+                                        break;
+                                    }
+                                case "W":
+                                    {
+                                        rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Drop Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Drop Component:R", "Reason:L");
+                                        break;
+                                    }
+                                default:
+                                    {
+                                        rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Drop Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Drop Component:R", "Reason:L");
+                                        break;
+                                    }
+                            }
+
+                            var OrderedRows = from row in PktmonDropRecords orderby row.endOffset ascending select row;
+
+                            foreach (var row in OrderedRows)
+                            {
+                                switch (Program.filterFormat)
+                                {
+                                    case "N":  // list client IP and port as a NETMON filter string
+                                        {
+                                            rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                                             (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                             row.dropFrame.ToString(),
+                                                             (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                             (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                             new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                             row.frames.ToString(),
+                                                             (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                             row.dropComponent.ToString(),
+                                                             row.dropReason);
+                                            break;
+                                        }
+                                    case "W":  // list client IP and port as a WireShark filter string
+                                        {
+                                            rf.SetcolumnData((row.isIPV6 ? "ipv6" : "ip") + ".addr==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
+                                                             (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                             row.dropFrame.ToString(),
+                                                             (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                             (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                             new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                             row.frames.ToString(),
+                                                             (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                             row.dropComponent.ToString(),
+                                                             row.dropReason);
+                                            break;
+                                        }
+                                    default:  // list client IP and port as separate columns
+                                        {
+                                            rf.SetcolumnData(row.clientIP,
+                                                             row.sourcePort.ToString(),
+                                                             (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                             row.dropFrame.ToString(),
+                                                             (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                             (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                             new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                             row.frames.ToString(),
+                                                             (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                             row.dropComponent.ToString(),
+                                                             row.dropReason);
+                                            break;
+                                        }
+                                }
+                            }
+
+                            Program.logMessage(rf.GetHeaderText());
+                            Program.logMessage(rf.GetSeparatorText());
+
+                            for (int i = 0; i < rf.GetRowCount(); i++)
+                            {
+                                Program.logMessage(rf.GetDataText(i));
+                            }
+
+                            Program.logMessage();
+
+                            //
+                            // Display graph
+                            //
+
+                            Program.logMessage("    Distribution of PKTMON drop events.");
+                            Program.logMessage();
+                            g.ProcessData();
+                            Program.logMessage("    " + g.GetLine(0));
+                            Program.logMessage("    " + g.GetLine(1));
+                            Program.logMessage("    " + g.GetLine(2));
+                            Program.logMessage("    " + g.GetLine(3));
+                            Program.logMessage("    " + g.GetLine(4));
+                            Program.logMessage("    " + g.GetLine(5));
+
+                            Program.logMessage();
+                        } // if (PktmonDropRecords.Count > 0)
+                    } // if (s.hasPktmonDroppedEvent)
+                } // foreach (SQLServer s in Trace.sqlServers)
+            }  // else
+        }  // private static void DisplayPktmonDrops
+
+        private static void DisplayDelayedPktmonEvents(NetworkTrace Trace)
+        {
+            if (Trace.hasPktmonRecords == false)
+            {
+                Program.logMessage("No Pktmon trace events were found for delay reporting.");
+                Program.logMessage();
+            }
+            else
+            {
+                long delayTicks = 2 * (long)utility.TICKS_PER_MILLISECOND; // any internal delay more than 2 milliseconds will be reported
+                string delayWords = "2ms";                                 // sync with the line above
+
+                long firstTick = 0;
+                long lastTick = 0;
+
+                if (Trace.frames != null && Trace.frames.Count > 0)
+                {
+                    firstTick = ((FrameData)Trace.frames[0]).ticks;
+                    lastTick = ((FrameData)Trace.frames[Trace.frames.Count - 1]).ticks;
+                }
+
+                List<PktmonDelayConnectionData> PktmonDelayRecords = new List<PktmonDelayConnectionData>();
+
+                // initialize graph object
+                TextGraph g = new TextGraph();
+                g.startTime = new DateTime(firstTick);
+                g.endTime = new DateTime(lastTick);
+                g.SetGraphWidth(150);
+                g.fAbsoluteScale = true;
+                g.SetCutoffValues(1, 3, 9, 27, 81);
+
+                foreach (ConversationData c in Trace.conversations)
+                {
+                    if (c.hasPktmonDroppedEvent) continue;   // this will appear in the DisplayPktmonDrops report
+
+                    string clientIP = (c.isIPV6) ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP);
+                    string serverIP = (c.isIPV6) ? utility.FormatIPV6Address(c.destIPHi, c.destIPLo) : utility.FormatIPV4Address(c.destIP);
+                    string protocolName = GetProtocolName(c);
+
+                    foreach (FrameData f in c.frames)
+                    {
+                        if (f.pktmon != null && f.pktmonComponentFrames.Count > 1)
+                        {
+                            FrameData prevFrame = f;
+                            long diffTick = 0;
+                            for (int i = 1; i < f.pktmonComponentFrames.Count; i++)
+                            {
+                                FrameData nextFrame = (FrameData)f.pktmonComponentFrames[i];
+                                diffTick = nextFrame.ticks - prevFrame.ticks;
+                                if (diffTick > c.pktmonMaxDelay) c.pktmonMaxDelay = diffTick;
+                                if (diffTick > delayTicks)
+                                {
+                                    PktmonDelayConnectionData pd = new PktmonDelayConnectionData();
+
+                                    pd.sourceIP = clientIP;
+                                    pd.sourcePort = c.sourcePort;
+                                    pd.destIP = serverIP;
+                                    pd.destPort = c.destPort;
+                                    pd.isIPV6 = c.isIPV6;
+                                    pd.delayFrame = prevFrame.frameNo;
+                                    pd.delayTicks = prevFrame.ticks;
+                                    pd.delayFile = Trace.files.IndexOf(prevFrame.file);
+                                    pd.delayOffset = prevFrame.ticks - firstTick;
+                                    pd.delayDuration = diffTick;
+                                    pd.delayStartComponent = prevFrame.pktmon.ComponentId;
+                                    pd.delayEndComponent = nextFrame.pktmon.ComponentId;
+                                    pd.protocolName = protocolName;
+
+                                    PktmonDelayRecords.Add(pd);
+                                    g.AddData(new DateTime(prevFrame.ticks), 1.0);
+                                }
+                                prevFrame = nextFrame;
+                            }
+                        }
+                    }
+                }
+
+                if (PktmonDelayRecords.Count > 0)
+                {
+                    Program.logMessage($"The following frames had Pktmon delays of greater than {delayWords} events in the TCP or virtual network stack:\r\n");
+                    Program.logMessage("The delay occurred on the machine on which the trace was collected.");
+                    Program.logMessage();
+                    ReportFormatter rf = new ReportFormatter();
+                    switch (Program.filterFormat)
+                    {
+                        case "N":
+                            {
+                                rf.SetColumnNames("Protocol:L", "NETMON Filter:L", "Delay Frame:R", "Delay File:R", "Delay Offset:R", "Delay Time:R", "Duration:R", "Delay Component 1:R", "Delay Component 2:R");
+                                break;
+                            }
+                        case "W":
+                            {
+                                rf.SetColumnNames("Protocol:L", "WireShark Filter:L", "Delay Frame:R", "Delay File:R", "Delay Offset:R", "Delay Time:R", "Duration:R", "Delay Component 1:R", "Delay Component 2:R");
+                                break;
+                            }
+                        default:
+                            {
+                                rf.SetColumnNames("Protocol:L", "Client Address:L", "Port:R", "Server Address:L", "Port:R", "Delay Frame:R", "Delay File:R", "Delay Offset:R", "Delay Time:R", "Duration:R", "Delay Component 1:R", "Delay Component 2:R");
+                                break;
+                            }
+                    }
+
+                    var OrderedRows = from row in PktmonDelayRecords orderby row.delayOffset ascending select row;
+
+                    foreach (var row in OrderedRows)
+                    {
+                        switch (Program.filterFormat)
+                        {
+                            case "N":  // list client IP and port as a NETMON filter string
+                                {
+                                    rf.SetcolumnData(row.protocolName,
+                                                     (row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.sourceIP + " AND tcp.port==" + row.sourcePort.ToString() + " AND " + (row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.destIP + " AND tcp.port==" + row.destPort.ToString(),
+                                                     row.delayFrame.ToString(),
+                                                     row.delayFile.ToString(),
+                                                     (row.delayOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                     new DateTime(row.delayTicks).ToString(utility.TIME_FORMAT),
+                                                     row.delayDuration.ToString(),
+                                                     row.delayStartComponent.ToString(),
+                                                     row.delayStartComponent.ToString());
+                                    break;
+                                }
+                            case "W":  // list client IP and port as a WireShark filter string
+                                {
+                                    rf.SetcolumnData(row.protocolName, 
+                                                     (row.isIPV6 ? "ipv6" : "ip") + ".addr==" + row.sourceIP + " and tcp.port==" + row.sourcePort.ToString() + " and " + (row.isIPV6 ? "ipv6" : "ip") + ".addr==" + row.destIP + " and tcp.port==" + row.destPort.ToString(),
+                                                     row.delayFrame.ToString(),
+                                                     row.delayFile.ToString(),
+                                                     (row.delayOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                     new DateTime(row.delayTicks).ToString(utility.TIME_FORMAT),
+                                                     row.delayDuration.ToString(),
+                                                     row.delayStartComponent.ToString(),
+                                                     row.delayStartComponent.ToString());
+                                    break;
+                                }
+                            default:  // list client IP and port as separate columns
+                                {
+                                    rf.SetcolumnData(row.sourceIP,
+                                                     row.sourcePort.ToString(),
+                                                     row.destIP,
+                                                     row.destPort.ToString(),
+                                                     row.delayFrame.ToString(),
+                                                     row.delayFile.ToString(),
+                                                     (row.delayOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                     new DateTime(row.delayTicks).ToString(utility.TIME_FORMAT),
+                                                     row.delayDuration.ToString(),
+                                                     row.delayStartComponent.ToString(),
+                                                     row.delayStartComponent.ToString());
+                                    break;
+                                }
+                        }
+                    } // foreach (var row in OrderedRows)
+
+                    Program.logMessage(rf.GetHeaderText());
+                    Program.logMessage(rf.GetSeparatorText());
+
+                    for (int i = 0; i < rf.GetRowCount(); i++)
+                    {
+                        Program.logMessage(rf.GetDataText(i));
+                    }
+
+                    Program.logMessage();
+
+                    //
+                    // Display graph
+                    //
+
+                    Program.logMessage("    Distribution of PKTMON delay events.");
+                    Program.logMessage();
+                    g.ProcessData();
+                    Program.logMessage("    " + g.GetLine(0));
+                    Program.logMessage("    " + g.GetLine(1));
+                    Program.logMessage("    " + g.GetLine(2));
+                    Program.logMessage("    " + g.GetLine(3));
+                    Program.logMessage("    " + g.GetLine(4));
+                    Program.logMessage("    " + g.GetLine(5));
+
+                    Program.logMessage();
+                } // if (PktmonDropRecords.Count > 0)
+                else
+                {
+                    Program.logMessage($"Pktmon events were found in the trace, but no events took more than {delayWords} to complete.");
+                    Program.logMessage();
+                }
+
+
+            } // else
+        } // DisplayDelayedPktmonEvents(NetworkTrace Trace)
 
         private static void DisplayDelayedLogins(NetworkTrace Trace)
         {
@@ -2484,7 +2886,7 @@ namespace SQLNA
 
         private static void OutputStats(NetworkTrace Trace)
         {
-            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,Retransmit,ClientDup,ServerDup,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,MaxPayloadSize,PayloadSizeLimit,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ServerName,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
+            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,Retransmit,ClientDup,ServerDup,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason,MaxPayloadSize,PayloadSizeLimit,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ServerName,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
             foreach (ConversationData c in Trace.conversations)
             {
                 int firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
@@ -2520,6 +2922,11 @@ namespace SQLNA
                                 (c.hasLogin7 ? "Y" : "") + "," +
                                 (c.isEncrypted ? "Y" : "") + "," +
                                 (c.isSQL && (c.isMARSEnabled || (c.smpAckCount + c.smpSynCount + c.smpFinCount + c.smpDataCount) > 0) ? "Y" : "") + "," +
+                                // Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason
+                                (Trace.hasPktmonRecords ? "Y" : "") + "," +
+                                (Trace.hasPktmonRecords ? $"{(c.pktmonMaxDelay / utility.TICKS_PER_SECOND).ToString("0.000000")}" : "") + "," +
+                                (Trace.hasPktmonRecords && c.hasPktmonDroppedEvent ? $"Y" : "") + "," +
+                                (Trace.hasPktmonRecords && c.hasPktmonDroppedEvent ? GetPktmonDropReasonText(c.pktmonDropReason) : "") + "," +
                                 c.maxPayloadSize + "," +
                                 (c.maxPayloadLimit ? "Y": "") + "," +
                                 c.frames.Count + "," +
@@ -2559,6 +2966,61 @@ namespace SQLNA
             }
             return "TCP";
         }
+
+        private static string GetPktmonDropReasonText(uint value)
+        {
+            switch (value)
+            {
+                case 0: return "Unspecified";
+                case 1: return "Invalid Data";
+                case 2: return "Invalid Packet";
+                case 3: return "Insufficient resources";
+                case 4: return "Adapter not ready";
+                case 5: return "Media Disconnected";
+                case 6: return "Not accepted";
+                case 7: return "Device busy";
+                case 8: return "Filtered";
+                case 9: return "Filtered VLAN";
+                case 10: return "Unauthorized VLAN";
+                case 11: return "Unauthorized MAC";
+                case 12: return "Failed security policy";
+                case 13: return "Failed pVlan setting";
+                case 14: return "QoS drop";
+                case 15: return "IPSec drop";
+                case 16: return "Spoofed MAC address is not allowed";
+                case 17: return "Failed DHCP guard";
+                case 18: return "Failed Router Guard";
+                case 19: return "Bridge is not allowed inside VM";
+                case 20: return "Virtual Subnet ID does not match";
+                case 21: return "Required vSwitch extension is missing";
+                case 22: return "Creating vSwitch over another vSwitch is not allowed";
+                case 23: return "MTU mismatch";
+                case 24: return "Native forwarding required";
+                case 25: return "Invalid VLAN format";
+                case 26: return "Invalid destination MAC";
+                case 27: return "Invalid source MAC";
+                case 28: return "First NB too small";
+                case 29: return "Windows Network Virtualization error";
+                case 30: return "Storm limit exceeded";
+                case 31: return "ICMP request injected by switch";
+                case 32: return "Failed to update destination list";
+                case 33: return "Destination NIC is disabled";
+                case 34: return "Packet does not match destination NIC packet filter";
+                case 35: return "vSwitch data flow is disabled";
+                case 36: return "Port isolation setting does not allow untagged traffic";
+                case 37: return "Invalid PD queue";
+                case 38: return "Adapter is in low power state";
+                case 101: return "Adapter paused";
+                case 102: return "Adapter reset in progress";
+                case 103: return "Send aborted";
+                case 104: return "Unsupported EtherType";
+                case 201: return "Microport error";
+                case 202: return "VF not ready";
+                case 203: return "Microport not ready";
+                case 204: return "VMBus error";
+                default: return $"Unknown value: {value}";
+            }
+        } // end of GetPktMonDropReason
 
     }
 }
