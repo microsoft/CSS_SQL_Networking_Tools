@@ -678,13 +678,15 @@ namespace SQLCheck
             // Kerbeos enabled encryption methods
             //
 
-            string kerbEncrypt = Utility.GetRegistryValueAsString(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\LSA\Kerberos\Parameters", "SupportedEncryptionTypes", RegistryValueKind.DWord, "");
+            // string kerbEncrypt = Utility.GetRegistryValueAsString(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\LSA\Kerberos\Parameters", "SupportedEncryptionTypes", RegistryValueKind.DWord, "");
+            string kerbEncrypt = Utility.GetRegistryValueAsString(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters", "SupportedEncryptionTypes", RegistryValueKind.DWord, "");
+
             if (kerbEncrypt == "") kerbEncrypt = "Not Specified"; 
             int encrypt = kerbEncrypt == "Not Specified" ? 28 : kerbEncrypt.ToInt();  // 0x1C = 28 decimal = RC4 + AES128 + AES256
             if (encrypt == 0) encrypt = 4; // RC4
             string encryptNames = Utility.KerbEncryptNames(encrypt);
             Security["KerberosLocalEncryption"] = $"{kerbEncrypt} ({encryptNames})";
-            if (encrypt != 0 && encrypt != 4) Security.LogWarning("RC4 encryption for Kerberos has been disabled.");
+            if (encrypt != 0 && (((byte)encrypt & 4) != 4)) Security.LogWarning("RC4 encryption for Kerberos has been disabled.");
 
             //
             // Warn if change in cryptography providers (default is rsaenh.dll) in:

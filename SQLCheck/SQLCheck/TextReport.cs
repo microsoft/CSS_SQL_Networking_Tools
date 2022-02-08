@@ -569,7 +569,7 @@ namespace SQLCheck
                 s.WriteLine();
                 rf = new ReportFormatter();
                 rf.SetColumnNames("Account:L", "SPN:L");
-                foreach (DataRow ConstrainedDelegationSPN in dtConstrainedDelegationSPN.Select("","Account,SPN"))
+                foreach (DataRow ConstrainedDelegationSPN in dtConstrainedDelegationSPN.Select("","ServiceAccount,SPN"))
                 {
                     rf.SetcolumnData(ConstrainedDelegationSPN.GetString("ServiceAccount"),
                                      ConstrainedDelegationSPN.GetString("SPN"));
@@ -909,11 +909,11 @@ namespace SQLCheck
             DataView dv = null;
             if (tableRow == -1)  // Messages for all rows
             {
-                dv = new DataView(ds.Tables["Message"], $"TableName='{tableName}'", "Severity desc", DataViewRowState.CurrentRows);
+                dv = new DataView(ds.Tables["Message"], $"TableName='{tableName}'", "Severity desc, Message asc", DataViewRowState.CurrentRows);
             }
             else
             {
-                dv = new DataView(ds.Tables["Message"], $"TableName='{tableName}' AND TableRow={tableRow}", "Severity desc", DataViewRowState.CurrentRows);
+                dv = new DataView(ds.Tables["Message"], $"TableName='{tableName}' AND TableRow={tableRow}", "Severity desc, Message asc", DataViewRowState.CurrentRows);
             }
             
             if (dv.Count == 0)
