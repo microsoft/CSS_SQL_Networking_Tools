@@ -201,7 +201,7 @@ namespace SQLNA
 
                 foreach (FrameData fd in c.frames)
                 {
-                    if (fd.pktmon != null & fd.pktmon.AppearanceCount > 1) continue; // don't parse pktmon tracepoints more than once
+                    if (fd.pktmon != null && fd.pktmon.AppearanceCount > 1) continue; // don't parse pktmon tracepoints more than once
                     try
                     {
                         // weed out non-TDS packets

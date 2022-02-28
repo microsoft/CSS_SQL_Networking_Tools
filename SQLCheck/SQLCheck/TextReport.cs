@@ -111,7 +111,7 @@ namespace SQLCheck
             if (Computer.GetBoolean("JoinedToDomain") && ds.Tables["Domain"].Rows.Count == 1)
             {
                 Domain = ds.Tables["Domain"].Rows[0];
-                s.WriteLine($"Domain Name:                {Domain.GetString("DomainName")}");
+                s.WriteLine($"Domain Name:                {Domain.GetString("DomainName")} ({Domain.GetString("DomainShortName")})");
                 s.WriteLine($"Domain Mode:                {Domain.GetString("DomainMode")}");
                 s.WriteLine($"Parent Domain:              {Domain.GetString("ParentDomain")}");
                 s.WriteLine($"Root Domain:                {Domain.GetString("RootDomain")}");
@@ -263,7 +263,7 @@ namespace SQLCheck
             s.WriteLine();
         }
 
-        static void ReportNetwork(DataSet ds, TextWriter s)  // outputs network settings, IP addresses, DNS Aliases, and NIC adapters
+        static void ReportNetwork(DataSet ds, TextWriter s)  // outputs network settings, IP addresses, DNS Aliases, hosts file entries, and NIC adapters
         {
 
             // global network settings
@@ -271,6 +271,7 @@ namespace SQLCheck
             DataTable dtNetwork = ds.Tables["Network"];
             DataTable dtNetworkAdapter = ds.Tables["NetworkAdapter"];
             DataTable dtHostAlias = ds.Tables["HostAlias"];
+            DataTable dtHostsEntries = ds.Tables["HostsEntries"];
             DataTable dtIPAddress = ds.Tables["IPAddress"];
             DataTable dtFLTMC = ds.Tables["FLTMC"];
 
@@ -305,6 +306,23 @@ namespace SQLCheck
                 foreach (DataRow HostAlias in dtHostAlias.Rows)
                 {
                     s.WriteLine($"    {HostAlias.GetString("DNS_Alias")}");
+                }
+            }
+            s.WriteLine();
+
+            // Host file entries
+
+            if (dtHostsEntries.Rows.Count == 0)
+            {
+                s.WriteLine("No HOSTS file entries found for this machine.");
+            }
+            else
+            {
+                s.WriteLine("The following HOSTS file entries were found for this machine:");
+                s.WriteLine();
+                foreach (DataRow HostsEntry in dtHostsEntries.Rows)
+                {
+                    s.WriteLine($"    {HostsEntry.GetString("HostsEntry")}");
                 }
             }
             s.WriteLine();

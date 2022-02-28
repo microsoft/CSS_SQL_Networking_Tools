@@ -37,6 +37,7 @@ namespace SQLCheck
             CollectODBC(ds);
             CollectDiskDrive(ds);
             CollectHostAlias(ds);
+            CollectHostsEntries(ds);
             CollectIPAddress(ds);
             CollectFLTMC(ds);
             CollectDatabaseDriver(ds);
@@ -340,6 +341,7 @@ namespace SQLCheck
                 Domain parent = domain.Parent;
                 forest = domain.Forest;
                 DomainRow["DomainName"] = domain.Name;
+                DomainRow["DomainShortName"] = domain.GetDirectoryEntry().Properties["name"][0].ToString();
                 DomainRow["DomainMode"] = domain.DomainMode.ToString();
                 if (parent != null) DomainRow["ParentDomain"] = parent.Name;
                 if (forest != null)
@@ -1226,6 +1228,44 @@ namespace SQLCheck
             }
         }
 
+        public static void CollectHostsEntries(DataSet ds)
+        {
+            DataRow Computer = ds.Tables["Computer"].Rows[0];
+
+            string filePath = @"C:\windows\system32\drivers\etc\hosts";
+            StreamReader sr = null;
+            DataTable dtHostsEntries = ds.Tables["HostsEntries"];
+            DataRow HostsEntry = null;
+
+            try
+            {
+                sr = new StreamReader(filePath);
+                string line = "";
+                while (!sr.EndOfStream)
+                {
+                    line = sr.ReadLine().Trim();
+                    if (line == null || line.Length == 0 || line.StartsWith("#")) continue;
+                    HostsEntry = dtHostsEntries.NewRow();
+                    HostsEntry["HostsEntry"] = line;
+                    dtHostsEntries.Rows.Add(HostsEntry);
+                }
+                sr.Close();
+                sr = null;
+            }
+            catch (FileNotFoundException)
+            {
+                // do nothing - if there's no file, then there are no hosts entries
+            }
+            catch (Exception ex)
+            {
+                Computer.LogException("There was an issue reading the hosts file.", ex);
+            }
+            finally
+            {
+                if (sr != null) sr.Close();
+            }
+        }
+
         public static void CollectIPAddress(DataSet ds)
         {
             DataRow Computer = ds.Tables["Computer"].Rows[0];
@@ -1966,6 +2006,8 @@ namespace SQLCheck
 
             if (Computer["ConnectedToDomain"].ToBoolean() == false) return;  // have to be joined to a domain for this collector to work
 
+            DataRow Domain = ds.Tables["Domain"].Rows[0];
+
             //
             // Build list of unique DomainAccount values from the Service table
             //
@@ -2004,7 +2046,8 @@ namespace SQLCheck
                 }
                 else
                 {
-                    domain = Computer["ExpandedName"].ToString();
+                    // domain = Computer["ExpandedName"].ToString();
+                    domain = Domain["DomainName"].ToString();
                 }
 
                 try
@@ -2034,7 +2077,7 @@ namespace SQLCheck
                             ds.Tables["SPNAccount"].Rows.Add(SPNAccount);
                             entry = result.GetDirectoryEntry();
                             SPNAccount["Account"] = tempAccount;
-                            SPNAccount["Domain"] = domain;
+                            SPNAccount["Domain"] = Domain["DomainShortName"].ToString(); ;
                             SPNAccount["DistinguishedName"] = entry.Path;
                             UAC = entry.Properties["UserAccountControl"][0].ToInt();
                             SPNAccount["UserAccountControl"] = $"{UAC} (0x{UAC.ToString("X")})";

@@ -49,6 +49,7 @@ namespace SQLCheck
             dt.Columns["ID"].AutoIncrement = true;
             dt.AddColumn("ParentID", "Integer");
             dt.AddColumn("DomainName", "String");
+            dt.AddColumn("DomainShortName", "String");
             dt.AddColumn("DomainMode", "String");
             dt.AddColumn("ParentDomain", "String");
             dt.AddColumn("RootDomain", "String");
@@ -293,6 +294,17 @@ namespace SQLCheck
             dt.Columns["ID"].AutoIncrement = true;
             dt.AddColumn("ParentID", "Integer");
             dt.AddColumn("DNS_Alias", "String");
+            ds.Tables.Add(dt);
+
+            //
+            // Hosts Entries - Aliases defined in the hosts file
+            //
+
+            dt = new DataTable("HostsEntries");
+            dt.AddColumn("ID", "Integer");
+            dt.Columns["ID"].AutoIncrement = true;
+            dt.AddColumn("ParentID", "Integer");
+            dt.AddColumn("HostsEntry", "String");
             ds.Tables.Add(dt);
 
             //
