@@ -147,6 +147,7 @@ namespace SQLCheck
             dt.AddColumn("Clustered", "Boolean");
             dt.AddColumn("DiffieHellmanVersion", "String");
             dt.AddColumn("RebootNeeded", "Boolean");
+            dt.AddColumn("CredentialGuard", "Boolean");
             ds.Tables.Add(dt);
 
             //

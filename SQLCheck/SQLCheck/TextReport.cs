@@ -98,6 +98,7 @@ namespace SQLCheck
             s.WriteLine($".NET 2.x/3.x version:       {Computer.GetString("CLR2Version")}");
             s.WriteLine($"Clustered:                  {Computer.GetBoolean("Clustered")}");
             s.WriteLine($"IIS Running:                {Computer.GetBoolean("IISRunning")}");
+            s.WriteLine($"CredentialGuard enabled:    {Computer.GetBoolean("CredentialGuard")}");
             s.WriteLine();
             s.WriteLine($"Reboot Recommended:         {Computer.GetBoolean("RebootNeeded")}");
             s.WriteLine();
@@ -520,7 +521,7 @@ namespace SQLCheck
 
         static void ReportService(DataSet ds, TextWriter s)  // outputs computer and domain information
         {
-
+            DataRow Computer = ds.Tables["Computer"].Rows[0];
             DataTable dtService = ds.Tables["Service"];
             DataTable dtSPNAccount = ds.Tables["SPNAccount"];
             DataTable dtConstrainedDelegationSPN = ds.Tables["ConstrainedDelegationSPN"];
@@ -573,6 +574,19 @@ namespace SQLCheck
             for (int i = 0; i < rf.GetRowCount(); i++) s.WriteLine(rf.GetDataText(i));
             s.WriteLine();
             ReportMessages(ds, s, "SPNAccount", -1);  // returns a blank line at the end ... -1 = messages for all rows
+
+            // Credential Guard -> Constrained Delegation
+
+            if (Computer.GetBoolean("CredentialGuard"))
+            {
+                s.WriteLine("Warning: Credential Guard is enabled. Unconstrained delegation will not work.");
+                s.WriteLine("");
+            }
+            else
+            {
+                s.WriteLine("Info: Credential Guard is not enabled. Unconstrained delegation should work.");
+                s.WriteLine("");
+            }
 
             // Constrained Delegation SPNs
 
@@ -878,8 +892,6 @@ namespace SQLCheck
                     s.WriteLine($"Service Account:            {SQLServer.GetString("ServiceAccount")}");
                     s.WriteLine($"SPN Account:                {SQLServer.GetString("SPNServiceAccount")}");
                     s.WriteLine();
-
-                    ReportMessages(ds, s, "SQLServer", SQLServer["ID"].ToInt());
 
                     //
                     // For readability of the recommended SPNs, group the ones that exist first and the ones that don't exist last

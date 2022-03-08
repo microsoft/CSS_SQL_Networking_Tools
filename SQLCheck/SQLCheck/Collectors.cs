@@ -1595,6 +1595,8 @@ namespace SQLCheck
                 string[] driverNames = parts[2].Trim('"').Split(',');  // crack the dll list into individual parts
                 string dllList = "";                                   // we build the dll list here to add to the table
 
+                if (procName.ToUpper() == "LSAISO.EXE") Computer["CredentialGuard"] = true;
+
                 foreach (string word in driverNames)
                 {
                     string lword = word.ToLower();                     // our list is in lower case
