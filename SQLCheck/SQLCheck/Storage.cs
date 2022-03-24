@@ -242,6 +242,7 @@ namespace SQLCheck
             dt.AddColumn("SpeedDuplex", "String", "Speed/Duplex");
             dt.AddColumn("FlowControl", "String", "Flow Control");
             dt.AddColumn("RSS", "String", "Receive Side Scaling");
+            dt.AddColumn("JumboPacket", "String", "Jumbo Frames");
             dt.AddColumn("NICTeaming", "Boolean");
             ds.Tables.Add(dt);
 
@@ -484,7 +485,12 @@ namespace SQLCheck
             dt.AddColumn("PatchLevel", "String");
             dt.AddColumn("Edition", "String");
             dt.AddColumn("Clustered", "Boolean");
-            dt.AddColumn("AlwaysOn", "Boolean");
+            dt.AddColumn("AlwaysOn", "Boolean");                // new
+            dt.AddColumn("AlwaysOnServers", "String");          // new
+            dt.AddColumn("Listeners", "String");                // new
+            dt.AddColumn("AvailabilityGroups", "String");       // new
+            dt.AddColumn("ReplicationPorts", "String");         // new
+            dt.AddColumn("AuthenticationMode", "String");       // new
             dt.AddColumn("Certificate", "String");
             dt.AddColumn("Hidden", "Boolean");
             dt.AddColumn("ExtendedProtection", "String");
@@ -534,6 +540,7 @@ namespace SQLCheck
             dt.AddColumn("SignatureAlgorithm", "String");
             dt.AddColumn("KeySize", "String");
             dt.AddColumn("KeySpec", "String");
+            dt.AddColumn("KeyUsage", "String");
             dt.AddColumn("ServerCert", "Boolean");
             dt.AddColumn("HasPrivateKey", "Boolean");
             dt.AddColumn("NotBefore", "String");

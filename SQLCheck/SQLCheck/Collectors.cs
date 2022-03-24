@@ -503,7 +503,7 @@ namespace SQLCheck
                     DataRow[] rows = dtRelatedDomain.Select($"TargetDomain='{name}'");
                     if (rows.Length == 0)
                     {
-                        Debug.WriteLine($"Could not find a record in RelatedDomains to match '{name}'.");
+                        Program.Trace($"Could not find a record in RelatedDomains to match '{name}'.");
                     }
                     if (rows.Length == 1)
                     {
@@ -569,7 +569,7 @@ namespace SQLCheck
                         DataRow[] rows = dt.Select($"TargetDomain='{name}'");
                         if (rows.Length == 0)
                         {
-                            Debug.WriteLine($"Could not find a record in {dt.TableName} related domains to match '{name}'.");
+                            Program.Trace($"Could not find a record in {dt.TableName} related domains to match '{name}'.");
                         }
                         if (rows.Length == 1)
                         {
@@ -1048,6 +1048,9 @@ namespace SQLCheck
                                         NetworkAdapter["Speed"] = mo["speed"] == null ? "" : Utility.TranslateSpeed(mo["Speed"].ToString());
                                         NetworkAdapter["SpeedDuplex"] = GetEnumInfo(adapterKey, "*SpeedDuplex", "Speed/Duplex", NetworkAdapter).ToValueString();
                                         NetworkAdapter["FlowControl"] = GetEnumInfo(adapterKey, "*FlowControl", "Flow Control", NetworkAdapter).ToValueString();
+                                        // Jumbo Packet can be with or without * Prefix depending on the adapter
+                                        NetworkAdapter["JumboPacket"] = GetEnumInfo(adapterKey, "*JumboPacket", "Jumbo Frames", NetworkAdapter).ToValueString() +
+                                                                        GetEnumInfo(adapterKey, "JumboPacket", "Jumbo Frames", NetworkAdapter).ToValueString();
                                         NetworkAdapter["NICTeaming"] = Array.IndexOf(adapterKey.GetSubKeyNames(), "TeamAdapters") >= 0;
                                         // RSS
                                         if (Array.IndexOf(adapterKey.GetValueNames(), "RSS") >= 0)
@@ -1800,6 +1803,7 @@ namespace SQLCheck
                 {
                     string msg = "";
                     Certificate = dtCertificate.NewRow();
+                    dtCertificate.Rows.Add(Certificate);
 
                     Certificate["FriendlyName"] = cert.FriendlyName;
                     Certificate["Issuer"] = cert.Issuer;
@@ -1814,10 +1818,17 @@ namespace SQLCheck
                     Certificate["KeySize"] = cert.PublicKey.Key.KeySize.ToString();
                     Certificate["SignatureAlgorithm"] = cert.SignatureAlgorithm.FriendlyName;
 
-                    dtCertificate.Rows.Add(Certificate);
+                    if (cert.PublicKey.Key.GetType().ToString() == "System.Security.Cryptography.RSACryptoServiceProvider")
+                    {
+                        Certificate["KeySpec"] = ((RSACryptoServiceProvider)cert.PublicKey.Key).CspKeyContainerInfo.KeyNumber.ToString();
+                    }
+                    else
+                    {
+                        Certificate.LogWarning($"Trace: Collect Certificate. Unexpected Key Type: {cert.PublicKey.Key.GetType().ToString()}  ThumbPrint: {cert.Thumbprint}");
+                    }
 
                     bool serverCert = false;
-                    string keySpec = "";
+                    string keyUsage = "";
                     foreach (X509Extension extension in cert.Extensions)
                     {
                         AsnEncodedData asndata = new AsnEncodedData(extension.Oid, extension.RawData);
@@ -1827,8 +1838,8 @@ namespace SQLCheck
                                 Certificate["SubjectAlternativeName"] = asndata.Format(false);
                                 break;
                             case "Key Usage":
-                                keySpec = asndata.Format(false);
-                                Certificate["KeySpec"] = keySpec;
+                                keyUsage = asndata.Format(false);
+                                Certificate["KeyUsage"] = keyUsage;
                                 break;
                             case "Enhanced Key Usage":
                                 serverCert = asndata.Format(false).Contains("Server Authentication") ? true : false;
@@ -1836,7 +1847,8 @@ namespace SQLCheck
                                 break;
                         }
                     }
-                    if (keySpec.Contains("Key Encipherment") == false) msg += ", KeySpec!=1";
+                    if (Certificate.GetString("KeySpec").ToUpper().Contains("EXCHANGE") == false) msg += ", KeySpec!=1";
+                    // if (keySpec.Contains("Key Encipherment") == false) msg += ", KeySpec!=1";
                     if (serverCert == false) msg += ", Not server";
                     Certificate["Message"] = msg.Length > 2 ? msg.Substring(2) : "";
                     Certificate = null;
@@ -2006,7 +2018,17 @@ namespace SQLCheck
             DataRow Computer = ds.Tables["Computer"].Rows[0];
             DataRow SPNAccount = null;
 
-            if (Computer["ConnectedToDomain"].ToBoolean() == false) return;  // have to be joined to a domain for this collector to work
+            if (Computer["ConnectedToDomain"].ToBoolean() == false)
+            {
+                Program.Trace("CollectSPNAccount: Connected to domain = false");
+                return;  // have to be joined to a domain for this collector to work
+            }
+
+            if (ds.Tables["Domain"].Rows.Count == 0)
+            {
+                Program.Trace("CollectSPNAccount: Domain table has no rows.");
+                return;                 // have to be joined to a domain for this collector to work
+            }
 
             DataRow Domain = ds.Tables["Domain"].Rows[0];
 
@@ -2527,6 +2549,12 @@ namespace SQLCheck
             if (hadron == true) SQLServer.LogInfo("Please get always-on configuration information.");
 
             //
+            // Process the ERROLOG file
+            //
+
+            ProcessSQLErrorlog_File(SQLServer);  //loads the cert line
+
+            //
             // Protocol information - server network
             //
 
@@ -2548,16 +2576,15 @@ namespace SQLCheck
                         {
                             // A self-generated certificate was successfully loaded for encryption.
                             // The certificate [Cert Hash(sha1) "<Certificate Thumbprint>"] was successfully loaded for encryption.
-                            string el = Utility.GetFileText(path);
-                            string searchText = "was successfully loaded for encryption.";
-                            string line = SmartString.GetStringLine(el, searchText, true);
+
+                            string line = SQLServer.GetString("Certificate");  // this is the full line, we'll refine it below. Saves us having to load the ERRORLOG file a second time
                             if (line.Contains("self-generated"))
                             {
                                 SQLServer["Certificate"] = "Self-generated certificate";
                             }
                             else if (line != "")
                             {
-                                string msg = " (Certifcate not hard-coded";
+                                string msg = " (Certificate not hard-coded";
                                 line = SmartString.GetBetween(line, @") """, @"""]", false, true);  // auto trim the result
                                 DataRow[] Certificates = ds.Tables["Certificate"].Select($@"ThumbPrint = '{line}'");
                                 if (Certificates.Length == 0)
@@ -2745,6 +2772,96 @@ namespace SQLCheck
             }
 
         }  // end ProcessMSSQLServer
+
+        public static void ProcessSQLErrorlog_File(DataRow SQLServer)  // must come prior to loading the certificate from the registry key
+        {
+            string baseFileName = SQLServer.GetString("ErrorLogPath");
+            if (baseFileName == "") return;
+            string fileName = "";
+            string el = "";                    // the entire log
+            string line = "";                  // a single line
+            bool found = false;
+
+            //
+            // Find the first ERRORLOG[.n] file that starts from the beginning
+            //
+
+            try
+            {
+                for (int i = 0; i < 10; i++)
+                {
+                    fileName = $@"{baseFileName}" + ((i > 0) ? $".{i}" : "");
+                    el = Utility.GetFileText($@"{fileName}");    // returns empty string if the file does not exist
+                    if (el.Length > 0 && SmartString.GetStringLine(el, "Registry startup parameters") != "")
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                SQLServer.LogException("Failed open the ERRORLOG file. Admin permissions required.", ex);
+                return;
+            }
+
+            if (!found) return;  // no files - not the same as not being abe to open them
+
+            // el contains the ERRORLOG text by the time we get here
+
+            ArrayList groupNames = new ArrayList();
+            ArrayList replicaNames = new ArrayList();
+            ArrayList virtualNetworkNames = new ArrayList();
+            ArrayList replIP = new ArrayList();
+            string searchText = "";
+
+            line = SmartString.GetStringLine(el, "Authentication mode");
+            SQLServer["AuthenticationMode"] = SmartString.GetBetween(line, "mode is ", ".");
+
+            searchText = "was successfully loaded for encryption.";
+            SQLServer["Certificate"] = SmartString.GetStringLine(el, searchText, true);  // temporary holding place
+
+            bool alwaysOn = SmartString.GetStringLine(el, "Always On Availability Groups:") != "";
+            SQLServer["AlwaysOn"] = alwaysOn;
+
+            if (alwaysOn)
+            {
+                StringReader sr = new StringReader(el);
+                line = sr.ReadLine();
+                string oldLine = "";
+                while (line != null)  // multiple items can be on a single line
+                {
+                    if (line.IndexOf("availability group '") > -1)
+                    {
+                        string agName = SmartString.GetBetween(line, "availability group '", "'");
+                        groupNames.AddUnique(agName);
+                    }
+                    if (line.IndexOf("availability replica '") > -1)
+                    {
+                        string repName = SmartString.GetBetween(line, "availability replica '", "'");
+                        replicaNames.AddUnique(repName);
+                    }
+                    if (line.IndexOf("virtual network name '") > -1)
+                    {
+                        string vnName = SmartString.GetBetween(line, "virtual network name '", "'");
+                        virtualNetworkNames.AddUnique(vnName);
+                    }
+                    if (line.IndexOf("The Database Mirroring endpoint is now listening for connections") > -1)
+                    {
+                        string rIP = SmartString.GetBetween(oldLine, @"[", @"]").Trim();
+                        replIP.AddUnique(rIP);
+                    }
+                    oldLine = line;
+                    line = sr.ReadLine();
+                }
+                sr.Close();
+
+                SQLServer["AvailabilityGroups"] = groupNames.Concatenate();
+                SQLServer["AlwaysOnServers"] = replicaNames.Concatenate();
+                SQLServer["Listeners"] = virtualNetworkNames.Concatenate();
+                SQLServer["ReplicationPorts"] = replIP.Concatenate();
+            }
+        }
 
         public static void ProcessSQLPathAndSPNs(DataSet ds, DataRow SQLInstance, DataRow SQLServer)
         {

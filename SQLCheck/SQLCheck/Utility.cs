@@ -1,6 +1,7 @@
 ﻿// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
 using System;
+using System.Collections;
 using System.Collections.Specialized;
 using System.Management;
 using System.DirectoryServices;
@@ -274,6 +275,25 @@ namespace SQLCheck
                 // ignore all exceptions - but allow us to break and see what it is when testing
             }
             return s;
+        }
+
+        //
+        // ArrayList string helper
+        //
+
+        public static void AddUnique(this ArrayList a, string value)
+        {
+            if (a == null || value == null || value.Trim() == "") return;
+            foreach (string s in a) if (s == value) return;
+            a.Add(value);
+        }
+
+        public static string Concatenate(this ArrayList a)
+        {
+            string s = "";
+            if (a.Count == 0) return "";
+            foreach (string element in a) s += $", {element}";
+            return s.Substring(2);                               // remove leading comma and space
         }
 
         //

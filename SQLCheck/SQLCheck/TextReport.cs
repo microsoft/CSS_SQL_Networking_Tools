@@ -400,6 +400,7 @@ namespace SQLCheck
                 s.WriteLine($"Speed/Duplex:               {NetworkAdapter.GetString("SpeedDuplex")}");
                 s.WriteLine($"Flow Control:               {NetworkAdapter.GetString("FlowControl")}");
                 s.WriteLine($"RSS:                        {NetworkAdapter.GetString("RSS")}");
+                s.WriteLine($"Jumbo Frames:               {NetworkAdapter.GetString("JumboPacket")}");
                 s.WriteLine($"NIC Teaming:                {NetworkAdapter.GetBoolean("NICTeaming")}");
                 s.WriteLine();
                 ReportMessages(ds, s, "NetworkAdapter", NetworkAdapter["ID"].ToInt());  // returns a blank line at the end
@@ -497,7 +498,7 @@ namespace SQLCheck
             s.WriteLine();
 
             ReportFormatter rf = new ReportFormatter();
-            rf.SetColumnNames("Friendly Name:L", "CN:L", "SAN:L", "Thumbprint:L", "Server Cert:L", "Key Len:R", "Sig Type:L", "Usage:L", "Private Key:L", "Not Before:L", "Not After:L", "Problem:L");
+            rf.SetColumnNames("Friendly Name:L", "CN:L", "SAN:L", "Thumbprint:L", "Server Cert:L", "Key Len:R", "Sig Type:L", "KeySpec:L", "Usage:L", "Private Key:L", "Not Before:L", "Not After:L", "Problem:L");
             foreach (DataRow Certificate in dtCertificate.Rows)
             {
                 rf.SetcolumnData(Certificate.GetString("FriendlyName"),
@@ -508,6 +509,7 @@ namespace SQLCheck
                                  Certificate.GetString("KeySize"),
                                  Certificate.GetString("SignatureAlgorithm"),
                                  Certificate.GetString("KeySpec"),
+                                 Certificate.GetString("KeyUsage"),
                                  Certificate.GetBoolean("HasPrivateKey") ? "Yes" : "",
                                  Certificate.GetString("NotBefore"),
                                  Certificate.GetString("NotAfter"),
@@ -517,6 +519,7 @@ namespace SQLCheck
             s.WriteLine(rf.GetSeparatorText());
             for (int i = 0; i < rf.GetRowCount(); i++) s.WriteLine(rf.GetDataText(i));
             s.WriteLine();
+            ReportMessages(ds, s, "Certificate", -1);  // returns a blank line at the end ... -1 = messages for all rows
         }
 
         static void ReportService(DataSet ds, TextWriter s)  // outputs computer and domain information
@@ -863,7 +866,18 @@ namespace SQLCheck
                     s.WriteLine();
                     s.WriteLine($"Version:                    {SQLServer.GetString("Version")} SP {SQLServer.GetString("ServicePack")} Patch Level: {SQLServer.GetString("PatchLevel")}");
                     s.WriteLine($"Clustered:                  {SQLServer.GetBoolean("clustered")}");
-                    s.WriteLine($"Always-On:                  {SQLServer.GetBoolean("AlwaysOn")}");
+                    
+                    bool alwaysOn = SQLServer.GetBoolean("AlwaysOn");
+                    s.WriteLine($"Always-On:                  {alwaysOn}");
+                    if (alwaysOn)
+                    {
+                        s.WriteLine($"Always-On Servers:          {SQLServer.GetString("AlwaysOnServers")}");
+                        s.WriteLine($"Always-On Listeners:        {SQLServer.GetString("Listeners")}");
+                        s.WriteLine($"Availability Groups:        {SQLServer.GetString("AvailabilityGroups")}");
+                        s.WriteLine($"Replication Ports:          {SQLServer.GetString("ReplicationPorts")}");
+                    }
+
+                    s.WriteLine($"Authentication Mode:        {SQLServer.GetString("AuthenticationMode")}");
                     s.WriteLine($"Certificate:                {SQLServer.GetString("Certificate")}");
                     s.WriteLine($"ForceEncryption:            {SQLServer.GetBoolean("ForceEncryption")}");
                     s.WriteLine($"Hidden Instance:            {SQLServer.GetBoolean("Hidden")}");
