@@ -6,7 +6,7 @@ using System.Runtime.InteropServices;
 // set of attributes. Change these attribute values to modify the information
 // associated with an assembly.
 [assembly: AssemblyTitle("SQL Network Analyzer")]
-[assembly: AssemblyDescription("Produces an automated report on .CAP, .PCAP, .PCAPNG, and NETSH .ETL files and chained files.")]
+[assembly: AssemblyDescription("Produces an automated report on .CAP, .PCAP, .PCAPNG, PKTMON, and NETSH .ETL files and chained files.")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Microsoft: CSS SQL Networking Team")]
 [assembly: AssemblyProduct("SQLNA.EXE")]
@@ -32,5 +32,5 @@ using System.Runtime.InteropServices;
 // You can specify all the values or you can default the Build and Revision Numbers 
 // by using the '*' as shown below:
 // [assembly: AssemblyVersion("1.0.*")]
-[assembly: AssemblyVersion("1.5.1928.0")]
-[assembly: AssemblyFileVersion("1.5.1928.0")]
+[assembly: AssemblyVersion("1.5.1935.0")]
+[assembly: AssemblyFileVersion("1.5.1935.0")]

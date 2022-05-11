@@ -2920,7 +2920,7 @@ namespace SQLNA
                                 (c.hasIntegratedSecurity ? "Y" : "") + "," +
                                 (c.hasNTLMChallenge || c.hasNTLMResponse ? "Y" : "") + "," +
                                 (c.hasLogin7 ? "Y" : "") + "," +
-                                (c.isEncrypted ? "Y" : "") + "," +
+                                (c.isEncrypted ? (c.isEncRequired ? "R" : "Y") : "") + "," +
                                 (c.isSQL && (c.isMARSEnabled || (c.smpAckCount + c.smpSynCount + c.smpFinCount + c.smpDataCount) > 0) ? "Y" : "") + "," +
                                 // Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason
                                 (Trace.hasPktmonRecords ? "Y" : "") + "," +

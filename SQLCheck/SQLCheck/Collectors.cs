@@ -1235,7 +1235,9 @@ namespace SQLCheck
         {
             DataRow Computer = ds.Tables["Computer"].Rows[0];
 
-            string filePath = @"C:\windows\system32\drivers\etc\hosts";
+            string windowsFolder = Environment.SystemDirectory;
+            if (windowsFolder == "") windowsFolder = @"C:\windows\system32";
+            string filePath = $@"{windowsFolder}\drivers\etc\hosts";
             StreamReader sr = null;
             DataTable dtHostsEntries = ds.Tables["HostsEntries"];
             DataRow HostsEntry = null;
@@ -2005,15 +2007,16 @@ namespace SQLCheck
             // Collects both SPNAccount records and 0..n ConstrainedDelegationSPN records per SPNAccount record
             //
 
-            int ACCOUNT_DISABLED = 2;                  //  0x00000002
-            int ACCOUNT_LOCKED = 16;                   //  0x00000010
-            int NORMAL_ACCOUNT = 512;                  //  0x00000200
-            int WORKSTATION_TRUST_ACCOUNT = 4096;      //  0x00001000
-            int SERVER_TRUST_ACCOUNT = 8192;           //  0x00002000
-            int TRUSTED_FOR_DELEGATION = 524288;       //  0x00080000
-            int NOT_DELEGATED = 1048576;               //  0x00100000
-            int USE_DES_KEY_ONLY = 2097152;            //  0x00200000
-            int PASSWORD_EXPIRED = 8388608;            //  0x00800000
+            int ACCOUNT_DISABLED = 2;                        //  0x00000002
+            int ACCOUNT_LOCKED = 16;                         //  0x00000010
+            int NORMAL_ACCOUNT = 512;                        //  0x00000200
+            int WORKSTATION_TRUST_ACCOUNT = 4096;            //  0x00001000
+            int SERVER_TRUST_ACCOUNT = 8192;                 //  0x00002000
+            int TRUSTED_FOR_DELEGATION = 524288;             //  0x00080000
+            int NOT_DELEGATED = 1048576;                     //  0x00100000
+            int USE_DES_KEY_ONLY = 2097152;                  //  0x00200000
+            int PASSWORD_EXPIRED = 8388608;                  //  0x00800000
+            int TRUSTED_TO_AUTH_FOR_DELEGATION = 16777216;   //  0x01000000   
 
             DataRow Computer = ds.Tables["Computer"].Rows[0];
             DataRow SPNAccount = null;
@@ -2574,8 +2577,11 @@ namespace SQLCheck
                         string path = SQLServer.GetString("ErrorLogPath");
                         if (path != "")
                         {
+                            //
                             // A self-generated certificate was successfully loaded for encryption.
                             // The certificate [Cert Hash(sha1) "<Certificate Thumbprint>"] was successfully loaded for encryption.
+                            // Found the certificate [Cert Hash(sha1) "<Certificate Thumbprint>"] in the local computer store but the SQL Server service account does not have access to it.
+                            //
 
                             string line = SQLServer.GetString("Certificate");  // this is the full line, we'll refine it below. Saves us having to load the ERRORLOG file a second time
                             if (line.Contains("self-generated"))
@@ -2587,6 +2593,10 @@ namespace SQLCheck
                                 string msg = " (Certificate not hard-coded";
                                 line = SmartString.GetBetween(line, @") """, @"""]", false, true);  // auto trim the result
                                 DataRow[] Certificates = ds.Tables["Certificate"].Select($@"ThumbPrint = '{line}'");
+                                if (line.Contains("store but the SQL Server service account does not have access to it"))
+                                {
+                                    msg += "; cannot read private key";
+                                }
                                 if (Certificates.Length == 0)
                                 {
                                     msg += "; no certs match the thumbprint";
@@ -2610,6 +2620,10 @@ namespace SQLCheck
                         string line = cert;
                         string msg = " (Thumbprint is hard-coded";
                         DataRow[] Certificates = ds.Tables["Certificate"].Select($@"ThumbPrint = '{line}'");
+                        if (line.Contains("store but the SQL Server service account does not have access to it"))
+                        {
+                            msg += "; cannot read private key";
+                        }
                         if (Certificates.Length == 0)
                         {
                             msg += "; no certs match the thumbprint";

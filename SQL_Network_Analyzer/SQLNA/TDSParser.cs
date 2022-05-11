@@ -147,6 +147,7 @@ namespace SQLNA
                             {
                                 byte encrypt = tdsPayLoad[8 + offset];
                                 conv.isEncrypted = (encrypt == 1 || encrypt == 3) ? true : false;  // if the server says YES or NO, then that's that
+                                conv.isEncRequired = (encrypt == 3);
                                 break;
                             }
                         case 2:  // we don't care

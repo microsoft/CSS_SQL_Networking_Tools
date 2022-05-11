@@ -145,16 +145,18 @@ namespace SQLCheck
             {                                                        //      Name        Type      TLS12  TLS13    Server Support         Supported      MSF
                 case "SQLOLEDB":                       return new DriverInfo(driverName, "OLE DB", TLS12, "No",    "SQL 7.0 - SQL 2019",  "Deprecated",  "No");
                 case "SQLNCLI":                        return new DriverInfo(driverName, "OLE DB", "No",  "No",    "SQL 7.0 - SQL 2019",  "No",          "No");
-                case "SQLNCLI10":                      return new DriverInfo(driverName, "OLE DB", TLS12, "No",     "SQL 7.0 - SQL 2019",  "Yes",         "No");
+                case "SQLNCLI10":                      return new DriverInfo(driverName, "OLE DB", TLS12, "No",    "SQL 7.0 - SQL 2019",  "No",          "No");
                 case "SQLNCLI11":                      return new DriverInfo(driverName, "OLE DB", TLS12, "No",    "SQL 7.0 - SQL 2019",  "Yes",         "No");
                 case "MSOLEDBSQL":                     return new DriverInfo(driverName, "OLE DB", "Yes", "No",    "SQL 2005 - SQL 2019", "Yes",         "Yes");
+                case "MSOLEDBSQL19":                   return new DriverInfo(driverName, "OLE DB", "Yes", "Yes",   "SQL 2005 - SQL 2022", "Yes",         "Yes");
                 case "SQL Server":                     return new DriverInfo(driverName, "ODBC",   TLS12, "No",    "SQL 7.0 - SQL 2019",  "Deprecated",  "No");
                 case "SQL Server Native Client 9.0":   return new DriverInfo(driverName, "ODBC",   "No",  "No",    "SQL 7.0 - SQL 2019",  "No",          "No");
-                case "SQL Server Native Client 10.0":  return new DriverInfo(driverName, "ODBC",   TLS12, "No",    "SQL 7.0 - SQL 2019",  "Yes",         "No");
+                case "SQL Server Native Client 10.0":  return new DriverInfo(driverName, "ODBC",   TLS12, "No",    "SQL 7.0 - SQL 2019",  "No",          "No");
                 case "SQL Server Native Client 11.0":  return new DriverInfo(driverName, "ODBC",   TLS12, "No",    "SQL 7.0 - SQL 2019",  "Yes",         "Yes");
                 case "ODBC Driver 11 for SQL Server":  return new DriverInfo(driverName, "ODBC",   TLS12, "No",    "SQL 7.0 - SQL 2019",  "Yes",         "Yes");
                 case "ODBC Driver 13 for SQL Server":  return new DriverInfo(driverName, "ODBC",   "Yes", "No",    "SQL 7.0 - SQL 2019",  "Yes",         "Yes");
                 case "ODBC Driver 17 for SQL Server":  return new DriverInfo(driverName, "ODBC",   "Yes", "No",    "SQL 2005 - SQL 2019", "Yes",         "Yes");
+                case "ODBC Driver 18 for SQL Server":  return new DriverInfo(driverName, "ODBC",   "Yes", "Yes",   "SQL 2005 - SQL 2022", "Yes",         "Yes");
                 default:
                     return null;
             }
@@ -167,13 +169,15 @@ namespace SQLCheck
                                  "SQLNCLI10",
                                  "SQLNCLI11",
                                  "MSOLEDBSQL",
+                                 "MSOLEDBSQL19",
                                   "SQL Server",
                                   "SQL Server Native Client 9.0",
                                   "SQL Server Native Client 10.0",
                                   "SQL Server Native Client 11.0",
                                   "ODBC Driver 11 for SQL Server",
                                   "ODBC Driver 13 for SQL Server",
-                                  "ODBC Driver 17 for SQL Server" };
+                                  "ODBC Driver 17 for SQL Server",
+                                  "ODBC Driver 18 for SQL Server"};
         }
 
         public static string[] GetOLEDBNames()
@@ -182,7 +186,8 @@ namespace SQLCheck
                                  "SQLNCLI",
                                  "SQLNCLI10",
                                  "SQLNCLI11",
-                                 "MSOLEDBSQL" };
+                                 "MSOLEDBSQL",
+                                 "MSOLEDBSQL19"};
         }
 
         public static string[] GetExtendedOLEDBNames()
@@ -192,6 +197,7 @@ namespace SQLCheck
                                  "SQLNCLI10",
                                  "SQLNCLI11",
                                  "MSOLEDBSQL",
+                                 "MSOLEDBSQL19",
                                  "Microsoft.ACE.OLEDB.10.0",   // supported by Office (Access)
                                  "Microsoft.ACE.OLEDB.12.0",   // supported by Office (Access)
                                  "Microsoft.ACE.OLEDB.16.0",   // supported by Office (Access)
@@ -202,6 +208,7 @@ namespace SQLCheck
                                  "Ifxoledbc",                  // supported by IBM/Informix
                                  "IBMDA400",                   // supported by IBM AS/400 DB/2 database
                                  "IBMDADB2",                   // supported by IBM DB/2 database
+                                 "DB2OLEDB",                   // supported by Microsoft Host Integration Services (HIS)
                                  "OraOLEDB.Oracle"};           // supported by Oracle
         }
 
@@ -213,7 +220,8 @@ namespace SQLCheck
                                   "SQL Server Native Client 11.0",
                                   "ODBC Driver 11 for SQL Server",
                                   "ODBC Driver 13 for SQL Server",
-                                  "ODBC Driver 17 for SQL Server" };
+                                  "ODBC Driver 17 for SQL Server",
+                                  "ODBC Driver 18 for SQL Server"};
         }
     }
 }

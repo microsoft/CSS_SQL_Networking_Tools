@@ -35,6 +35,7 @@ namespace SQLNA
         public bool hasTDS = false;                 //   - set in ProcessTDS
         public bool isSQL = false;                  //   - set in ProcessTDS
         public bool isEncrypted = false;            //   - set in GetServerPreloginInfo
+        public bool isEncRequired = false;          //   - set in 
         public bool isMARSEnabled = false;          //   - set in ProcessTDS - in PreLogin packet
         public bool hasPrelogin = false;            //   - set in ProcessTDS
         public bool hasPreloginResponse = false;    //   - set in ProcessTDS

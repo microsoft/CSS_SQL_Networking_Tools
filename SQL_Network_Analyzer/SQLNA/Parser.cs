@@ -699,7 +699,12 @@ namespace SQLNA
 
             switch (version)
             {
-                case 1:  // Type II ERSPAN frame
+                case 0:  // Type I ERSPAN Frame - has no data
+                    {
+                        ParseEthernetFrame(b, offset, t, f);
+                        break;
+                    }
+                case 1:  // Type II ERSPAN Frame
                     {
                         offset += 8;
                         ParseEthernetFrame(b, offset, t, f);
