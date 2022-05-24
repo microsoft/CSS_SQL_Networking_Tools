@@ -691,6 +691,15 @@ namespace SQLCheck
             if (encrypt != 0 && (((byte)encrypt & 4) != 4)) Security.LogWarning("RC4 encryption for Kerberos has been disabled.");
 
             //
+            // FIPS Encryption Policy
+            //
+
+            string fipsEnabled = Utility.GetRegistryValueAsString(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy", "Enabled", RegistryValueKind.DWord, 0);
+            Security["FIPSEnabled"] = fipsEnabled;
+            Security.CheckRange("FIPS Enabled", logLevel, 0, 1);
+            if (logLevel == "1") Security.LogWarning("FIPS encryption policy is enabled and may cause encryption or SCHANNEL issues.");
+
+            //
             // Warn if change in cryptography providers (default is rsaenh.dll) in:
             //
             // HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Cryptography\Defaults\Provider\Microsoft RSA SChannel Cryptographic Provider
@@ -726,7 +735,7 @@ namespace SQLCheck
         public static void CollectTLS(DataSet ds)
         {
             DataRow Computer = ds.Tables["Computer"].Rows[0];
-            string[] TLSVersions = new string[] { "SSL 2.0", "SSL 3.0", "TLS 1.0", "TLS 1.1", "TLS 1.2" };
+            string[] TLSVersions = new string[] { "SSL 2.0", "SSL 3.0", "TLS 1.0", "TLS 1.1", "TLS 1.2", "TLS 1.3" };
             string[] ClientServer = new string[] { "Client", "Server" };
             object temp = null;
             string defVal = "", enVal = "", disVal = "", effVal = "";
@@ -842,6 +851,7 @@ namespace SQLCheck
             int maxRetrans = maxRetransmissions.ToInt();  // defaults to 0 if emptystring or any other issues in the conversion
             if (maxRetransmissions != "")  // no warnings if blank or missing
             {
+                Network["TcpMaxDataRetransmissions"] = maxRetrans.ToString();
                 if (maxRetrans == 0)
                 {
                     Network.LogCritical("0 retransmissions could result in frequent network stability issues.");
@@ -855,12 +865,19 @@ namespace SQLCheck
                     Network.LogWarning("TcpMaxDataRetransmissions has been increased significantly above the default of 5.");
                 }
             }
+            else
+            {
+                Network["TcpMaxDataRetransmissions"] = "<missing> Default is 5";
+            }
 
             //
             // Get NETSH output - TCP settings
             //
 
             netshOut = Utility.GetExecutableSTDOUT("NETSH.EXE", "INT TCP SHOW GLOBAL");
+
+            Network["InitialRTO"] = SmartString.GetRemainder(SmartString.GetStringLine(netshOut, "Initial RTO"), ":", true, true);  // whatever is after : and trim it
+            Network["MaxSYNRetransmissions"] = SmartString.GetRemainder(SmartString.GetStringLine(netshOut, "Max SYN Retransmissions"), ":", true, true);  // whatever is after : and trim it
 
             //
             // HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\Tcpip\Parameters!EnableRSS
@@ -1704,7 +1721,7 @@ namespace SQLCheck
 
             bool is64bit = Computer["CPU64Bit"].ToBoolean();
             string[] regPath = new string[] { @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\MSSQLServer", @"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\MSSQLServer" };
-            string[] SNINames = new string[] { "SNI9.0", "SNI10.0", "SNI11.0", "SNI18.0" };
+            string[] SNINames = new string[] { "SNI9.0", "SNI10.0", "SNI11.0", "SNI18.0", "SNI19.0" };
             int loopCount = is64bit ? 2 : 1; // only look to Wow64 registry path if on a 64-bit system
             string propertyName = "";
             int propertyValue = 0;

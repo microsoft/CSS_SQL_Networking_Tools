@@ -165,6 +165,7 @@ namespace SQLCheck
             dt.AddColumn("MaxTokenSize", "String", @"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\LSA\Kerberos\Parameters!MaxTokenSize");
             dt.AddColumn("KerberosLogLevel", "String", @"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\LSA\Kerberos\Parameters!LogLevel");
             dt.AddColumn("KerberosLocalEncryption", "String", @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System\Kerberos\Parameters!SupportedEncryptionTypes");
+            dt.AddColumn("FIPSEnabled", "String", @"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\Lsa\FipsAlgorithmPolicy!Enabled");
             ds.Tables.Add(dt);
 
             //
@@ -175,7 +176,7 @@ namespace SQLCheck
             dt.AddColumn("ID", "Integer");
             dt.Columns["ID"].AutoIncrement = true;
             dt.AddColumn("ParentID", "Integer");
-            dt.AddColumn("TLSVersion", "String");                // SSL 2.0, SSL 3.0, TLS 1.0, TLS 1.1, TLS 1.2
+            dt.AddColumn("TLSVersion", "String");                // SSL 2.0, SSL 3.0, TLS 1.0, TLS 1.1, TLS 1.2, TLS 1.3
             dt.AddColumn("ClientOrServer", "String");            // Client or Server
             dt.AddColumn("DefaultValue", "String");              // got from OS version mapping table: Not Supported, Disabled, Enabled
             dt.AddColumn("EnabledValue", "String");              // under HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols
@@ -218,6 +219,8 @@ namespace SQLCheck
             dt.Columns["ID"].AutoIncrement = true;
             dt.AddColumn("ParentID", "Integer");
             dt.AddColumn("TcpMaxDataRetransmissions", "String");
+            dt.AddColumn("InitialRTO", "String");
+            dt.AddColumn("MaxSYNRetransmissions", "String");
             dt.AddColumn("EnableTCPChimney", "String");
             dt.AddColumn("EnableRSS", "String");
             dt.AddColumn("EnableTCPA", "String");

@@ -283,6 +283,8 @@ namespace SQLCheck
             {
                 DataRow Network = dtNetwork.Rows[0];
                 s.WriteLine($"TCPMaxDataRetransmissions:  {Network.GetString("TcpMaxDataRetransmissions")}");
+                s.WriteLine($"Initial RTO:                {Network.GetString("InitialRTO")}");
+                s.WriteLine($"Max SYN Retransmissions:    {Network.GetString("MaxSYNRetransmissions")}");
                 s.WriteLine($"TCPChimney:                 {Network.GetString("EnableTCPChimney")}");
                 s.WriteLine($"RSS:                        {Network.GetString("EnableRSS")}");
                 s.WriteLine($"TCPA:                       {Network.GetString("EnableTCPA")}");

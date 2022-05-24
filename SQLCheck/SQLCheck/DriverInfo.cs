@@ -36,6 +36,7 @@ namespace SQLCheck
         public static DriverInfo GetDriverInfo(string driverName, FileVersionInfo versionInfo, string WindowsVersion, string WindowsReleaseID)  // TODO - fix up MinTLSVersion and Server Support
         {
             string TLS12 = "No";
+            string TLS13 = "No";
 
             // SQLOLEDB and SQL Server
 
@@ -100,11 +101,11 @@ namespace SQLCheck
                             if (Utility.CompareVersion(WindowsVersion, "10.0.19042") == "=" && Utility.CompareVersion(WindowsVersion, "10.0.19042.609") == ">") TLS12 = "Yes";
                             break;
                         case "21H1":        // Windows 10/2019  21H1         ????                  build 19043  ????
-                            // TODO
+                            TLS12 = "Yes";
                             break;
                         case "IRON":        // Windows 10/2019  Iron         ????                  build 20207????  ????   April 16, 2021????
                                             // more at https://microsoft.visualstudio.com/OS/_workitems/edit/27324781
-                            // TODO
+                            TLS12 = "Yes";
                             break;
                     }
                     break;
@@ -139,6 +140,28 @@ namespace SQLCheck
                     }
                     if (versionInfo.ProductMajorPart == 12 && versionInfo.ProductMinorPart == 0 && versionInfo.ProductBuildPart >= 4219) TLS12 = "Yes";
                     break;
+                case "MSOLEDBSQL19":
+                    // Which versions of Windows Support TLS 1.3 - if we fail this, return No
+                    // https://docs.microsoft.com/en-us/windows/win32/secauthn/protocols-in-tls-ssl--schannel-ssp-#tls-protocol-version-support
+                    // Which versions of the driver support TLS 1.3 - if we fail this, return No
+                    if (versionInfo == null)
+                    {
+                        TLS13 = "Unknown";
+                        break;
+                    }
+                    TLS13 = "No"; // right now while we are in the initial release. Will be added, soon.
+                    break;
+                case "ODBC Driver 18 for SQL Server":
+                    // Which versions of Windows Support TLS 1.3 - if we fail this, return No
+                    // https://docs.microsoft.com/en-us/windows/win32/secauthn/protocols-in-tls-ssl--schannel-ssp-#tls-protocol-version-support
+                    // Which versions of the driver support TLS 1.3 - if we fail this, return No
+                    if (versionInfo == null)
+                    {
+                        TLS13 = "Unknown";
+                        break;
+                    }
+                    TLS13 = "No"; // right now while we are in the initial release. Will be added, soon.
+                    break;
             }
 
             switch (driverName)
@@ -148,7 +171,7 @@ namespace SQLCheck
                 case "SQLNCLI10":                      return new DriverInfo(driverName, "OLE DB", TLS12, "No",    "SQL 7.0 - SQL 2019",  "No",          "No");
                 case "SQLNCLI11":                      return new DriverInfo(driverName, "OLE DB", TLS12, "No",    "SQL 7.0 - SQL 2019",  "Yes",         "No");
                 case "MSOLEDBSQL":                     return new DriverInfo(driverName, "OLE DB", "Yes", "No",    "SQL 2005 - SQL 2019", "Yes",         "Yes");
-                case "MSOLEDBSQL19":                   return new DriverInfo(driverName, "OLE DB", "Yes", "Yes",   "SQL 2005 - SQL 2022", "Yes",         "Yes");
+                case "MSOLEDBSQL19":                   return new DriverInfo(driverName, "OLE DB", "Yes", TLS13,   "SQL 2005 - SQL 2022", "Yes",         "Yes");
                 case "SQL Server":                     return new DriverInfo(driverName, "ODBC",   TLS12, "No",    "SQL 7.0 - SQL 2019",  "Deprecated",  "No");
                 case "SQL Server Native Client 9.0":   return new DriverInfo(driverName, "ODBC",   "No",  "No",    "SQL 7.0 - SQL 2019",  "No",          "No");
                 case "SQL Server Native Client 10.0":  return new DriverInfo(driverName, "ODBC",   TLS12, "No",    "SQL 7.0 - SQL 2019",  "No",          "No");
@@ -156,7 +179,7 @@ namespace SQLCheck
                 case "ODBC Driver 11 for SQL Server":  return new DriverInfo(driverName, "ODBC",   TLS12, "No",    "SQL 7.0 - SQL 2019",  "Yes",         "Yes");
                 case "ODBC Driver 13 for SQL Server":  return new DriverInfo(driverName, "ODBC",   "Yes", "No",    "SQL 7.0 - SQL 2019",  "Yes",         "Yes");
                 case "ODBC Driver 17 for SQL Server":  return new DriverInfo(driverName, "ODBC",   "Yes", "No",    "SQL 2005 - SQL 2019", "Yes",         "Yes");
-                case "ODBC Driver 18 for SQL Server":  return new DriverInfo(driverName, "ODBC",   "Yes", "Yes",   "SQL 2005 - SQL 2022", "Yes",         "Yes");
+                case "ODBC Driver 18 for SQL Server":  return new DriverInfo(driverName, "ODBC",   "Yes", TLS13,   "SQL 2005 - SQL 2022", "Yes",         "Yes");
                 default:
                     return null;
             }

@@ -57,10 +57,11 @@ namespace SQLCheck
             //
             // Windows 10, version 1607 / Windows Server 2016  10.0          14393  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Not Supp      Change
             // Windows 10, version 1809 / Windows Server 2019  10.0          17763  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Not Supp
-            // Windows 10, version 21H1 / Windows Server 2019  10.0          19043  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Not Supp
+            // Windows 10, version 20H2 / Windows Server 2019  10.0          19042  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Enabled       Change
+            // Windows 10, version 21H1 / Windows Server 2019  10.0          19043  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Enabled
             //
-            // Windows 11, version 2009                        10.0          22000  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Enabled       Change
-            // Windows Server 2022                             ????          ?????  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Enabled
+            // Windows 11, version 21H2                        10.0          22000  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Enabled
+            // Windows Server 2022, wersion 21H2               10.0          20348  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Enabled
 
 
             string WindowsVersion = Computer.GetString("WindowsVersion");
@@ -68,8 +69,8 @@ namespace SQLCheck
             string WindowsBuild = Computer.GetString("WindowsBuild");
             string WindowsName = Computer.GetString("WindowsName");
 
-            // Wndows 11
-            if (Utility.CompareVersion(WindowsVersion, "10.0") == "=" && WindowsBuild.StartsWith("22"))  // Windows 11
+            // Windows 11, Windows 2022, Windows 10 versions 19042 and greater - Windows 2019 is in there somewhere, as well
+            if (Utility.CompareVersion(WindowsVersion, "10.0.19041") == ">") // Windows 11, Windows 2022, Windows 10/2019 versions 19042 and greater
             {
                 return new TLSInfo("Not Supported", "Not Supported", "Disabled", "Enabled", "Enabled", "Enabled", "Enabled");
             }
