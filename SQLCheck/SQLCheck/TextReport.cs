@@ -95,7 +95,17 @@ namespace SQLCheck
             s.WriteLine($"Windows Release ID:         {Computer.GetString("WindowsReleaseID")}");
             s.WriteLine($"64-Bit System:              {Computer.GetString("CPU64Bit")}");
             s.WriteLine($".NET 4.x version:           {Computer.GetString("CLR4Version")}");
+            s.WriteLine($"CLR 4.0 Strong Crypto:      {Computer.GetString("CLR4StrongCrypto")}");
+            if (Computer.GetBoolean("CPU64Bit"))
+            {
+                s.WriteLine($"CLR 4.0 Strong Crypto x86:  {Computer.GetString("CLR4StrongCryptoX86")}");
+            }
             s.WriteLine($".NET 2.x/3.x version:       {Computer.GetString("CLR2Version")}");
+            s.WriteLine($"CLR 2.0 Strong Crypto:      {Computer.GetString("CLR2StrongCrypto")}");
+            if (Computer.GetBoolean("CPU64Bit"))
+            {
+                s.WriteLine($"CLR 2.0 Strong Crypto x86:  {Computer.GetString("CLR2StrongCryptoX86")}");
+            }
             s.WriteLine($"Clustered:                  {Computer.GetBoolean("Clustered")}");
             s.WriteLine($"IIS Running:                {Computer.GetBoolean("IISRunning")}");
             s.WriteLine($"CredentialGuard enabled:    {Computer.GetBoolean("CredentialGuard")}");
@@ -296,22 +306,22 @@ namespace SQLCheck
                 ReportMessages(ds, s, "Network", Network["ID"].ToInt());  // returns a blank line at the end
             }
 
-            // DNS Aliases
+            // DNS Aliases - collector does not work 6/13/2022
 
-            if (dtHostAlias.Rows.Count == 0)
-            {
-                s.WriteLine("No DNS aliases found for this machine.");
-            }
-            else
-            {
-                s.WriteLine("The following DNS aliases found for this machine:");
-                s.WriteLine();
-                foreach (DataRow HostAlias in dtHostAlias.Rows)
-                {
-                    s.WriteLine($"    {HostAlias.GetString("DNS_Alias")}");
-                }
-            }
-            s.WriteLine();
+            //if (dtHostAlias.Rows.Count == 0)
+            //{
+            //    s.WriteLine("No DNS aliases found for this machine.");
+            //}
+            //else
+            //{
+            //    s.WriteLine("The following DNS aliases found for this machine:");
+            //    s.WriteLine();
+            //    foreach (DataRow HostAlias in dtHostAlias.Rows)
+            //    {
+            //        s.WriteLine($"    {HostAlias.GetString("DNS_Alias")}");
+            //    }
+            //}
+            //s.WriteLine();
 
             // Host file entries
 

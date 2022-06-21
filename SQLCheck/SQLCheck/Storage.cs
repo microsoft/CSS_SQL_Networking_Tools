@@ -142,7 +142,11 @@ namespace SQLCheck
             dt.AddColumn("WindowsReleaseID", "String");
             dt.AddColumn("WindowsUBR", "String");
             dt.AddColumn("CLR4Version", "String");
+            dt.AddColumn("CLR4StrongCrypto", "String");
+            dt.AddColumn("CLR4StrongCryptoX86", "String");
             dt.AddColumn("CLR2Version", "String");
+            dt.AddColumn("CLR2StrongCrypto", "String");
+            dt.AddColumn("CLR2StrongCryptoX86", "String");
             dt.AddColumn("IISRunning", "Boolean");  // added when enumerating services
             dt.AddColumn("Clustered", "Boolean");
             dt.AddColumn("DiffieHellmanVersion", "String");

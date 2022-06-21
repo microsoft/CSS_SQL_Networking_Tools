@@ -36,7 +36,7 @@ namespace SQLCheck
             CollectNetworkMiniDriver(ds);
             CollectODBC(ds);
             CollectDiskDrive(ds);
-            CollectHostAlias(ds);
+            // CollectHostAlias(ds);  // does not work consistently - turning off unless a better strategy can be found - 6/13/2022
             CollectHostsEntries(ds);
             CollectIPAddress(ds);
             CollectFLTMC(ds);
@@ -53,7 +53,7 @@ namespace SQLCheck
             // Collect OLAP
 
             // Other items:
-            // 2. ODBC Driver 17.4 keep-alive time and interval on ODBC Driver and DSN entries: https://docs.microsoft.com/en-us/sql/connect/odbc/windows/features-of-the-microsoft-odbc-driver-for-sql-server-on-windows?view=sql-server-ver15
+            // 1. ODBC Driver 17.4 keep-alive time and interval on ODBC Driver and DSN entries: https://docs.microsoft.com/en-us/sql/connect/odbc/windows/features-of-the-microsoft-odbc-driver-for-sql-server-on-windows?view=sql-server-ver15
             ds.AcceptChanges();
 
         }
@@ -173,6 +173,21 @@ namespace SQLCheck
                 Computer.LogWarning(".NET 4.x Framework is present but has not been updated to support TLS 1.2.");
             }
 
+            //
+            // Strong Crypto Key CLR 4.0 - to force TLS 1.2
+            //
+
+            if (CLR4Version.StartsWith("4"))  // i.e. does not equal "Not Installed" - from above section
+            {
+                string CLR4StrongCrypto = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\.NETFramework\v4.0.30319", "SchUseStrongCrypto", "");
+                Computer["CLR4StrongCrypto"] = CLR4StrongCrypto == "" ? "Not set" : CLR4StrongCrypto;
+
+                if (Environment.Is64BitOperatingSystem)
+                {
+                    CLR4StrongCrypto = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\.NETFramework\v4.0.30319", "SchUseStrongCrypto", "");
+                    Computer["CLR4StrongCryptoX86"] = CLR4StrongCrypto == "" ? "Not set" : CLR4StrongCrypto;
+                }
+            }
 
             //
             // CLR 2 version - try 3.5, then 3.0, then 2.0 - ADO.NET support for TLS 1.2 is available only in the .NET Framework 2.0 SP2, 3.0 SP2, 3.5 SP1
@@ -202,6 +217,22 @@ namespace SQLCheck
                 (CLR2Version.StartsWith("2.0.") && ServicePack != "2"))
             {
                 Computer.LogWarning(".NET 2.x/3.x Framework is present but has not been updated to support TLS 1.2.");
+            }
+
+            //
+            // Strong Crypto Key CLR 2.0 - to force TLS 1.2
+            //
+
+            if (CLR2Version != "Not Installed")  // from above section
+            {
+                string CLR2StrongCrypto = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\.NETFramework\v2.0.50727", "SchUseStrongCrypto", "");
+                Computer["CLR2StrongCrypto"] = CLR2StrongCrypto == "" ? "Not set" : CLR2StrongCrypto;
+
+                if (Environment.Is64BitOperatingSystem)
+                {
+                    CLR2StrongCrypto = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\.NETFramework\v2.0.50727", "SchUseStrongCrypto", "");
+                    Computer["CLR2StrongCryptoX86"] = CLR2StrongCrypto == "" ? "Not set" : CLR2StrongCrypto;
+                }
             }
 
             //

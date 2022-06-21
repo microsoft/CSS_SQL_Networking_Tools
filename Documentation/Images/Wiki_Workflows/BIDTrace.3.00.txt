@@ -30,16 +30,13 @@
 '                   e.g. CSCRIPT BIDTRACE.VBS START MYTRACE -NETWORK ... other options. Can really appear in any valid position in the options, even at the end.
 '                   e.g. CSCRIPT BIDTRACE.VBS STOP MYTRACE -NETWORK    <--- needed to execute the commands to stop the optional traces
 ' Updated 10/5/2021 to take a tasklist at the beginning and end of the trace: TasklistAtStart.log and TasklistAtEnd.log
-' Updated 2/28/2022 to support MSODBCSQL18 and MSOLEDBSQL19
-' Updated 6/17/2022 corrected to not create unnnecessary empty folders in output.  
-'                   Also, accommodating putting mofs in separate folder.  
 '
 
 Option Explicit
 
 ' version and Date
 Const g_FILENAME = "bidtrace.vbs"     ' was "bid2etwConfig.vbs"
-Const g_VERSION = "3.50.000"
+Const g_VERSION = "3.00.000"
 Const g_VERSIONDATE = "10/05/2021"
 
 Const HKEY_LOCAL_MACHINE = &H80000002
@@ -65,7 +62,6 @@ Dim g_TraceFlags
 Dim g_TraceName
 Dim g_AppPath
 Dim g_OutputDir
-Dim g_OutputMofDir
 Dim g_FileMode
 Dim g_MaxFile
 Dim g_NetTrace
@@ -108,8 +104,8 @@ Sub Main
     ValidateSettings
 
     ' check if the output directory is valid, only START mode need output folder
-    If (g_RunMode = "START") AND NOT g_objFSO.FolderExists(g_OutputDir) Then
-        CreateDirectory(g_OutputDir)        
+    If (g_RunMode = "START" OR g_RunMode = "CONFIG") AND NOT g_objFSO.FolderExists(g_OutputDir) Then
+        CreateDirectory(g_OutputDir)
     End If
     
     If g_DoSetup Then
@@ -120,12 +116,8 @@ Sub Main
         DoCleanup
     End If
     
-    If g_DoMofcomp Then     
-      If NOT g_objFSO.FolderExists(g_OutputMofDir) Then
-        CreateDirectory(g_OutputMofDir)                               
-      End If
-
-      DoMofcomp
+    If g_DoMofcomp Then
+        DoMofcomp
     End If
 
     If g_RunMode = "START" Then
@@ -474,7 +466,6 @@ Sub InitializeGlobals
     g_TraceName     = ""
     g_AppPath       = ":Path"
     g_OutputDir     = Left(WScript.ScriptFullname, Len(WScript.ScriptFullname)-Len(WScript.ScriptName)) & "Output_On_" & GetDateTimeStamp()
-    g_OutputMofDir  = ".\mof" 
     g_MaxFile       = "1000"
     g_FileMode      = "Circular"
     g_NetTrace      = FALSE
@@ -975,21 +966,21 @@ Sub DoMofcomp
     Dim objShOut
 
     ' generate mof file
-    Set objMofFile = g_objFSO.CreateTextFile(g_OutputMofDir & "\trace.mof", True)
+    Set objMofFile = g_objFSO.CreateTextFile(g_OutputDir & "\trace.mof", True)
     
     GenerateMofFile objMofFile
         
     objMofFile.Close
     
     ' Run mofcomp to compile the mof file
-    Set objShOut = g_objFSO.CreateTextFile(g_OutputMofDir & "\mofcomp.out", True)
+    Set objShOut = g_objFSO.CreateTextFile(g_OutputDir & "\mofcomp.out", True)
     
     objShOut.WriteLine ""
     WScript.Echo ""
     objShOut.WriteLine "Executing mofcomp on " & GetDateTimeStamp
     WScript.Echo "Executing mofcomp on " & GetDateTimeStamp
     
-    strAux = "mofcomp """ & g_OutputMofDir & "\trace.mof"""
+    strAux = "mofcomp """ & g_OutputDir & "\trace.mof"""
     
     objShOut.WriteLine strAux
     WScript.Echo strAux
