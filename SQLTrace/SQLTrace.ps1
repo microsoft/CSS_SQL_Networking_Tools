@@ -43,7 +43,10 @@ param
     [Parameter(ParameterSetName = 'Start', Mandatory=$false)]
     [Parameter(ParameterSetName = 'Stop', Mandatory=$false)]
     [Parameter(ParameterSetName = 'Cleanup', Mandatory=$false)]
-    [string] $INIFile = "SQLTrace.ini"
+    [string] $INIFile = "SQLTrace.ini",
+
+    [Parameter(ParameterSetName = 'Start', Mandatory=$false)]
+    [string] $LogFolder = ""
 
 )
 
@@ -51,29 +54,33 @@ param
 #=======================================Globals =====================================
 
 # [console]::TreatControlCAsInput = $false   # may change this later
-[string]$global:CurrentFolder = ""
+[string]$global:CurrentFolder = Get-Location
 [string]$global:LogFolderName = ""
-[string]$global:LogFolderEnvName = "SQLTraceFolderName"
+[string]$global:LogProgressFileName = ""
+[string]$global:LogFolderEnvName = "SQLTraceLogFolder"
 
 $global:INISettings = $null                  # set in ReadINIFile
 $global:RunningSettings = $null
 
 Function Main
 {    
-    ReadINIFile
-    DisplayINIValues  # TODO hide
+    if (PreReqsOkay)
+    {
+        ReadINIFile
+        DisplayINIValues  # TODO hide
 
-    if     ($Setup)    { DisplayLicenseAndHeader }
-    elseif ($Start)    { StartTraces }
-    elseif ($Stop)     { StopTraces }
-    elseif ($Cleanup)  { }
-    else               { DisplayLicenseAndHeader; DisplayHelpMessage }
+        if     ($Setup)    { DisplayLicenseAndHeader }                              # set BID Trace :Path registry if asked for in the INI file
+        elseif ($Start)    { SetLogFolderName; StartTraces }                        # set BID Trace registry if not already set, then pause and prompt to restart app
+        elseif ($Stop)     { GetLogFolderName; StopTraces }
+        elseif ($Cleanup)  { CleanEnvironment }
+        else               { DisplayLicenseAndHeader; DisplayHelpMessage }
+    }
 }
 
 Function DisplayLicenseAndHeader
 {
 # Text is left-justified to prevent leading spaces. Column width not to exceed 79 for smaller console sizes.
-"
+LogRaw "
   _________________   .____   ___________                                
  /   _____/\_____  \  |    |  \__    ___/_______ _____     ____   ____
  \_____  \  /  / \  \ |    |    |    |   \_  __ \\__  \  _/ ___\_/ __ \
@@ -81,7 +88,7 @@ Function DisplayLicenseAndHeader
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                     SQLTrace.ps1 version 0.1 Alpha
+                     SQLTrace.ps1 version 0.2 Alpha
                by the Microsoft SQL Server Networking Team
 
 MIT License
@@ -122,7 +129,7 @@ Usage:
 
    .\SQLTrace.ps1 -Help
    .\SQLTrace.ps1 -Setup [-INIFile SQLTrace.ini]
-   .\SQLTrace.ps1 -Start [-StopAfter 0] [-INIFile SQLTrace.ini]
+   .\SQLTrace.ps1 -Start [-StopAfter 0] [-INIFile SQLTrace.ini] [-LogFolder folderpath]
    .\SQLTrace.ps1 -Stop [-INIFile SQLTrace.ini]
    .\SQLTrace.ps1 -Cleanup [-INIFile SQLTrace.ini]
 "
@@ -201,6 +208,50 @@ Function DisplayINIValues
     "EventViewer         " + $global:INISettings.EventViewer
 }
 
+Function PreReqsOkay
+{
+    $currentPrincipal = New-Object Security.Principal.WindowsPrincipal( [Security.Principal.WindowsIdentity]::GetCurrent( ) )
+    if ( -not ($currentPrincipal.IsInRole( [Security.Principal.WindowsBuiltInRole]::Administrator ) ) )
+    {
+	    LogError "SQLTrace requires elevated privileges. Please run the PowerShell command prompt ""As Administrator""."
+        return $false
+    }
+    return $true
+}
+
+Function SetLogFolderName
+{
+    if ($LogFolder.Length -gt 0)
+    {
+        # Cannot resolve the [potential] relative path until the folder is created
+        mkdir $LogFolder
+        $global:LogFolderName = Resolve-Path $LogFolder
+    }
+    else  # generate a name in the current folder
+    {
+       $global:LogFolderName = "$($global:CurrentFolder)\SQLTrace_$(Get-Date -Format ""yyyyMMdd_HHmmss"")"
+       mkdir $global:LogFolderName
+    }
+    [System.Environment]::SetEnvironmentVariable($global:LogFolderEnvName,$global:LogFolderName, [System.EnvironmentVariableTarget]::Machine)
+    $global:LogProgressFileName = "$($global:LogFolderName)\SQLTrace.log"
+    LogInfo "Log folder name: $($global:LogFolderName)"
+    LogInfo "Progress Log name: $($global:LogProgressFileName)"
+}
+
+Function GetLogFolderName
+{
+    $global:LogFolderName = [System.Environment]::GetEnvironmentVariable($global:LogFolderEnvName, [System.EnvironmentVariableTarget]::Machine)
+    $global:LogProgressFileName = "$($global:LogFolderName)\SQLTrace.log"
+    LogInfo "Log folder name: $($global:LogFolderName)"
+    LogInfo "Progress Log name: $($global:LogProgressFileName)"
+}
+
+Function CleanEnvironment
+{
+    # After we stop tracing, clear the environment variable, so we do not re-use the folder name
+    [System.Environment]::SetEnvironmentVariable($global:LogFolderEnvName, $null, [System.EnvironmentVariableTarget]::Machine)
+}
+
 # ================================= Class Definitions ===========================
 
 class INIValueClass             # contains all the INI file settings in one place
@@ -229,15 +280,27 @@ class RunningSettings
     [System.Diagnostics.Process] $NetmonProcess = $null
 }
 
+# ======================================= Start Traces =========================================
+
 Function StartTraces
 {
 
     $PSDefaultParameterValues['*:Encoding'] = 'Ascii'
     $global:RunningSettings = New-Object RunningSettings
+    FlushCaches
+    tasklist > "$($global:LogFolderName)\TasklistAtStart.txt"
+    netstat -abon > "$($global:LogFolderName)\NetStatAtStart.txt"
     StartBIDTraces
     StartNetworkTraces
     StartAuthenticationTraces
+    LogInfo "Traces have started..."
+}
 
+Function FlushCaches
+{
+    IPCONFIG /flushdns
+    NBTSTAT -R
+    Get-WmiObject Win32_LogonSession | Where-Object {$_.AuthenticationPackage -ne 'NTLM'} | ForEach-Object {c:\windows\system32\klist.exe purge -li ([Convert]::ToString($_.LogonId, 16))}
 }
 
 Function GETBIDTraceGuid($bidProvider)
@@ -298,21 +361,22 @@ Function StartBIDTraces
     $vGUIDs = [System.Collections.ArrayList]::new()
     if($global:INISettings.BidTrace -eq "Yes")
     {
+        LogInfo "Starting BID Traces ..."
         if($global:INISettings.BidWow -eq "Only")
         {
-            "BIDTrace - Set BIDInterface WOW64 MSDADIAG.DLL"
+            LogInfo "BIDTrace - Set BIDInterface WOW64 MSDADIAG.DLL"
             reg add HKLM\Software\WOW6432Node\Microsoft\BidInterface\Loader /v :Path /t  REG_SZ  /d MsdaDiag.DLL /f
         }
         elseif($global:INISettings.BidWow -eq "Both")
         {
-            "BIDTrace - Set BIDInterface MSDADIAG.DLL"
+            LogInfo "BIDTrace - Set BIDInterface MSDADIAG.DLL"
             reg  add HKLM\Software\Microsoft\BidInterface\Loader /v :Path /t  REG_SZ  /d MsdaDiag.DLL /f
-            "BIDTrace - Set BIDInterface WOW64 MSDADIAG.DLL"
+            LogInfo "BIDTrace - Set BIDInterface WOW64 MSDADIAG.DLL"
             reg add HKLM\Software\WOW6432Node\Microsoft\BidInterface\Loader /v :Path /t  REG_SZ  /d MsdaDiag.DLL /f
         }
         else ## BIDWOW = No
         {
-        "BIDTrace - Set BIDInterface MSDADIAG.DLL"
+        LogInfo "BIDTrace - Set BIDInterface MSDADIAG.DLL"
         reg  add HKLM\Software\Microsoft\BidInterface\Loader /v :Path /t  REG_SZ  /d MsdaDiag.DLL /f
         }
 
@@ -326,8 +390,8 @@ Function StartBIDTraces
         $vGUIDs.Add($guid) | out-null
         }
 
-        if((Test-Path ".\BIDTraces" -PathType Container) -eq $false){
-        md "BIDTraces" > $null
+        if((Test-Path "$($global:LogFolderName)\BIDTraces" -PathType Container) -eq $false){
+        md "$($global:LogFolderName)\BIDTraces" > $null
         }
         
         $cRow=0
@@ -335,18 +399,18 @@ Function StartBIDTraces
         { 
           if($cRow -gt 0) 
           {
-            $guid | Out-File -FilePath ".\BIDTraces\ctrl.guid" -Append
+            $guid | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid" -Append
           }
           else
           {
-            $guid | Out-File -FilePath ".\BIDTraces\ctrl.guid"
+            $guid | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid"
           }
           $cRow++
 
         }
 
         #$vGUIDs > ".\BIDTraces\ctrl.guid"
-        logman start msbidtraces -pf ".\BIDTraces\ctrl.guid" -o ".\BIDTraces\BIDTrace.etl" -bs 1024 -nb 1024 1024 -mode Preallocate+Circular -max 1000 -ets
+        logman start msbidtraces -pf "$($global:LogFolderName)\BIDTraces\ctrl.guid" -o "$($global:LogFolderName)\BIDTraces\bidtrace%d.etl.etl" -bs 1024 -nb 1024 1024 -mode NewFile -max 200 -ets
 
     }
 
@@ -361,9 +425,9 @@ Function StartWireshark
     $ArgumentList = ""
     For($cDevices=0;$cDevices -lt $DeviceList.Count;$cDevices++) { $ArgumentList = $ArgumentList + " -i " + ($cDevices+1) }
     ##Prepare command arguments 
-    $ArgumentList = $ArgumentList + " -w .\NetworkTraces\NetworkTraces.pcap -b filesize:200000 -b files:10"
+    $ArgumentList = $ArgumentList + " -w $($global:LogFolderName)\NetworkTraces\nettrace.pcap -b filesize:200000 -b files:10"
     $WiresharkProcess = Start-Process $WiresharkCmd -PassThru -NoNewWindow -ArgumentList $ArgumentList
-        "Wireshark is running with PID: " + $global:RunningSettings.WiresharkProcess.ID
+    LogInfo "Wireshark is running with PID: " + $global:RunningSettings.WiresharkProcess.ID
 
 }
 
@@ -375,11 +439,11 @@ Function StartNetworkMonitor
     $NMCap = Get-ItemPropertyValue -Path 'HKLM:\HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Netmon3\' -Name InstallDir
 
     $NMCap = '"' + $NMCap + "nmcap.exe" + '" '
-    $ArgumentList = "/network * /capture /file .\NetworkTraces\NetworkTraces.chn:2048M /StopWhen /Frame dns.qrecord.questionname.Contains('stopmstrace')"
+    $ArgumentList = "/network * /capture /file $($global:LogFolderName)\NetworkTraces\nettrace.chn:200M /StopWhen /Frame dns.qrecord.questionname.Contains('stopmstrace')"
     
     #Start the capture
     $global:RunningSettings.NetmonProcess = Start-Process $NMCap -PassThru -NoNewWindow -ArgumentList $ArgumentList
-    "Network Monitor is running with PID: " + $global:RunningSettings.NetmonProcess.ID
+    LogInfo "Network Monitor is running with PID: " + $global:RunningSettings.NetmonProcess.ID
     
 }
 Function StartNetworkTraces
@@ -388,25 +452,29 @@ Function StartNetworkTraces
     if($global:INISettings.NETTrace -eq "Yes")
     {
 
-        "Starting Network Traces..."
-        if((Test-Path ".\NetworkTraces" -PathType Container) -eq $false){
-        md "NetworkTraces" > $null
+        LogInfo "Starting Network Traces..."
+        if((Test-Path "$($global:LogFolderName)\NetworkTraces" -PathType Container) -eq $false){
+        md "$($global:LogFolderName)\NetworkTraces" > $null
         }
 
         if($global:INISettings.NETSH -eq "Yes")
         {
-            "Starting NETSH..."
-            $commandLine = "netsh trace start capture=yes overwrite=yes tracefile=.\NetworkTraces\" + $env:computername +".etl filemode=circular maxSize=200MB"
-            Invoke-Expression $commandLine
+            LogInfo "Starting NETSH..."
+            # $commandLine = "netsh trace start capture=yes overwrite=yes tracefile=$($global:LogFolderName)\NetworkTraces\" + $env:computername +".etl filemode=circular maxSize=200MB"
+            # Invoke-Expression $commandLine
+
+            netsh trace start capture=yes maxsize=1 TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl"
+            logman start msndiscap -p Microsoft-Windows-NDIS-PacketCapture -mode newfile -max 200 -o "$($global:LogFolderName)\NetworkTraces\nettrace%d.etl" -ets
+
         }
         if($global:INISettings.NETMON -eq "Yes")
         {
-            "Starting Network Monitor..."
+            LogInfo "Starting Network Monitor..."
             StartNetworkMonitor
         }
         if($global:INISettings.WIRESHARK -eq "Yes")
         {
-            "Starting Wireshark..."
+            LogInfo "Starting Wireshark..."
             StartWireshark
         }
         
@@ -419,13 +487,13 @@ Function StartAuthenticationTraces
     if($global:INISettings.AuthTrace -eq "Yes")
     {
  
-        if((Test-Path ".\Auth" -PathType Container) -eq $false){
-           md "Auth" > $null
+        if((Test-Path "$($global:LogFolderName)\Auth" -PathType Container) -eq $false){
+           md "$($global:LogFolderName)\Auth" > $null
         }
    
         if($global:INISettings.Kerberos -eq "Yes")
         {
-            Write-Host "Starting Kerberos ETL Traces..."
+            LogInfo "Starting Kerberos ETL Traces..."
 
             # **Kerberos**
             $Kerberos = @(
@@ -446,7 +514,7 @@ Function StartAuthenticationTraces
             # Kerberos Logging to SYSTEM event log in case this is a client
             reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA\Kerberos\Parameters /v LogLevel /t REG_DWORD /d 1 /f
     
-            logman start "Kerberos" -o .\Auth\Kerberos.etl -ets
+            logman start "Kerberos" -o "$($global:LogFolderName)\Auth\Kerberos.etl" -ets
 
             ForEach($KerberosProvider in $Kerberos)
             {
@@ -461,7 +529,7 @@ Function StartAuthenticationTraces
         if($global:INISettings.Credssp -eq "Yes")
         {
 
-            Write-Host "Starting CredSSP/NTLM Traces..."
+            LogInfo "Starting CredSSP/NTLM Traces..."
             # **Ntlm_CredSSP**
             $Ntlm_CredSSP = @(
             '{5BBB6C18-AA45-49b1-A15F-085F7ED0AA90}!0x5ffDf'
@@ -471,7 +539,7 @@ Function StartAuthenticationTraces
             '{DAA6CAF5-6678-43f8-A6FE-B40EE096E06E}!0xffffffffffffffff'
             )
 
-            logman create trace "Ntlm_CredSSP" -o .\Auth\Ntlm_CredSSP.etl -ets
+            logman create trace "Ntlm_CredSSP" -o "$($global:LogFolderName)\Auth\Ntlm_CredSSP.etl" -ets
 
             ForEach($Ntlm_CredSSPProvider in $Ntlm_CredSSP)
             {
@@ -487,14 +555,14 @@ Function StartAuthenticationTraces
 
         if($global:INISettings.SSL -eq "Yes")
         {
-            Write-Host "Starting SSL Traces..."
+            LogInfo "Starting SSL Traces..."
             # **SSL**
             $SSL = @(
             '{37D2C3CD-C5D4-4587-8531-4696C44244C8}!0x4000ffff'
             )
 
             # Start Logman SSL     
-            logman start "SSL" -o .\Auth\SSL.etl -ets
+            logman start "SSL" -o "$($global:LogFolderName)\Auth\SSL.etl" -ets
 
             ForEach($SSLProvider in $SSL)
             {
@@ -512,7 +580,7 @@ Function StartAuthenticationTraces
         if($global:INISettings.LSA -eq "Yes")
         {
           
-            Write-Host "Starting LSA Traces..."
+            LogInfo "Starting LSA Traces..."
 
             # **Netlogon logging**
             nltest /dbflag:0x2EFFFFFF 2>&1 | Out-Null
@@ -542,7 +610,7 @@ Function StartAuthenticationTraces
 
             # Start Logman LSA
             $LSASingleTraceName = "LSA"
-            logman create trace $LSASingleTraceName -o .\Auth\LSA.etl -ets
+            logman create trace $LSASingleTraceName -o "$($global:LogFolderName)\Auth\LSA.etl" -ets
 
             ForEach($LSAProvider in $LSA)
                 {
@@ -553,21 +621,22 @@ Function StartAuthenticationTraces
         
                     logman update trace $LSASingleTraceName -p `"$LSASingleTraceGUID`" $LSASingleTraceFlags 0xff -ets | Out-Null
                 }
-
-           Copy-Item -Path "$($env:windir)\debug\Netlogon.*" -Destination .\Auth -Force 2>&1 
-           Copy-Item -Path "$($env:windir)\system32\Lsass.log" -Destination .\Auth -Force 2>&1 
+                
+           # Do this when stopping, not startig
+           # Copy-Item -Path "$($env:windir)\debug\Netlogon.*" -Destination .\Auth -Force 2>&1 
+           # Copy-Item -Path "$($env:windir)\system32\Lsass.log" -Destination .\Auth -Force 2>&1 
 
         }
 
         if($global:INISettings.EventViewer -eq "Yes")
         {
 
-            Write-Host "Enabling/Collecting Event Viewer Logs..."
+            LogInfo "Enabling/Collecting Event Viewer Logs..."
             # Enable Eventvwr logging
-            wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /enabled:true /rt:false /q:true 2>&1 
-            wevtutil.exe export-log "Microsoft-Windows-CAPI2/Operational" .\Auth\Capi2_Oper.evtx /overwrite:true 2>&1 
+            # wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /enabled:true /rt:false /q:true 2>&1 
+            # wevtutil.exe export-log "Microsoft-Windows-CAPI2/Operational" .\Auth\Capi2_Oper.evtx /overwrite:true 2>&1 
             # wevtutil.exe clear-log "Microsoft-Windows-CAPI2/Operational" 2>&1 | Out-Null
-            wevtutil.exe sl "Microsoft-Windows-CAPI2/Operational" /ms:102400000 2>&1
+            wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /ms:102400000 2>&1
             wevtutil.exe set-log "Microsoft-Windows-Kerberos/Operational" /enabled:true /rt:false /q:true 2>&1
             # wevtutil.exe clear-log "Microsoft-Windows-Kerberos/Operational" 2>&1 | Out-Null
 
@@ -575,13 +644,18 @@ Function StartAuthenticationTraces
     }
 }
 
+# ================================================= Stop Traces ====================================================
 
 Function StopTraces
 {
+    LogInfo "Stopping Traces ..."
     $global:RunningSettings = New-Object RunningSettings
+    netstat -abon > "$($global:LogFolderName)\NetStatAtEnd.txt"
     StopBIDTraces
     StopNetworkTraces
     StopAuthenticationTraces
+    tasklist > "$($global:LogFolderName)\TasklistAtEnd.txt"
+    LogInfo "Traces have stopped ..."
 }
 
 Function StopBIDTraces
@@ -590,23 +664,24 @@ Function StopBIDTraces
 
     if($global:INISettings.BidTrace -eq "Yes")
     {
+        LogInfo "Stopping BID Traces ..."
         if($global:INISettings.BidWow -eq "Only")
         {
-            "BIDTrace - Unset BIDInterface WOW64 MSDADIAG.DLL"
+            LogInfo "BIDTrace - Unset BIDInterface WOW64 MSDADIAG.DLL"
             reg delete HKLM\Software\WOW6432Node\Microsoft\BidInterface\Loader /v :Path /f
         }
         elseif($global:INISettings.BidWow -eq "Both")
         {
-            "BIDTrace - Unset BIDInterface MSDADIAG.DLL"
+            LogInfo "BIDTrace - Unset BIDInterface MSDADIAG.DLL"
             reg delete HKLM\Software\Microsoft\BidInterface\Loader /v :Path /f
 
-            "BIDTrace - Unset BIDInterface WOW64 MSDADIAG.DLL"
+            LogInfo "BIDTrace - Unset BIDInterface WOW64 MSDADIAG.DLL"
             reg delete HKLM\Software\WOW6432Node\Microsoft\BidInterface\Loader /v :Path /f
         }
         else ## BIDWOW = No
         {
-        "BIDTrace - Unset BIDInterface MSDADIAG.DLL"
-        reg delete HKLM\Software\Microsoft\BidInterface\Loader /v :Path /f
+            LogInfo "BIDTrace - Unset BIDInterface MSDADIAG.DLL"
+            reg delete HKLM\Software\Microsoft\BidInterface\Loader /v :Path /f
         }
 
         logman stop msbidtraces -ets
@@ -622,22 +697,26 @@ Function StopNetworkTraces
     if($global:INISettings.NETTrace -eq "Yes")
     {
 
-        "Stopping Network Traces..."
+        LogInfo "Stopping Network Traces..."
         if($global:INISettings.NETSH -eq "Yes")
         {
-            "Stopping NETSH..."
+            LogInfo "Stopping NETSH..."
+            # netsh trace stop
+            logman stop msndiscap -ets
             netsh trace stop
+            del "$($global:LogFolderName)\NetworkTraces\deleteme.etl"
+            Rename-Item "$($global:LogFolderName)\NetworkTraces\deleteme.cab" "network_settings.cab"
         }
         if($global:INISettings.NETMON -eq "Yes")
         {
             $NetmonPID = Get-Process -Name "nmcap"
-            "Stopping Network Monitor with PID: " + $NetmonPID.ID
-            nslookup "stopmstrace.microsoft.com" 2>&1 | Out-Null
+            LogInfo "Stopping Network Monitor with PID: " + $NetmonPID.ID
+            nslookup "stopmstrace.microsoft.com" 2>&1 | Out-Null     # Why the 2>&1 pipe? Do we still need that?
         }
         if($global:INISettings.WIRESHARK -eq "Yes")
         {
             $WiresharkPID = Get-Process -Name "dumpcap"
-            "Stopping Wireshark with PID: " + $WiresharkPID.ID
+            LogInfo "Stopping Wireshark with PID: " + $WiresharkPID.ID
             Stop-Process -Name "dumpcap" -Force
         }
 
@@ -653,23 +732,23 @@ Function StopAuthenticationTraces
 
         if($global:INISettings.Kerberos -eq "Yes")
         {
-            Write-Host "Stopping Kerberos ETL Traces..."
+            LogInfo "Stopping Kerberos ETL Traces..."
             logman stop "Kerberos" -ets
             reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA\Kerberos\Parameters /v LogLevel /f  2>&1
         }
         if($global:INISettings.Credssp -eq "Yes")
         {
-            Write-Host "Stopping CredSSP/NTLM Traces..."
+            LogInfo "Stopping CredSSP/NTLM Traces..."
             logman stop "Ntlm_CredSSP" -ets
         }
         if($global:INISettings.SSL -eq "Yes")
         {
-            Write-Host "Stopping SSL Traces..."
+            LogInfo "Stopping SSL Traces..."
             logman stop "SSL" -ets
         }
         if($global:INISettings.LSA -eq "Yes")
         {
-            Write-Host "Stopping LSA Traces..."
+            LogInfo "Stopping LSA Traces..."
             #Netlogon
             nltest /dbflag:0x0  2>&1 | Out-Null
             #LSA
@@ -683,47 +762,73 @@ Function StopAuthenticationTraces
 
             logman stop "LSA" -ets
 
-            Copy-Item -Path "$($env:windir)\debug\Netlogon.*" -Destination .\Auth -Force 2>&1
-            Copy-Item -Path "$($env:windir)\system32\Lsass.log" -Destination .\Auth -Force 2>&1
+            Copy-Item -Path "$($env:windir)\debug\Netlogon.*" -Destination "$($global:LogFolderName)\Auth" -Force 2>&1
 
+            if (Test-Path "$($env:windir)\system32\Lsass.log")
+            {
+                Copy-Item -Path "$($env:windir)\system32\Lsass.log" -Destination "$($global:LogFolderName)\Auth" -Force 2>&1
+            }
+            else
+            {
+                LogWarning "File $($env:windir)\system32\Lsass.log does not exist."
+            }
         }
 
     
         if($global:INISettings.EventViewer -eq "Yes")
         {
 
-            Write-Host "Disabling/Collecting Event Viewer Logs..."
+            LogInfo "Disabling/Collecting Event Viewer Logs..."
             # *** Event/Operational logs
             wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /enabled:false  2>&1
-            wevtutil.exe export-log "Microsoft-Windows-CAPI2/Operational" .\Auth\Capi2_Oper.evtx /overwrite:true  2>&1
+            wevtutil.exe export-log "Microsoft-Windows-CAPI2/Operational" "$($global:LogFolderName)\Auth\Capi2_Oper.evtx" /overwrite:true  2>&1
             wevtutil.exe set-log "Microsoft-Windows-Kerberos/Operational" /enabled:false  2>&1
-            wevtutil.exe export-log "Microsoft-Windows-Kerberos/Operational" .\Auth\Kerb_Oper.evtx /overwrite:true  2>&1
+            wevtutil.exe export-log "Microsoft-Windows-Kerberos/Operational" "$($global:LogFolderName)\Auth\Kerb_Oper.evtx" /overwrite:true  2>&1
 
             #TODO: Reduce the amount of logs of EVTX + TXT 
-            wevtutil.exe export-log SECURITY .\Auth\Security.evtx /overwrite:true  2>&1
-            wevtutil.exe export-log SYSTEM .\Auth\System.evtx /overwrite:true  2>&1
-            wevtutil.exe export-log APPLICATION .\Auth\Application.evtx /overwrite:true  2>&1
+            wevtutil.exe export-log SECURITY "$($global:LogFolderName)\Auth\Security.evtx" /overwrite:true  2>&1
+            wevtutil.exe export-log SYSTEM "$($global:LogFolderName)\Auth\System.evtx" /overwrite:true  2>&1
+            wevtutil.exe export-log APPLICATION "$($global:LogFolderName)\Auth\Application.evtx" /overwrite:true  2>&1
+        }
+    }
+}
 
+# ======================================= Logging ===============================
 
+Function LogMessage($Message, $LogLevel = "info")
+{
+    # Determine colors from log level - defaults are for info or any unknown log level
+    $ForeColor = "White"
+
+    # Build raw message or decorated message
+    if ($LogLevel -eq "Raw")
+    {
+        $LogMessage = $Message
+    }
+    else
+    {
+        $LevelText = "INFO"
+        switch ($LogLevel)
+        {
+            "Warning" { $ForeColor = "Yellow"; $LevelText = "WARN"; }
+            "Error"   { $ForeColor = "Red";    $LevelText = "ERR "; }
         }
 
+        # timestamp prefix
+        $Stamp = (Get-Date).toString("yyyy/MM/dd HH:mm:ss.fff")
 
+        $LogMessage = "$Stamp $LevelText    $Message"
     }
-    
-    
 
+	Write-Host $LogMessage -ForegroundColor $ForeColor
+    if ($global:LogFolderName.Length -gt 0) { $LogMessage >> $global:LogProgressFileName }
 }
+
+Function LogRaw($Message)     { LogMessage $Message "Raw";     }
+Function LogInfo($Message)    { LogMessage $Message "Info";    }
+Function LogWarning($Message) { LogMessage $Message "Warning"; }
+Function LogError($Message)   { LogMessage $Message "Error";   }
 
 # ================================= start everything here =======================
 Main
 # ===============================================================================
-
-
-
-
-
-
-
-
-
-
