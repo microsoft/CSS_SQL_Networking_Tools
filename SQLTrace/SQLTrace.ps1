@@ -67,10 +67,10 @@ Function Main
     if (PreReqsOkay)
     {
         ReadINIFile
-        DisplayINIValues  # TODO hide
+        # DisplayINIValues  # TODO hide
 
-        if     ($Setup)    { DisplayLicenseAndHeader; SetupTraces }                              # set BID Trace :Path registry if asked for in the INI file
-        elseif ($Start)    { SetLogFolderName; StartTraces }                        # set BID Trace registry if not already set, then pause and prompt to restart app
+        if     ($Setup)    { DisplayLicenseAndHeader; SetupTraces }                       # set BID Trace :Path registry if asked for in the INI file
+        elseif ($Start)    { SetLogFolderName; DisplayLicenseAndHeader; StartTraces }     # set BID Trace registry if not already set, then pause and prompt to restart app
         elseif ($Stop)     { GetLogFolderName; StopTraces }
         elseif ($Cleanup)  { CleanupTraces }
         else               { DisplayLicenseAndHeader; DisplayHelpMessage }
@@ -81,14 +81,14 @@ Function DisplayLicenseAndHeader
 {
 # Text is left-justified to prevent leading spaces. Column width not to exceed 79 for smaller console sizes.
 LogRaw "
-  _________________   .____   ___________                                
+  _________________   .____   ___________                              
  /   _____/\_____  \  |    |  \__    ___/_______ _____     ____   ____
  \_____  \  /  / \  \ |    |    |    |   \_  __ \\__  \  _/ ___\_/ __ \
  /        \/   \_/.  \|    |___ |    |    |  | \/ / __ \_\  \___\  ___/
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                     SQLTrace.ps1 version 0.2 Alpha
+                  SQLTrace.ps1 version 0.5.0.0033 Alpha
                by the Microsoft SQL Server Networking Team
 
 MIT License
@@ -188,7 +188,7 @@ Function ReadINIFile
 
 Function DisplayINIValues
 {
-    "Read the ini file: $fileName"
+    "Read the ini file: $INIFile"
     ""
     "BIDTrace            " + $global:INISettings.BIDTrace
     "BIDWow              " + $global:INISettings.BIDWow
@@ -224,18 +224,18 @@ Function SetLogFolderName
     if ($LogFolder.Length -gt 0)
     {
         # Cannot resolve the [potential] relative path until the folder is created
-        mkdir $LogFolder
+        mkdir $LogFolder | out-null
         $global:LogFolderName = Resolve-Path $LogFolder
     }
     else  # generate a name in the current folder
     {
        $global:LogFolderName = "$($global:CurrentFolder)\SQLTrace_$(Get-Date -Format ""yyyyMMdd_HHmmss"")"
-       mkdir $global:LogFolderName
+       mkdir $global:LogFolderName | out-null
     }
     [System.Environment]::SetEnvironmentVariable($global:LogFolderEnvName,$global:LogFolderName, [System.EnvironmentVariableTarget]::Machine)
     $global:LogProgressFileName = "$($global:LogFolderName)\SQLTrace.log"
-    LogInfo "Log folder name: $($global:LogFolderName)"
-    LogInfo "Progress Log name: $($global:LogProgressFileName)"
+    # LogInfo "Log folder name: $($global:LogFolderName)"
+    # LogInfo "Progress Log name: $($global:LogProgressFileName)"
 }
 
 Function GetLogFolderName
@@ -283,12 +283,12 @@ Function SetupTraces
 
 Function SetupBIDRegistry
 {
-	if($BidTrace -eq "Yes")
+	if($global:INISettings.BidTrace -eq "Yes")
     {
-        if (HasBIDBeenSet -eq $false)
+        if (-not(HasBIDBeenSet))
 		{
 			SetBIDRegistry
-			LogWarn "Restart the application to be traced if it is a service or desktop application."
+			LogWarning "Restart the application to be traced if it is a service or desktop application."
 			LogRaw ""
 		}
     }
@@ -309,7 +309,7 @@ Function HasBIDBeenSet
 	{
 		$Path = Get-ItemProperty $BID32Path -Name ":Path"
 		if ($Path -eq $null) { return $false }
-		if ($Path.":Path" -ieq "MSDADIAG.DLL") { return $false }   # case insensitive comparison
+		if ($Path.":Path" -eq "MSDADIAG.DLL") { return $false }   # case insensitive comparison
 	}
 
 	# 64-bit test
@@ -317,7 +317,7 @@ Function HasBIDBeenSet
 	{
 		$Path = Get-ItemProperty $BIDPath -Name ":Path"
 		if ($Path -eq $null) { return $false }
-		if ($Path.":Path" -ieq "MSDADIAG.DLL") { return $false }   # case insensitive comparison
+		if ($Path.":Path" -eq "MSDADIAG.DLL") { return $false }   # case insensitive comparison
 	}
 
 	return $true
@@ -349,23 +349,30 @@ Function SetBIDRegistry
 
 Function StartTraces
 {
+    LogInfo "Starting traces ..."
+    LogRaw ""
+    LogInfo "Log folder name: $($global:LogFolderName)"
+    LogInfo "Progress Log name: $($global:LogProgressFileName)"
 
     $PSDefaultParameterValues['*:Encoding'] = 'Ascii'
     $global:RunningSettings = New-Object RunningSettings
+
     FlushCaches
+
     tasklist > "$($global:LogFolderName)\TasklistAtStart.txt"
     netstat -abon > "$($global:LogFolderName)\NetStatAtStart.txt"
     StartBIDTraces
     StartNetworkTraces
     StartAuthenticationTraces
+
     LogInfo "Traces have started..."
 }
 
 Function FlushCaches
 {
-    IPCONFIG /flushdns
-    NBTSTAT -R
-    Get-WmiObject Win32_LogonSession | Where-Object {$_.AuthenticationPackage -ne 'NTLM'} | ForEach-Object {c:\windows\system32\klist.exe purge -li ([Convert]::ToString($_.LogonId, 16))}
+    LogInfo (IPCONFIG /flushdns)
+    LogInfo (NBTSTAT -R)
+    Get-WmiObject Win32_LogonSession | Where-Object {$_.AuthenticationPackage -ne 'NTLM'} | ForEach-Object { LogInfo(c:\windows\system32\klist.exe purge -li ([Convert]::ToString($_.LogonId, 16))) }
 }
 
 Function GETBIDTraceGuid($bidProvider)
@@ -416,10 +423,7 @@ Function GETBIDTraceGuid($bidProvider)
        "MSOLEDBSQL19"                     { return "{699773CA-18E7-57DF-5718-C244760A9F44} 0x630ff  0   MSOLEDBSQL19.1 "}
 
     }
-
-
 }
-
 
 Function StartBIDTraces
 {
@@ -428,11 +432,11 @@ Function StartBIDTraces
     {
         LogInfo "Starting BID Traces ..."
         
-		if (HasBIDBeenSet -eq $false)
+		if (-not (HasBIDBeenSet))
 		{
 			SetBIDRegistry
-			LogWarn "Please retart the application being traced if it is a desktop application or a service."
-			LogWarn "Press Enter once restarted."
+			LogWarning "Please retart the application being traced if it is a desktop application or a service."
+			LogWarning "Press Enter once restarted."
 			Read-Host
 		}
 
@@ -451,16 +455,15 @@ Function StartBIDTraces
         $cRow=0
         foreach($guid in $vGUIDs)
         { 
-          if($cRow -gt 0) 
-          {
-            $guid | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid" -Append
-          }
-          else
-          {
-            $guid | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid"
-          }
-          $cRow++
-
+            if($cRow -gt 0) 
+            {
+                $guid | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid" -Append
+            }
+            else
+            {
+                $guid | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid"
+            }
+            $cRow++
         }
 
         #$vGUIDs > ".\BIDTraces\ctrl.guid"
@@ -498,6 +501,9 @@ Function StartNetworkMonitor
     #Start the capture
     $global:RunningSettings.NetmonProcess = Start-Process $NMCap -PassThru -NoNewWindow -ArgumentList $ArgumentList
     LogInfo "Network Monitor is running with PID: " + $global:RunningSettings.NetmonProcess.ID
+    LogWarning "Killing this process will corrupt the most recent capture file."
+    LogWarning "Run SQLTrace.ps1 with the -stop option to terminate safely."
+    LogRaw ""
     
 }
 Function StartNetworkTraces
@@ -507,8 +513,9 @@ Function StartNetworkTraces
     {
 
         LogInfo "Starting Network Traces..."
-        if((Test-Path "$($global:LogFolderName)\NetworkTraces" -PathType Container) -eq $false){
-        md "$($global:LogFolderName)\NetworkTraces" > $null
+        if((Test-Path "$($global:LogFolderName)\NetworkTraces" -PathType Container) -eq $false)
+        {
+            md "$($global:LogFolderName)\NetworkTraces" > $null
         }
 
         if($global:INISettings.NETSH -eq "Yes")
@@ -519,7 +526,6 @@ Function StartNetworkTraces
 
             netsh trace start capture=yes maxsize=1 TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl"
             logman start msndiscap -p Microsoft-Windows-NDIS-PacketCapture -mode newfile -max 200 -o "$($global:LogFolderName)\NetworkTraces\nettrace%d.etl" -ets
-
         }
         if($global:INISettings.NETMON -eq "Yes")
         {
@@ -531,8 +537,6 @@ Function StartNetworkTraces
             LogInfo "Starting Wireshark..."
             StartWireshark
         }
-        
-
     }
 }
 
@@ -621,13 +625,11 @@ Function StartAuthenticationTraces
         
                 logman update trace "SSL" -p `"$SSLSingleTraceGUID`" $SSLSingleTraceFlags 0xff -ets | Out-Null
             }
-
         }
 
         
         if($global:INISettings.LSA -eq "Yes")
         {
-          
             LogInfo "Starting LSA Traces..."
 
             # **Netlogon logging**
@@ -669,11 +671,6 @@ Function StartAuthenticationTraces
         
                     logman update trace $LSASingleTraceName -p `"$LSASingleTraceGUID`" $LSASingleTraceFlags 0xff -ets | Out-Null
                 }
-                
-           # Do this when stopping, not startig
-           # Copy-Item -Path "$($env:windir)\debug\Netlogon.*" -Destination .\Auth -Force 2>&1 
-           # Copy-Item -Path "$($env:windir)\system32\Lsass.log" -Destination .\Auth -Force 2>&1 
-
         }
 
         if($global:INISettings.EventViewer -eq "Yes")
@@ -681,13 +678,8 @@ Function StartAuthenticationTraces
 
             LogInfo "Enabling/Collecting Event Viewer Logs..."
             # Enable Eventvwr logging
-            # wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /enabled:true /rt:false /q:true 2>&1 
-            # wevtutil.exe export-log "Microsoft-Windows-CAPI2/Operational" .\Auth\Capi2_Oper.evtx /overwrite:true 2>&1 
-            # wevtutil.exe clear-log "Microsoft-Windows-CAPI2/Operational" 2>&1 | Out-Null
             wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /ms:102400000 2>&1
             wevtutil.exe set-log "Microsoft-Windows-Kerberos/Operational" /enabled:true /rt:false /q:true 2>&1
-            # wevtutil.exe clear-log "Microsoft-Windows-Kerberos/Operational" 2>&1 | Out-Null
-
         }
     }
 }
@@ -704,6 +696,9 @@ Function StopTraces
     StopAuthenticationTraces
     tasklist > "$($global:LogFolderName)\TasklistAtEnd.txt"
     LogInfo "Traces have stopped ..."
+    LogRaw ""
+    LogRaw "Please ZIP the contents of ""$($global:LogFolderName)"" and upload to Microsoft for analysis."
+    LogRaw "Please see our GitHub site for more information: https://github.com/microsoft/CSS_SQL_Networking_Tools"
 }
 
 Function StopBIDTraces
