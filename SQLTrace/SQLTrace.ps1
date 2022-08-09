@@ -69,10 +69,10 @@ Function Main
         ReadINIFile
         DisplayINIValues  # TODO hide
 
-        if     ($Setup)    { DisplayLicenseAndHeader }                              # set BID Trace :Path registry if asked for in the INI file
+        if     ($Setup)    { DisplayLicenseAndHeader; SetupTraces }                              # set BID Trace :Path registry if asked for in the INI file
         elseif ($Start)    { SetLogFolderName; StartTraces }                        # set BID Trace registry if not already set, then pause and prompt to restart app
         elseif ($Stop)     { GetLogFolderName; StopTraces }
-        elseif ($Cleanup)  { CleanEnvironment }
+        elseif ($Cleanup)  { CleanupTraces }
         else               { DisplayLicenseAndHeader; DisplayHelpMessage }
     }
 }
@@ -246,12 +246,6 @@ Function GetLogFolderName
     LogInfo "Progress Log name: $($global:LogProgressFileName)"
 }
 
-Function CleanEnvironment
-{
-    # After we stop tracing, clear the environment variable, so we do not re-use the folder name
-    [System.Environment]::SetEnvironmentVariable($global:LogFolderEnvName, $null, [System.EnvironmentVariableTarget]::Machine)
-}
-
 # ================================= Class Definitions ===========================
 
 class INIValueClass             # contains all the INI file settings in one place
@@ -278,6 +272,77 @@ class RunningSettings
 {
     [System.Diagnostics.Process] $WiresharkProcess = $null
     [System.Diagnostics.Process] $NetmonProcess = $null
+}
+
+# ======================================= Setup Traces =========================================
+
+Function SetupTraces
+{
+	SetupBIDRegistry
+}
+
+Function SetupBIDRegistry
+{
+	if($BidTrace -eq "Yes")
+    {
+        if (HasBIDBeenSet -eq $false)
+		{
+			SetBIDRegistry
+			LogWarn "Restart the application to be traced if it is a service or desktop application."
+			LogRaw ""
+		}
+    }
+    else
+    {
+        LogInfo "BID Tracing is not enabled for this trace."
+		LogRaw ""
+    }
+}
+
+Function HasBIDBeenSet
+{
+	$BIDPath = "HKLM:\Software\WOW6432Node\Microsoft\BidInterface\Loader"
+	$BID32Path = "HKLM:\Software\WOW6432Node\Microsoft\BidInterface\Loader"
+
+	# 32-bit test
+	if ($global:INISettings.BidWow -eq "Only" -or $global:INISettings.BidWow -eq "Both")
+	{
+		$Path = Get-ItemProperty $BID32Path -Name ":Path"
+		if ($Path -eq $null) { return $false }
+		if ($Path.":Path" -ieq "MSDADIAG.DLL") { return $false }   # case insensitive comparison
+	}
+
+	# 64-bit test
+	if ($global:INISettings.BidWow -eq "Both" -or $global:INISettings.BidWow -eq "No")
+	{
+		$Path = Get-ItemProperty $BIDPath -Name ":Path"
+		if ($Path -eq $null) { return $false }
+		if ($Path.":Path" -ieq "MSDADIAG.DLL") { return $false }   # case insensitive comparison
+	}
+
+	return $true
+}
+
+Function SetBIDRegistry
+{
+	LogInfo "Setting BID trace registry keys ..."
+	if($global:INISettings.BidWow -eq "Only")
+	{
+		LogInfo "BIDTrace - Set BIDInterface WOW64 MSDADIAG.DLL"
+		reg add HKLM\Software\WOW6432Node\Microsoft\BidInterface\Loader /v :Path /t  REG_SZ  /d MsdaDiag.DLL /f
+	}
+	elseif($global:INISettings.BidWow -eq "Both")
+	{
+		LogInfo "BIDTrace - Set BIDInterface MSDADIAG.DLL"
+		reg add HKLM\Software\Microsoft\BidInterface\Loader /v :Path /t  REG_SZ  /d MsdaDiag.DLL /f
+		LogInfo "BIDTrace - Set BIDInterface WOW64 MSDADIAG.DLL"
+		reg add HKLM\Software\WOW6432Node\Microsoft\BidInterface\Loader /v :Path /t  REG_SZ  /d MsdaDiag.DLL /f
+	}
+	else ## BIDWOW = No
+	{
+	LogInfo "BIDTrace - Set BIDInterface MSDADIAG.DLL"
+	reg  add HKLM\Software\Microsoft\BidInterface\Loader /v :Path /t  REG_SZ  /d MsdaDiag.DLL /f
+	}
 }
 
 # ======================================= Start Traces =========================================
@@ -362,36 +427,25 @@ Function StartBIDTraces
     if($global:INISettings.BidTrace -eq "Yes")
     {
         LogInfo "Starting BID Traces ..."
-        if($global:INISettings.BidWow -eq "Only")
-        {
-            LogInfo "BIDTrace - Set BIDInterface WOW64 MSDADIAG.DLL"
-            reg add HKLM\Software\WOW6432Node\Microsoft\BidInterface\Loader /v :Path /t  REG_SZ  /d MsdaDiag.DLL /f
-        }
-        elseif($global:INISettings.BidWow -eq "Both")
-        {
-            LogInfo "BIDTrace - Set BIDInterface MSDADIAG.DLL"
-            reg  add HKLM\Software\Microsoft\BidInterface\Loader /v :Path /t  REG_SZ  /d MsdaDiag.DLL /f
-            LogInfo "BIDTrace - Set BIDInterface WOW64 MSDADIAG.DLL"
-            reg add HKLM\Software\WOW6432Node\Microsoft\BidInterface\Loader /v :Path /t  REG_SZ  /d MsdaDiag.DLL /f
-        }
-        else ## BIDWOW = No
-        {
-        LogInfo "BIDTrace - Set BIDInterface MSDADIAG.DLL"
-        reg  add HKLM\Software\Microsoft\BidInterface\Loader /v :Path /t  REG_SZ  /d MsdaDiag.DLL /f
-        }
+        
+		if (HasBIDBeenSet -eq $false)
+		{
+			SetBIDRegistry
+			LogWarn "Please retart the application being traced if it is a desktop application or a service."
+			LogWarn "Press Enter once restarted."
+			Read-Host
+		}
 
         ## Get Provider GUIDs - Add MSDIAG by default
         $guid = GETBIDTraceGUID("MSDADIAG")
         $vGUIDs.Add($guid) | out-null
 
         ## Add the ones listed in the INI file
-        $global:INISettings.BidProviderList.Split(" ") | ForEach {
-        $guid = GETBIDTraceGUID($_)
-        $vGUIDs.Add($guid) | out-null
-        }
+        $global:INISettings.BidProviderList.Split(" ") | ForEach { $guid = GETBIDTraceGUID($_); $vGUIDs.Add($guid) | out-null }
 
-        if((Test-Path "$($global:LogFolderName)\BIDTraces" -PathType Container) -eq $false){
-        md "$($global:LogFolderName)\BIDTraces" > $null
+        if((Test-Path "$($global:LogFolderName)\BIDTraces" -PathType Container) -eq $false)
+		{
+			md "$($global:LogFolderName)\BIDTraces" > $null
         }
         
         $cRow=0
@@ -496,7 +550,7 @@ Function StartAuthenticationTraces
             LogInfo "Starting Kerberos ETL Traces..."
 
             # **Kerberos**
-            $Kerberos = @(
+            $KerberosProviders = @(
             '{6B510852-3583-4e2d-AFFE-A67F9F223438}!0x7ffffff'
             '{60A7AB7A-BC57-43E9-B78A-A1D516577AE3}!0xffffff'
             '{FACB33C4-4513-4C38-AD1E-57C1F6828FC0}!0xffffffff'
@@ -505,18 +559,12 @@ Function StartAuthenticationTraces
             '{98E6CFCB-EE0A-41E0-A57B-622D4E1B30B1}!0xffffffffffffffff'
             ) 
 
-            ##Purging Tickets
-            klist purge | Out-Null
-            klist purge -li 0x3e7 | Out-Null
-            klist purge -li 0x3e4 | Out-Null
-            klist purge -li 0x3e5 | Out-Null
-    
             # Kerberos Logging to SYSTEM event log in case this is a client
             reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA\Kerberos\Parameters /v LogLevel /t REG_DWORD /d 1 /f
     
             logman start "Kerberos" -o "$($global:LogFolderName)\Auth\Kerberos.etl" -ets
 
-            ForEach($KerberosProvider in $Kerberos)
+            ForEach($KerberosProvider in $KerberosProviders)
             {
                 # Update Logman Kerberos
                 $KerberosParams = $KerberosProvider.Split('!')
@@ -531,7 +579,7 @@ Function StartAuthenticationTraces
 
             LogInfo "Starting CredSSP/NTLM Traces..."
             # **Ntlm_CredSSP**
-            $Ntlm_CredSSP = @(
+            $Ntlm_CredSSPProviders = @(
             '{5BBB6C18-AA45-49b1-A15F-085F7ED0AA90}!0x5ffDf'
             '{AC69AE5B-5B21-405F-8266-4424944A43E9}!0xffffffff'
             '{6165F3E2-AE38-45D4-9B23-6B4818758BD9}!0xffffffff'
@@ -541,7 +589,7 @@ Function StartAuthenticationTraces
 
             logman create trace "Ntlm_CredSSP" -o "$($global:LogFolderName)\Auth\Ntlm_CredSSP.etl" -ets
 
-            ForEach($Ntlm_CredSSPProvider in $Ntlm_CredSSP)
+            ForEach($Ntlm_CredSSPProvider in $Ntlm_CredSSPProviders)
             {
                 # Update Logman Ntlm_CredSSP
                 $Ntlm_CredSSPParams = $Ntlm_CredSSPProvider.Split('!')
@@ -557,14 +605,14 @@ Function StartAuthenticationTraces
         {
             LogInfo "Starting SSL Traces..."
             # **SSL**
-            $SSL = @(
+            $SSLProviders = @(
             '{37D2C3CD-C5D4-4587-8531-4696C44244C8}!0x4000ffff'
             )
 
             # Start Logman SSL     
             logman start "SSL" -o "$($global:LogFolderName)\Auth\SSL.etl" -ets
 
-            ForEach($SSLProvider in $SSL)
+            ForEach($SSLProvider in $SSLProviders)
             {
                 # Update Logman SSL
                 $SSLParams = $SSLProvider.Split('!')
@@ -586,7 +634,7 @@ Function StartAuthenticationTraces
             nltest /dbflag:0x2EFFFFFF 2>&1 | Out-Null
 
             # **LSA**
-            $LSA = @(
+            $LSAProviders = @(
             '{D0B639E0-E650-4D1D-8F39-1580ADE72784}!0xC43EFF'
             '{169EC169-5B77-4A3E-9DB6-441799D5CACB}!0xffffff'
             '{DAA76F6A-2D11-4399-A646-1D62B7380F15}!0xffffff'
@@ -612,7 +660,7 @@ Function StartAuthenticationTraces
             $LSASingleTraceName = "LSA"
             logman create trace $LSASingleTraceName -o "$($global:LogFolderName)\Auth\LSA.etl" -ets
 
-            ForEach($LSAProvider in $LSA)
+            ForEach($LSAProvider in $LSAProviders)
                 {
                     # Update Logman LSA
                     $LSAParams = $LSAProvider.Split('!')
@@ -660,34 +708,12 @@ Function StopTraces
 
 Function StopBIDTraces
 {
-
-
     if($global:INISettings.BidTrace -eq "Yes")
     {
         LogInfo "Stopping BID Traces ..."
-        if($global:INISettings.BidWow -eq "Only")
-        {
-            LogInfo "BIDTrace - Unset BIDInterface WOW64 MSDADIAG.DLL"
-            reg delete HKLM\Software\WOW6432Node\Microsoft\BidInterface\Loader /v :Path /f
-        }
-        elseif($global:INISettings.BidWow -eq "Both")
-        {
-            LogInfo "BIDTrace - Unset BIDInterface MSDADIAG.DLL"
-            reg delete HKLM\Software\Microsoft\BidInterface\Loader /v :Path /f
-
-            LogInfo "BIDTrace - Unset BIDInterface WOW64 MSDADIAG.DLL"
-            reg delete HKLM\Software\WOW6432Node\Microsoft\BidInterface\Loader /v :Path /f
-        }
-        else ## BIDWOW = No
-        {
-            LogInfo "BIDTrace - Unset BIDInterface MSDADIAG.DLL"
-            reg delete HKLM\Software\Microsoft\BidInterface\Loader /v :Path /f
-        }
-
+		# Do not clear the registry keys in case we run a second trace; use the -cleanup switch explicitly
         logman stop msbidtraces -ets
-
     }
-
 }
 
 
@@ -719,8 +745,6 @@ Function StopNetworkTraces
             LogInfo "Stopping Wireshark with PID: " + $WiresharkPID.ID
             Stop-Process -Name "dumpcap" -Force
         }
-
-
     }
 }
 
@@ -755,10 +779,12 @@ Function StopAuthenticationTraces
             reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v SPMInfoLevel /f  2>&1 | Out-Null
             reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LogToFile /f  2>&1 | Out-Null
             reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v NegEventMask /f  2>&1 | Out-Null
-            reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA\NegoExtender\Parameters /v InfoLevel /f  2>&1 
-            reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA\Pku2u\Parameters /v InfoLevel /f  2>&1
-            reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LspDbgInfoLevel /f  2>&1
-            reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LspDbgTraceOptions /f  2>&1
+			
+			# Not set in the Start Traces command
+            # reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA\NegoExtender\Parameters /v InfoLevel /f  2>&1 
+            # reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA\Pku2u\Parameters /v InfoLevel /f  2>&1
+            # reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LspDbgInfoLevel /f  2>&1
+            # reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LspDbgTraceOptions /f  2>&1
 
             logman stop "LSA" -ets
 
@@ -779,18 +805,68 @@ Function StopAuthenticationTraces
         {
 
             LogInfo "Disabling/Collecting Event Viewer Logs..."
-            # *** Event/Operational logs
-            wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /enabled:false  2>&1
-            wevtutil.exe export-log "Microsoft-Windows-CAPI2/Operational" "$($global:LogFolderName)\Auth\Capi2_Oper.evtx" /overwrite:true  2>&1
-            wevtutil.exe set-log "Microsoft-Windows-Kerberos/Operational" /enabled:false  2>&1
-            wevtutil.exe export-log "Microsoft-Windows-Kerberos/Operational" "$($global:LogFolderName)\Auth\Kerb_Oper.evtx" /overwrite:true  2>&1
+			
+			# Filter to just the last 24 hours:                                                "/q:*[System[TimeCreated[timediff(@SystemTime) <= 86400000]]]"
+			# Alternate filter, events after a set time. Use variables in implementation:      "/q:*[System[TimeCreated[@SystemTime>='2022-08-08T10:00:00']]]"
+			$EventLogFilter = "/q:*[System[TimeCreated[timediff(@SystemTime) <= 86400000]]]"
+			
+            # Event/Operational logs
+            wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /enabled:false  2>&1   # stop logging
+            wevtutil.exe export-log "Microsoft-Windows-CAPI2/Operational" "$($global:LogFolderName)\Auth\Capi2_Oper.evtx" "$EventLogFilter" /overwrite:true  2>&1  # export recent events to .evtx
+			wevtutil.exe query-events "Microsoft-Windows-CAPI2/Operational" "$EventLogFilter" /f:Text > "$($global:LogFolderName)\Auth\Capi2_Oper.txt"             # export recent events to .txt
+			
+            wevtutil.exe set-log "Microsoft-Windows-Kerberos/Operational" /enabled:false  2>&1   # stop logging
+            wevtutil.exe export-log "Microsoft-Windows-Kerberos/Operational" "$($global:LogFolderName)\Auth\Kerb_Oper.evtx" "$EventLogFilter" /overwrite:true  2>&1  # export recent events to .evtx
+			wevtutil.exe query-events "Microsoft-Windows-Kerberos/Operational" "$EventLogFilter" /f:Text > "$($global:LogFolderName)\Auth\Kerb_Oper.txt"             # export recent events to .txt
 
-            #TODO: Reduce the amount of logs of EVTX + TXT 
-            wevtutil.exe export-log SECURITY "$($global:LogFolderName)\Auth\Security.evtx" /overwrite:true  2>&1
-            wevtutil.exe export-log SYSTEM "$($global:LogFolderName)\Auth\System.evtx" /overwrite:true  2>&1
-            wevtutil.exe export-log APPLICATION "$($global:LogFolderName)\Auth\Application.evtx" /overwrite:true  2>&1
+            # Main event logs - security, system, and application
+            wevtutil.exe export-log SECURITY "$($global:LogFolderName)\Auth\Security.evtx" "$EventLogFilter" /overwrite:true  2>&1        # export recent events to .evtx
+			wevtutil.exe query-events SECURITY "$EventLogFilter" /f:Text > "$($global:LogFolderName)\Auth\Security.txt"                   # export recent events to .txt
+			
+            wevtutil.exe export-log SYSTEM "$($global:LogFolderName)\Auth\System.evtx" "$EventLogFilter" /overwrite:true  2>&1            # export recent events to .evtx
+			wevtutil.exe query-events SYSTEM "$EventLogFilter" /f:Text > "$($global:LogFolderName)\Auth\System.txt"                       # export recent events to .txt
+			
+            wevtutil.exe export-log APPLICATION "$($global:LogFolderName)\Auth\Application.evtx" "$EventLogFilter" /overwrite:true  2>&1  # export recent events to .evtx
+			wevtutil.exe query-events APPLICATION "$EventLogFilter" /f:Text > "$($global:LogFolderName)\Auth\Application.txt"             # export recent events to .txt
         }
     }
+}
+
+# ======================================= Cleanup Traces =========================================
+
+Function CleanupTraces
+{
+	CleanEnvironment
+	ClearBIDRegistry
+}
+
+Function CleanEnvironment
+{
+    # After we stop tracing, clear the environment variable, so we do not re-use the folder name
+    [System.Environment]::SetEnvironmentVariable($global:LogFolderEnvName, $null, [System.EnvironmentVariableTarget]::Machine)
+}
+
+Function ClearBIDRegistry
+{
+	LogInfo "Clearing BID trace registry keys ..."
+	if($global:INISettings.BidWow -eq "Only")
+	{
+		LogInfo "BIDTrace - Unset BIDInterface WOW64 MSDADIAG.DLL"
+		reg delete HKLM\Software\WOW6432Node\Microsoft\BidInterface\Loader /v :Path /f
+	}
+	elseif($global:INISettings.BidWow -eq "Both")
+	{
+		LogInfo "BIDTrace - Unset BIDInterface MSDADIAG.DLL"
+		reg delete HKLM\Software\Microsoft\BidInterface\Loader /v :Path /f
+
+		LogInfo "BIDTrace - Unset BIDInterface WOW64 MSDADIAG.DLL"
+		reg delete HKLM\Software\WOW6432Node\Microsoft\BidInterface\Loader /v :Path /f
+	}
+	else ## BIDWOW = No
+	{
+		LogInfo "BIDTrace - Unset BIDInterface MSDADIAG.DLL"
+		reg delete HKLM\Software\Microsoft\BidInterface\Loader /v :Path /f
+	}
 }
 
 # ======================================= Logging ===============================
