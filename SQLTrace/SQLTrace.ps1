@@ -30,8 +30,8 @@ param
     [Parameter(ParameterSetName = 'Start', Mandatory=$true)]
     [switch] $Start,
 
-    [Parameter(ParameterSetName = 'Start', Mandatory=$false)]
-    [int] $StopAfter = [int]::Parse("0"),
+#    [Parameter(ParameterSetName = 'Start', Mandatory=$false)]
+#    [int] $StopAfter = [int]::Parse("0"),
 
     [Parameter(ParameterSetName = 'Stop', Mandatory=$false)]
     [switch] $Stop,
@@ -63,7 +63,8 @@ $global:INISettings = $null                  # set in ReadINIFile
 $global:RunningSettings = $null
 
 Function Main
-{    
+{
+	$OutputEncoding = [console]::OutputEncoding                                           # Prevents mix of UNICODE and ANSI logs in SQLTrace.log
     if (PreReqsOkay)
     {
         ReadINIFile
@@ -88,9 +89,13 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 0.5.0.0033 Alpha
+                  SQLTrace.ps1 version 0.5.0.0037 Alpha
                by the Microsoft SQL Server Networking Team
+"
 
+Start-Sleep -Milliseconds 1500
+
+LogRaw "
 MIT License
 
 Copyright (c) Microsoft Corporation.
@@ -129,10 +134,11 @@ Usage:
 
    .\SQLTrace.ps1 -Help
    .\SQLTrace.ps1 -Setup [-INIFile SQLTrace.ini]
-   .\SQLTrace.ps1 -Start [-StopAfter 0] [-INIFile SQLTrace.ini] [-LogFolder folderpath]
+   .\SQLTrace.ps1 -Start [-INIFile SQLTrace.ini] [-LogFolder folderpath]
    .\SQLTrace.ps1 -Stop [-INIFile SQLTrace.ini]
    .\SQLTrace.ps1 -Cleanup [-INIFile SQLTrace.ini]
 "
+#    .\SQLTrace.ps1 -Start [-StopAfter 0] [-INIFile SQLTrace.ini] [-LogFolder folderpath]
 }
 
 Function ReadINIFile
@@ -309,7 +315,7 @@ Function HasBIDBeenSet
 	{
 		$Path = Get-ItemProperty $BID32Path -Name ":Path"
 		if ($Path -eq $null) { return $false }
-		if ($Path.":Path" -eq "MSDADIAG.DLL") { return $false }   # case insensitive comparison
+		if ($Path.":Path" -ne "MSDADIAG.DLL") { return $false }   # case insensitive comparison
 	}
 
 	# 64-bit test
@@ -317,7 +323,7 @@ Function HasBIDBeenSet
 	{
 		$Path = Get-ItemProperty $BIDPath -Name ":Path"
 		if ($Path -eq $null) { return $false }
-		if ($Path.":Path" -eq "MSDADIAG.DLL") { return $false }   # case insensitive comparison
+		if ($Path.":Path" -ne "MSDADIAG.DLL") { return $false }   # case insensitive comparison
 	}
 
 	return $true
@@ -354,7 +360,7 @@ Function StartTraces
     LogInfo "Log folder name: $($global:LogFolderName)"
     LogInfo "Progress Log name: $($global:LogProgressFileName)"
 
-    $PSDefaultParameterValues['*:Encoding'] = 'Ascii'
+    # $PSDefaultParameterValues['*:Encoding'] = 'Ascii'
     $global:RunningSettings = New-Object RunningSettings
 
     FlushCaches
@@ -430,8 +436,6 @@ Function StartBIDTraces
     $vGUIDs = [System.Collections.ArrayList]::new()
     if($global:INISettings.BidTrace -eq "Yes")
     {
-        LogInfo "Starting BID Traces ..."
-        
 		if (-not (HasBIDBeenSet))
 		{
 			SetBIDRegistry
@@ -439,6 +443,8 @@ Function StartBIDTraces
 			LogWarning "Press Enter once restarted."
 			Read-Host
 		}
+
+        LogInfo "Starting BID Traces ..."
 
         ## Get Provider GUIDs - Add MSDIAG by default
         $guid = GETBIDTraceGUID("MSDADIAG")
@@ -457,17 +463,17 @@ Function StartBIDTraces
         { 
             if($cRow -gt 0) 
             {
-                $guid | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid" -Append
+                $guid | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid" -Append -Encoding Ascii
             }
             else
             {
-                $guid | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid"
+                $guid | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid" -Encoding Ascii
             }
             $cRow++
         }
 
         #$vGUIDs > ".\BIDTraces\ctrl.guid"
-        logman start msbidtraces -pf "$($global:LogFolderName)\BIDTraces\ctrl.guid" -o "$($global:LogFolderName)\BIDTraces\bidtrace%d.etl.etl" -bs 1024 -nb 1024 1024 -mode NewFile -max 200 -ets
+        logman start msbidtraces -pf "$($global:LogFolderName)\BIDTraces\ctrl.guid" -o "$($global:LogFolderName)\BIDTraces\bidtrace%d.etl" -bs 1024 -nb 1024 1024 -mode NewFile -max 200 -ets
 
     }
 
