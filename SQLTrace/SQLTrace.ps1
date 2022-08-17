@@ -89,7 +89,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 0.5.0.0037 Alpha
+                  SQLTrace.ps1 version 0.9.0.0053 Alpha
                by the Microsoft SQL Server Networking Team
 "
 
@@ -473,6 +473,7 @@ Function StartBIDTraces
         }
 
         #$vGUIDs > ".\BIDTraces\ctrl.guid"
+
         logman start msbidtraces -pf "$($global:LogFolderName)\BIDTraces\ctrl.guid" -o "$($global:LogFolderName)\BIDTraces\bidtrace%d.etl" -bs 1024 -nb 1024 1024 -mode NewFile -max 200 -ets
 
     }
@@ -850,6 +851,49 @@ Function StopAuthenticationTraces
     }
 }
 
+# Function CopySQLErrorLog
+# Searches for the Log folder of each SQL instance installed on the server
+# Makes a copy of ERRORLOG and Extended Events as long as the file size is lower than 500MB
+Function CopySQLErrorLog()
+{
+    
+    $SQLInstances = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\" -Recurse
+    cd $($global:LogFolderName)
+    mkdir "SQLLogFolder" | out-null
+    cd "SQLLogFolder" | out-null
+    ForEach ($sub in $SQLInstances.Property)
+    {
+       LogMessage("Copying SQL Error Log from instance $sub...")
+       mkdir $sub | out-null
+       $instanceFolderName = $SQLInstances.GetValue($sub); #Get Instance Folder Name
+       $errorLogPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\$instanceFolderName\MSSQLServer\Parameters\").psobject.properties |
+          where {$_.name -like "xls*" -or $_.value -like "*ERRORLOG*"} |
+            select value
+
+        #Remove any parameter prior to the path
+        $errorLogPath = $($errorLogPath.Value.ToString()).Substring(2)
+        #Clear the error log from the string
+        $errorLogPath = $errorLogPath.Substring(0,$errorLogPath.LastIndexOf('\')+1)
+        
+        #Copy Error Log files as long as they are less than 500Mb
+        $items=Get-ChildItem $errorLogPath -filter ERRORLOG* | Where { $_.Length -lt 500MB}
+        Foreach($item in $items){
+        copy-item $item.fullname .\$sub -force
+        }
+
+        #Copy XEvents Log files as long as they are less than 500Mb
+        $items=Get-ChildItem $errorLogPath -filter *.xel | Where { $_.Length -lt 500MB}
+        Foreach($item in $items){
+        copy-item $item.fullname .\$sub -force
+        }
+
+    }
+
+    cd .. | out-null
+    cd .. | out-null
+
+}
+
 # ======================================= Cleanup Traces =========================================
 
 Function CleanupTraces
@@ -916,48 +960,6 @@ Function LogMessage($Message, $LogLevel = "info")
 
 	Write-Host $LogMessage -ForegroundColor $ForeColor
     if ($global:LogFolderName.Length -gt 0) { $LogMessage >> $global:LogProgressFileName }
-}
-
-# Function CopySQLErrorLog
-# Searches for the Log folder of each SQL instance installed on the server
-# Makes a copy of ERRORLOG and Extended Events as long as the file size is lower than 500MB
-Function CopySQLErrorLog()
-{
-    
-    $SQLInstances = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\" -Recurse
-    cd $($global:LogFolderName)
-    mkdir "SQLLogFolder" | out-null
-    cd "SQLLogFolder" | out-null
-    ForEach ($sub in $SQLInstances.Property)
-    {
-       LogMessage("Copying SQL Error Log from instance $sub...")
-       mkdir $sub | out-null
-       $instanceFolderName = $SQLInstances.GetValue($sub); #Get Instance Folder Name
-       $errorLogPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\$instanceFolderName\MSSQLServer\Parameters\").psobject.properties |
-          where {$_.name -like "xls*" -or $_.value -like "*ERRORLOG*"} |
-            select value
-
-        #Remove any parameter prior to the path
-        $errorLogPath = $($errorLogPath.Value.ToString()).Substring(2)
-        #Clear the error log from the string
-        $errorLogPath = $errorLogPath.Substring(0,$errorLogPath.LastIndexOf('\')+1)
-        
-        #Copy Error Log files as long as they are less than 500Mb
-        $items=Get-ChildItem $errorLogPath -filter ERRORLOG* | Where { $_.Length -lt 500MB}
-        Foreach($item in $items){
-        copy-item $item.fullname .\$sub -force
-        }
-
-        #Copy XEvents Log files as long as they are less than 500Mb
-        $items=Get-ChildItem $errorLogPath -filter *.xel | Where { $_.Length -lt 500MB}
-        Foreach($item in $items){
-        copy-item $item.fullname .\$sub -force
-        }
-
-    }
-    cd .. | out-null
-    cd .. | out-null
-
 }
 
 Function LogRaw($Message)     { LogMessage $Message "Raw";     }
