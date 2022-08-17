@@ -662,6 +662,17 @@ Function StartAuthenticationTraces
             reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA /v SPMInfoLevel /t REG_DWORD /d 0xC43EFF /f 2>&1
             reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LogToFile /t REG_DWORD /d 1 /f 2>&1
             reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA /v NegEventMask /t REG_DWORD /d 0xF /f 2>&1
+            
+            # NEGOEXT
+            reg add HKLM\SYSTEM\CurrentControlSet\Control\Lsa\NegoExtender\Parameters /v InfoLevel /t REG_DWORD /d 0xFFFF /f 2>&1 | Out-Null
+
+            # PKU2U
+            reg add HKLM\SYSTEM\CurrentControlSet\Control\Lsa\Pku2u\Parameters /v InfoLevel /t REG_DWORD /d 0xFFFF /f 2>&1 | Out-Null
+
+            # LSP Logging
+            reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LspDbgInfoLevel /t REG_DWORD /d 0x41C20800 /f 2>&1 | Out-Null
+            reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LspDbgTraceOptions /t REG_DWORD /d 0x1 /f 2>&1 | Out-Null
+
 
 
             # Start Logman LSA
@@ -701,6 +712,7 @@ Function StopTraces
     StopNetworkTraces
     StopAuthenticationTraces
     tasklist > "$($global:LogFolderName)\TasklistAtEnd.txt"
+    CopySqlErrorLog
     LogInfo "Traces have stopped ..."
     LogRaw ""
     LogRaw "Please ZIP the contents of ""$($global:LogFolderName)"" and upload to Microsoft for analysis."
@@ -776,17 +788,22 @@ Function StopAuthenticationTraces
             LogInfo "Stopping LSA Traces..."
             #Netlogon
             nltest /dbflag:0x0  2>&1 | Out-Null
+
             #LSA
             reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v SPMInfoLevel /f  2>&1 | Out-Null
             reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LogToFile /f  2>&1 | Out-Null
             reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v NegEventMask /f  2>&1 | Out-Null
 			
-			# Not set in the Start Traces command
-            # reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA\NegoExtender\Parameters /v InfoLevel /f  2>&1 
-            # reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA\Pku2u\Parameters /v InfoLevel /f  2>&1
-            # reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LspDbgInfoLevel /f  2>&1
-            # reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LspDbgTraceOptions /f  2>&1
-
+            #NegoExt
+            reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA\NegoExtender\Parameters /v InfoLevel /f  2>&1 | Out-Null
+            
+            #Pku2u
+            reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA\Pku2u\Parameters /v InfoLevel /f  2>&1 | Out-Null
+            
+            #LSP
+            reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LspDbgInfoLevel /f  2>&1 | Out-Null
+            reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LspDbgTraceOptions /f  2>&1 | Out-Null
+            
             logman stop "LSA" -ets
 
             Copy-Item -Path "$($env:windir)\debug\Netlogon.*" -Destination "$($global:LogFolderName)\Auth" -Force 2>&1
@@ -899,6 +916,48 @@ Function LogMessage($Message, $LogLevel = "info")
 
 	Write-Host $LogMessage -ForegroundColor $ForeColor
     if ($global:LogFolderName.Length -gt 0) { $LogMessage >> $global:LogProgressFileName }
+}
+
+# Function CopySQLErrorLog
+# Searches for the Log folder of each SQL instance installed on the server
+# Makes a copy of ERRORLOG and Extended Events as long as the file size is lower than 500MB
+Function CopySQLErrorLog()
+{
+    
+    $SQLInstances = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\" -Recurse
+    cd $($global:LogFolderName)
+    mkdir "SQLLogFolder" | out-null
+    cd "SQLLogFolder" | out-null
+    ForEach ($sub in $SQLInstances.Property)
+    {
+       LogMessage("Copying SQL Error Log from instance $sub...")
+       mkdir $sub | out-null
+       $instanceFolderName = $SQLInstances.GetValue($sub); #Get Instance Folder Name
+       $errorLogPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\$instanceFolderName\MSSQLServer\Parameters\").psobject.properties |
+          where {$_.name -like "xls*" -or $_.value -like "*ERRORLOG*"} |
+            select value
+
+        #Remove any parameter prior to the path
+        $errorLogPath = $($errorLogPath.Value.ToString()).Substring(2)
+        #Clear the error log from the string
+        $errorLogPath = $errorLogPath.Substring(0,$errorLogPath.LastIndexOf('\')+1)
+        
+        #Copy Error Log files as long as they are less than 500Mb
+        $items=Get-ChildItem $errorLogPath -filter ERRORLOG* | Where { $_.Length -lt 500MB}
+        Foreach($item in $items){
+        copy-item $item.fullname .\$sub -force
+        }
+
+        #Copy XEvents Log files as long as they are less than 500Mb
+        $items=Get-ChildItem $errorLogPath -filter *.xel | Where { $_.Length -lt 500MB}
+        Foreach($item in $items){
+        copy-item $item.fullname .\$sub -force
+        }
+
+    }
+    cd .. | out-null
+    cd .. | out-null
+
 }
 
 Function LogRaw($Message)     { LogMessage $Message "Raw";     }
