@@ -89,7 +89,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 0.9.0.0053 Alpha
+                  SQLTrace.ps1 version 1.0.0.0055
                by the Microsoft SQL Server Networking Team
 "
 
