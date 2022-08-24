@@ -36,7 +36,7 @@ namespace DBTest
         static string CursorType       = "FIREHOSE";  // FIREHOSE, DATASET, NONE (executing a non-row-returning command)
 
 
-        static void Main(string[] args)
+        static int Main(string[] args)
         {
             //
             // Set command-line rules and parse the command-line
@@ -59,7 +59,7 @@ namespace DBTest
             {
                 Console.WriteLine("Bad arguments: " + ruleViolation);
                 displayUsage();
-                return;           // exit the application
+                return (-1);           // exit the application   // Clintonw 
             }
             else  // for case-insensitive argument names, use lower-case to match
             {
@@ -71,7 +71,7 @@ namespace DBTest
                 {
                     Console.WriteLine("The provider type must be SqlClient, ODBC, or OLEDB.");
                     displayUsage();
-                    return;
+                    return (-1);
                 }
                 ConnectionString = cp.GetArgOrBlank("connect");                // argument is required
                 CommandString = cp.GetArgOrBlank("command");                      // argument is optional
@@ -80,35 +80,35 @@ namespace DBTest
                 {
                     Console.WriteLine("The timeout vaue must be numeric and 0 or higher.");
                     displayUsage();
-                    return;
+                    return (-1);
                 }
                 CursorType = cp.GetArgOrBlank("cursor", "Firehose").ToUpper();    // argument is optional with a default value
                 if (CursorType != "FIREHOSE" && CursorType != "DATASET" && CursorType != "NONE")
                 {
                     Console.WriteLine("The cursor type must be FireHose, DataSet, or None.");
                     displayUsage();
-                    return;
+                    return (-1);
                 }
                 value = cp.GetArgOrBlank("top", "10");                            // argument is optional with a default value
                 if (int.TryParse(value, out RowsToDisplay) == false || RowsToDisplay < -1)
                 {
                     Console.WriteLine("The top vaue must be numeric and -1 or higher.");
                     displayUsage();
-                    return;
+                    return (-1);
                 }
                 value = cp.GetArgOrBlank("repeat", "1");                          // argument is optional with a default value
                 if (int.TryParse(value, out RepeatCount) == false || RepeatCount < 1)
                 {
                     Console.WriteLine("The repeat vaue must be numeric and 1 or higher.");
                     displayUsage();
-                    return;
+                    return (-1);
                 }
                 value = cp.GetArgOrBlank("delay", "1");                           // argument is optional with a default value
                 if (int.TryParse(value, out DelaySec) == false || DelaySec < 1)
                 {
                     Console.WriteLine("The delay vaue must be numeric and 1 or higher.");
                     displayUsage();
-                    return;
+                    return (-1);
                 }
                 values = cp.GetArgs("stoponerror");
                 if (values.Count != 0) StopOnError = true;
@@ -159,9 +159,10 @@ namespace DBTest
             {
                 if (i > 0) System.Threading.Thread.Sleep(DelaySec * 1000);
                 bool success = DatabaseTest();
-                if (!success && StopOnError) break;
+                if (!success && StopOnError) return (-2);   // break clintonw 
             }
             Console.WriteLine("All Tests Complete.");
+            return 0;                                       // clintonw
         }
 
         static public void displayUsage()
