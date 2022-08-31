@@ -89,7 +89,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0.0055
+                  SQLTrace.ps1 version 1.0.0.0065
                by the Microsoft SQL Server Networking Team
 "
 
@@ -368,8 +368,8 @@ Function StartTraces
     tasklist > "$($global:LogFolderName)\TasklistAtStart.txt"
     netstat -abon > "$($global:LogFolderName)\NetStatAtStart.txt"
     StartBIDTraces
-    StartNetworkTraces
     StartAuthenticationTraces
+    StartNetworkTraces
 
     LogInfo "Traces have started..."
 }
@@ -458,21 +458,13 @@ Function StartBIDTraces
 			md "$($global:LogFolderName)\BIDTraces" > $null
         }
         
-        $cRow=0
+        # Add DNS GUID and then add BID Trace Providers
+        "{1c95126e-7eea-49a9-a3fe-a378b03ddb4d} 0xc0001ffff0000100  0x04   Microsoft-Windows-DNS-Client " | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid" -Encoding Ascii
+
         foreach($guid in $vGUIDs)
         { 
-            if($cRow -gt 0) 
-            {
-                $guid | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid" -Append -Encoding Ascii
-            }
-            else
-            {
-                $guid | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid" -Encoding Ascii
-            }
-            $cRow++
+            $guid | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid" -Append -Encoding Ascii
         }
-
-        #$vGUIDs > ".\BIDTraces\ctrl.guid"
 
         logman start msbidtraces -pf "$($global:LogFolderName)\BIDTraces\ctrl.guid" -o "$($global:LogFolderName)\BIDTraces\bidtrace%d.etl" -bs 1024 -nb 1024 1024 -mode NewFile -max 200 -ets
 
@@ -682,6 +674,7 @@ Function StartAuthenticationTraces
 
             ForEach($LSAProvider in $LSAProviders)
                 {
+                    # "Updating: $LSAProvider" # debug statement
                     # Update Logman LSA
                     $LSAParams = $LSAProvider.Split('!')
                     $LSASingleTraceGUID = $LSAParams[0]
@@ -709,10 +702,10 @@ Function StopTraces
     LogInfo "Stopping Traces ..."
     $global:RunningSettings = New-Object RunningSettings
     netstat -abon > "$($global:LogFolderName)\NetStatAtEnd.txt"
-    StopBIDTraces
-    StopNetworkTraces
-    StopAuthenticationTraces
     tasklist > "$($global:LogFolderName)\TasklistAtEnd.txt"
+    StopBIDTraces
+    StopAuthenticationTraces
+    StopNetworkTraces
     CopySqlErrorLog
     LogInfo "Traces have stopped ..."
     LogRaw ""
@@ -856,16 +849,24 @@ Function StopAuthenticationTraces
 # Makes a copy of ERRORLOG and Extended Events as long as the file size is lower than 500MB
 Function CopySQLErrorLog()
 {
-    
-    $SQLInstances = Get-ChildItem "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\" -Recurse
+    LogInfo "Saving SQL Server ERRORLOG files"
+
+    if (!(Test-Path "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL"))
+    {
+        LogInfo "No SQL Server instances were found on this machine."
+        return;
+    }
+
+    $SQLKey = Get-Item "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL"
+    $ValueNames = $SQLKey.GetValueNames()
     cd $($global:LogFolderName)
     mkdir "SQLLogFolder" | out-null
     cd "SQLLogFolder" | out-null
-    ForEach ($sub in $SQLInstances.Property)
+    ForEach ($ValueName in $ValueNames)
     {
-       LogMessage("Copying SQL Error Log from instance $sub...")
-       mkdir $sub | out-null
-       $instanceFolderName = $SQLInstances.GetValue($sub); #Get Instance Folder Name
+       LogInfo("Copying SQL ERRORLOG files for instance: $ValueName")
+       mkdir $ValueName | out-null
+       $instanceFolderName = $SQLKey.GetValue($ValueName); #Get Instance Folder Name
        $errorLogPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\$instanceFolderName\MSSQLServer\Parameters\").psobject.properties |
           where {$_.name -like "xls*" -or $_.value -like "*ERRORLOG*"} |
             select value
@@ -878,13 +879,13 @@ Function CopySQLErrorLog()
         #Copy Error Log files as long as they are less than 500Mb
         $items=Get-ChildItem $errorLogPath -filter ERRORLOG* | Where { $_.Length -lt 500MB}
         Foreach($item in $items){
-        copy-item $item.fullname .\$sub -force
+        copy-item $item.fullname .\$ValueName -force
         }
 
         #Copy XEvents Log files as long as they are less than 500Mb
         $items=Get-ChildItem $errorLogPath -filter *.xel | Where { $_.Length -lt 500MB}
         Foreach($item in $items){
-        copy-item $item.fullname .\$sub -force
+        copy-item $item.fullname .\$ValueName -force
         }
 
     }
