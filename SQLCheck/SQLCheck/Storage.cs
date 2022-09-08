@@ -147,10 +147,11 @@ namespace SQLCheck
             dt.AddColumn("CLR2Version", "String");
             dt.AddColumn("CLR2StrongCrypto", "String");
             dt.AddColumn("CLR2StrongCryptoX86", "String");
-            dt.AddColumn("IISRunning", "Boolean");  // added when enumerating services
+            dt.AddColumn("IISRunning", "Boolean");         // added when enumerating services
             dt.AddColumn("Clustered", "Boolean");
             dt.AddColumn("DiffieHellmanVersion", "String");
             dt.AddColumn("RebootNeeded", "Boolean");
+            dt.AddColumn("LastSystemReboot", "DateTime");    // added to display last system reboot  clintonw 9/8/2022
             dt.AddColumn("CredentialGuard", "Boolean");
             ds.Tables.Add(dt);
 

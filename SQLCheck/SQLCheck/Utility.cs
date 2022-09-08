@@ -541,5 +541,12 @@ namespace SQLCheck
             }
             return v;
         }
+
+        // FormatInterval -TimeSpan to Days, Hours and Min as string
+        public static string FormatInterval(TimeSpan ts)
+        {
+            return $"{ts.Days} Days, {ts.Hours} Hours, {ts.Minutes} Minutes";
+        }
+
     }
 }
