@@ -89,7 +89,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0.0065
+                  SQLTrace.ps1 version 1.0.0.0066
                by the Microsoft SQL Server Networking Team
 "
 
@@ -307,13 +307,13 @@ Function SetupBIDRegistry
 
 Function HasBIDBeenSet
 {
-	$BIDPath = "HKLM:\Software\WOW6432Node\Microsoft\BidInterface\Loader"
+	$BIDPath = "HKLM:\Software\Microsoft\BidInterface\Loader"
 	$BID32Path = "HKLM:\Software\WOW6432Node\Microsoft\BidInterface\Loader"
 
 	# 32-bit test
 	if ($global:INISettings.BidWow -eq "Only" -or $global:INISettings.BidWow -eq "Both")
 	{
-		$Path = Get-ItemProperty $BID32Path -Name ":Path"
+		$Path = Get-ItemProperty $BID32Path -Name ":Path" -ErrorAction SilentlyContinue  # $Path will be $null if :Path does not exist
 		if ($Path -eq $null) { return $false }
 		if ($Path.":Path" -ne "MSDADIAG.DLL") { return $false }   # case insensitive comparison
 	}
@@ -321,7 +321,7 @@ Function HasBIDBeenSet
 	# 64-bit test
 	if ($global:INISettings.BidWow -eq "Both" -or $global:INISettings.BidWow -eq "No")
 	{
-		$Path = Get-ItemProperty $BIDPath -Name ":Path"
+		$Path = Get-ItemProperty $BIDPath -Name ":Path" -ErrorAction SilentlyContinue  # $Path will be $null if :Path does not exist
 		if ($Path -eq $null) { return $false }
 		if ($Path.":Path" -ne "MSDADIAG.DLL") { return $false }   # case insensitive comparison
 	}
