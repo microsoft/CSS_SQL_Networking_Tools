@@ -352,6 +352,24 @@ namespace SQLCheck
             {
                 Computer.LogWarning($@"Reboot is recommended due to pending file rename operations being present.");
             }
+
+
+            // Addition - Adding Last system reboot time   // Clintonw 9/8/2022  Issue #42
+            // Based on Event 12 "Microsoft-Windows-Kernel-General"
+            EventLog SystemEventLog = new EventLog("System", ".");
+            EventLogEntryCollection LogEntryCollection = SystemEventLog.Entries;
+            int LogEntriesCount = LogEntryCollection.Count;
+            for (int i = LogEntriesCount - 1; i > -1; i--)
+            {
+                EventLogEntry LogEntry = LogEntryCollection[i];
+                if (LogEntry.EntryType.ToString().Equals("Information") && LogEntry.Source == "Microsoft-Windows-Kernel-General" && LogEntry.InstanceId == 12)
+                {   // Console.WriteLine(LogEntry.Source + LogEntry.EntryType + LogEntry.Message + LogEntry.TimeGenerated);
+                    Computer["LastSystemReboot"] = LogEntry.TimeGenerated;  // Uptime:  days, hours, min
+                    break;
+                }
+            }            
+            SystemEventLog.Close();
+            
         }
 
         public static void CollectDomain(DataSet ds)

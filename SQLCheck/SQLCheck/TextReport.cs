@@ -110,6 +110,17 @@ namespace SQLCheck
             s.WriteLine($"IIS Running:                {Computer.GetBoolean("IISRunning")}");
             s.WriteLine($"CredentialGuard enabled:    {Computer.GetBoolean("CredentialGuard")}");
             s.WriteLine();
+
+            if (Computer.IsNull("LastSystemReboot"))
+            {
+                s.WriteLine($"Last System Reboot:");  // clintonw 9/8/2022
+            }
+            else 
+            {
+                DateTime dt = (DateTime)(Computer["LastSystemReboot"]);
+                s.WriteLine($"Last System Reboot:         {Computer.GetString("LastSystemReboot")} (Uptime: {Utility.FormatInterval(DateTime.Now - dt)})");  // clintonw 9/8/2022
+            }
+            
             s.WriteLine($"Reboot Recommended:         {Computer.GetBoolean("RebootNeeded")}");
             s.WriteLine();
             s.WriteLine($"Computer Role:              {Computer.GetString("ComputerRole")}");
