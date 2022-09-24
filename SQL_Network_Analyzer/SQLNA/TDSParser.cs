@@ -252,11 +252,12 @@ namespace SQLNA
                         byte Window = 0;
 
                         // APPDATA does not have a TDS payload, but a TLS payload, so skip these tests if APPDATA
-                        if (firstByte == (int)TDSPacketType.APPDATA) // TLS version 0200, 0300 to 0303
+                        if (firstByte == (int)TDSPacketType.APPDATA) // TLS version 0200 SSL 2.0, 0300 SSL 3.0, 0301 TLS 1.0, 0302 TLS 1.1, 0303 TLS 1.2
                         {
                             byte sslMajor = fd.payload[1];
                             byte sslMinor = fd.payload[2];
                             bool validPayload = (sslMajor == 2 && sslMinor == 0) || (sslMajor == 3 && sslMinor < 4);
+                            if (validPayload) fd.frameType = FrameType.ApplicationData;
                             // do something here - ignore if validPayload == false??? TODO
                         }
                         else   // (firstByte != (int)TDSPacketType.APPDATA)
@@ -292,6 +293,7 @@ namespace SQLNA
                                     {
                                         GetClientPreloginInfo(fd.payload, fd.conversation);
                                         c.hasPrelogin = true;
+                                        fd.frameType = FrameType.PreLogin;
                                         if (c.PreLoginTime == 0) c.PreLoginTime = fd.ticks;
                                         if (fd.isFromClient)
                                         {
@@ -313,6 +315,7 @@ namespace SQLNA
                                             if (handshakeType == 1)
                                             {
                                                 c.hasClientSSL = true;
+                                                fd.frameType = FrameType.ClientHello;
                                                 if (c.ClientHelloTime == 0) c.ClientHelloTime = fd.ticks;
                                                 c.tlsVersionClient = translateSSLVersion(sslMajorVersion, sslMinorVersion);
                                                 if (sslMajorVersion != 3 || sslMinorVersion != 3) c.hasLowTLSVersion = true;  // mark anything other than TLS 1.2
@@ -321,6 +324,7 @@ namespace SQLNA
                                             {
                                                 if (c.KeyExchangeTime == 0) c.KeyExchangeTime = fd.ticks;
                                                 c.hasKeyExchange = true;
+                                                fd.frameType = FrameType.KeyExchange;
                                             }
                                             if (fd.isFromClient)
                                                 tdsClientSource++;   // looks like SQL is on the destIP side - good
@@ -334,6 +338,7 @@ namespace SQLNA
                                         {
                                             //Program.logDiagnostic($"TDS:Prelogin Server Hello packet seen at frame {fd.frameNo}.");
                                             c.hasServerSSL = true;
+                                            fd.frameType = FrameType.ServerHello;
                                             if (c.ServerHelloTime == 0) c.ServerHelloTime = fd.ticks;
                                             c.tlsVersionServer = translateSSLVersion(sslMajorVersion, sslMinorVersion);                                       
                                             if (sslMajorVersion != 3 || sslMinorVersion != 3) c.hasLowTLSVersion = true;  // mark anything other than TLS 1.2
@@ -357,6 +362,7 @@ namespace SQLNA
                                     else if (preloginType == 0x14) // Cipher exchange - could be client or server
                                     {
                                         c.hasCipherExchange = true;
+                                        fd.frameType = FrameType.CipherChange;
                                         if (c.CipherExchangeTime == 0) c.CipherExchangeTime = fd.ticks;
                                         tdsOtherFrames++;  // since could be client or server
                                     }
@@ -369,6 +375,7 @@ namespace SQLNA
                             case (byte)TDSPacketType.APPDATA:    // 0x17 = Application data
                                 {
                                     c.hasApplicationData = true;
+                                    fd.frameType = FrameType.ApplicationData;
                                     if (c.LoginTime == 0) c.LoginTime = fd.ticks;
                                     tdsOtherFrames++;  // since could be client or server
 
@@ -377,7 +384,7 @@ namespace SQLNA
 
                                     break;
                                 }
-                            case (byte)TDSPacketType.LOGIN:
+                            case (byte)TDSPacketType.LOGIN7:
                                 {
                                     //accumulate the payload. *** normally, we should not see this packet unencrypted ***
                                     if (c.hasClientSSL == false && c.hasServerSSL == false &&
@@ -385,6 +392,7 @@ namespace SQLNA
                                         c.hasPostLoginResponse == false && c.Error == 0)
                                     {
                                         c.hasLogin7 = true;
+                                        fd.frameType = FrameType.Login7;
                                         if (c.LoginTime == 0) c.LoginTime = fd.ticks;
                                     }
                                     payLoadLength += fd.payload.Length;
@@ -413,6 +421,7 @@ namespace SQLNA
                                             (fd.payload[16] == 3))                                       // Type = Authenticate Message
                                         {
                                             c.hasNTLMResponse = true;
+                                            fd.frameType = FrameType.NTLMResponse;
                                             if (c.NTLMResponseTime == 0) c.NTLMResponseTime = fd.ticks;
 
                                             //Parse User name and domain name
@@ -424,6 +433,7 @@ namespace SQLNA
                                         else  // not NTLM, so Kerberos SSPI
                                         {
                                             c.hasSSPI = true;
+                                            fd.frameType = FrameType.SSPI;
                                             if (c.SSPITime == 0) c.SSPITime = fd.ticks;
                                         }
                                     }
@@ -442,6 +452,12 @@ namespace SQLNA
                                     //accumulate the payload. 
                                     payLoadLength += fd.payload.Length;
                                     c.hasPostLoginResponse = true; // if we're doing this, login has already succeeded
+                                    switch (firstByte)
+                                    {
+                                        case (byte)TDSPacketType.RPC:         { fd.frameType = FrameType.RPCRequest;       break; }
+                                        case (byte)TDSPacketType.SQLBATCH:    { fd.frameType = FrameType.SQLBatch;         break; }
+                                        case (byte)TDSPacketType.DTC:         { fd.frameType = FrameType.XactMgrRequest;   break; }
+                                    }
                                     // if (c.LoginAckTime == 0) c.LoginAckTime = fd.ticks;
 
                                     /*******
@@ -464,23 +480,29 @@ namespace SQLNA
                                 {
                                     //accumulate the payload. 
                                     payLoadLength += fd.payload.Length;
-                                    c.hasPostLoginResponse = true; // if we're doing this, login has already succeeded
-                                    if (c.AttentionTime == 0) c.AttentionTime = fd.ticks;
+                                    if (payLoadLength == 8) // has exactly 8-bytes of payload, just enough for the TDS header
+                                    {
+                                        c.hasPostLoginResponse = true; // if we're doing this, login has already succeeded
+                                        fd.frameType = FrameType.Attention;
+                                        if (c.AttentionTime == 0) c.AttentionTime = fd.ticks;
 
-                                    if (fd.isFromClient)
-                                        tdsClientSource++;   // looks like SQL is on the destIP side - good
-                                    else
-                                        tdsClientDest++;     // looks like SQL is on the sourceIP side - need to switch later
-
+                                        if (fd.isFromClient)
+                                            tdsClientSource++;   // looks like SQL is on the destIP side - good
+                                        else
+                                            tdsClientDest++;     // looks like SQL is on the sourceIP side - need to switch later
+                                    }
                                     break;
                                 }
                             case (byte)TDSPacketType.RESPONSE:  //0x4
                                 {
+                                    fd.frameType = FrameType.TabularResponse;  // generic response
                                     // process error responses
                                     if (fd.payload[8] == (byte)TDSTokenType.ERROR)
                                     {
+                                        fd.frameType = FrameType.CommandError;
                                         if (c.Error == 0 && c.hasPostLoginResponse == false) // ignore command execute errors
                                         {
+                                            fd.frameType = FrameType.LoginError;
                                             c.Error = utility.ReadUInt32(fd.payload, 11);
                                             c.ErrorState = fd.payload[15];
                                             int ErrorLen = (int)fd.payload[17];
@@ -494,6 +516,7 @@ namespace SQLNA
                                     {
                                         GetServerPreloginInfo(fd.payload, fd.conversation);
                                         c.hasPreloginResponse = true;
+                                        fd.frameType = FrameType.PreLoginResponse;
                                         if (c.PreLoginResponseTime == 0) c.PreLoginResponseTime = fd.ticks;
                                         if (fd.isFromClient && c.hasApplicationData == false && c.hasPostLoginResponse == false) switchClientServer++;
                                     }
@@ -506,6 +529,7 @@ namespace SQLNA
                                         if (handshakeType == 2) // Server Hello
                                         {
                                             c.hasServerSSL = true;
+                                            fd.frameType = FrameType.ServerHello;
                                             if (c.ServerHelloTime == 0) c.ServerHelloTime = fd.ticks;
                                             c.tlsVersionServer = translateSSLVersion(sslMajorVersion, sslMinorVersion);
                                             if (sslMajorVersion != 3 || sslMinorVersion != 3) c.hasLowTLSVersion = true;  // mark anything other than TLS 1.2
@@ -533,12 +557,14 @@ namespace SQLNA
                                                 (fd.payload[19] == 2))                                      // type = Challenge Message
                                     {
                                         c.hasNTLMChallenge = true;
+                                        fd.frameType = FrameType.NTLMChallenge;
                                         if (c.NTLMChallengeTime == 0) c.NTLMChallengeTime = fd.ticks;
                                         if (fd.isFromClient == false && c.hasApplicationData == false && c.hasPostLoginResponse == false) switchClientServer++;
                                     }
                                     else if ((fd.payloadLength > 19) && (fd.payload[8] == (byte)TDSTokenType.SSPI))      // Not NTLM, so Kerberos SSPI
                                     {
                                         c.hasSSPI = true;
+                                        fd.frameType = FrameType.SSPI;
                                         if (c.SSPITime == 0) c.SSPITime = fd.ticks;
                                     }
                                     else if ((tokenOffset(fd.payload, (byte)TDSTokenType.ENVCHANGE) > 7) &&  // response header is offset 0..7 
@@ -546,6 +572,7 @@ namespace SQLNA
                                                 (tokenOffset(fd.payload, (byte)TDSTokenType.LOGINACK) > 7))
                                     {
                                         c.hasPostLoginResponse = true;
+                                        fd.frameType = FrameType.LoginAck;
                                         if (c.LoginAckTime == 0) c.LoginAckTime = fd.ticks;
                                        
                                         try
@@ -636,7 +663,9 @@ namespace SQLNA
                                   + (c.hasKeyExchange ? 1 : 0)
                                   + (c.hasCipherExchange ? 1 : 0)
                                   + (c.hasApplicationData ? 1 : 0)
-                                  + (c.hasPostLoginResponse ? 1 : 0);
+                                  + (c.hasLogin7 ? 1 : 0)
+                                  + (c.hasPostLoginResponse ? 1 : 0)
+                                  + (c.hasLoginFailure ? 1 : 0);
 
                 //
                 // If we see the beginning of the conversation, but there are not enough key frames, then very strong % not SQL.
@@ -862,6 +891,14 @@ namespace SQLNA
             temp = c.sourceFrames;
             c.sourceFrames = c.destFrames;
             c.destFrames = (uint)temp;
+
+            bool fTemp = false;
+            fTemp = c.hasServerFin;
+            c.hasServerFin = c.hasClientFin;
+            c.hasClientFin = fTemp;
+            if (c.hasClientFin && c.hasServerFin) c.hasServerFinFirst = !c.hasServerFinFirst; // only if both flags are set can we reverse this
+            if (c.hasServerFin && !c.hasClientFin) c.hasServerFinFirst = true;
+            if (!c.hasServerFin) c.hasServerFinFirst = false;
         }
 
         //Parse User name and domain name

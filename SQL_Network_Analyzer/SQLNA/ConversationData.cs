@@ -75,6 +75,9 @@ namespace SQLNA
         public int resetCount = 0;      //               - accumulated in ParseTCPFrame - can be in combination with other flags
         public int synCount = 0;        //               - accumulated in ParseTCPFrame - can be in combination with other flags
         public int finCount = 0;        //               - accumulated in ParseTCPFrame - can be in combination with other flags
+        public bool hasClientFin = false;           //   - set in ParseTCPFrame
+        public bool hasServerFin = false;           //   - set in ParseTCPFrame
+        public bool hasServerFinFirst = false;      //   - set in ParseTCPFrame - used to determine whether the server closed the conversation
         public int smpSynCount = 0;     //               - accumulated in ParseTCPFrame
         public int smpAckCount = 0;     //               - accumulated in ParseTCPFrame
         public int smpFinCount = 0;     //               - accumulated in ParseTCPFrame
@@ -202,7 +205,7 @@ namespace SQLNA
                 }
                 else
                 {
-                    if (hasApplicationData == true  && synCount == 0 && hasPrelogin == false && hasPreloginResponse == false &&
+                    if (hasApplicationData == true && synCount == 0 && hasPrelogin == false && hasPreloginResponse == false &&
                         hasClientSSL == false && hasServerSSL == false && hasKeyExchange == false && hasCipherExchange == false &&
                         hasNTLMChallenge == false && hasNTLMResponse == false && frames.Count > (4 + 2 * keepAliveCount + rawRetransmits))
                     {
@@ -245,7 +248,7 @@ namespace SQLNA
             if (SSPITime != 0) priorTick = SSPITime;
             if (step == "NC") return NTLMChallengeTime == 0 ? notPresent : NTLMChallengeTime - priorTick;
             if (NTLMChallengeTime != 0) priorTick = NTLMChallengeTime;
-            if (step == "NR") return NTLMResponseTime == 0 ? notPresent : NTLMResponseTime-priorTick;
+            if (step == "NR") return NTLMResponseTime == 0 ? notPresent : NTLMResponseTime - priorTick;
             if (NTLMResponseTime != 0) priorTick = NTLMResponseTime;
             if (step == "LA") return LoginAckTime == 0 ? notPresent : LoginAckTime - priorTick;
             if (LoginAckTime != 0) priorTick = LoginAckTime;
@@ -376,10 +379,17 @@ namespace SQLNA
                            (hasNTLMChallenge ? "NC " : "   ") +
                            (hasNTLMResponse ? "NR " : "   ") +
                            (hasSSPI ? "SS " : "   ") +
-                           (ErrorTime !=0 ? "ER" : "  ");
+                           (ErrorTime != 0 ? "ER" : "  ");
 
                 return s;
             }
+        }
+
+        public string GetPacketList(int start, int length)
+        {
+            string s = "";
+            for (int i = start; i < start + length; i++) s += frames[i] + " ";
+            return s.TrimEnd();
         }
 
         public string ColumnHeader1()

@@ -18,6 +18,33 @@ namespace SQLNA
     // Should probably be in a side collection in each regular frame, so we do not bloat the conversation itself.
     //
 
+    public enum FrameType
+    {
+        PreLogin = 1,                                     // set in ProcessTDS
+        PreLoginResponse,                                 // set in ProcessTDS
+        ClientHello,                                      // set in ProcessTDS
+        ServerHello,                                      // set in ProcessTDS
+        KeyExchange,                                      // set in ProcessTDS
+        CipherChange,                                     // set in ProcessTDS
+        ApplicationData,                                  // set in ProcessTDS
+        Login7,                                           // set in ProcessTDS - we should never see this in the raw, should be ApplicationData instead
+        SSPI,                                             // set in ProcessTDS
+        NTLMChallenge,                                    // set in ProcessTDS
+        NTLMResponse,                                     // set in ProcessTDS
+        LoginAck,                                         // set in ProcessTDS
+        LoginError,                                       // set in ProcessTDS
+        Attention,                                        // set in ProcessTDS
+        SQLBatch,                                         // set in ProcessTDS
+        RPCRequest,                                       // set in ProcessTDS
+        XactMgrRequest,                                   // set in ProcessTDS
+        XActMgrReply,                                     // placeholder
+        CommandError,                                     // set in ProcessTDS
+        TabularResponse,                                  // set in ProcessTDS
+        SMPAck,                                           // set in ParseTCPFrame
+        SMPSyn,                                           // set in ParseTCPFrame
+        SMPFin                                            // set in ParseTCPFrame
+    }
+
     public class FrameData                                // constructed in ParseOneFile
     {
         public ConversationData conversation = null;      // set in ParseIPV4Frame and ParseIPV6Frame
@@ -36,6 +63,7 @@ namespace SQLNA
         public ushort smpSession = 0;                     // set in ParseTCPFrame
         public byte smpType = 0;                          // set in ParseTCPFrame
         public byte[] payload = null;                     // set in ParseTCPFrame and ParseUDPFrame
+        public FrameType frameType = 0;                   // set in ProcessTDS
         public bool isKeepAliveRetransmit = false;        // set in FindKeepAliveRetransmits
         public ushort kaRetransmitCount = 0;              // set in FindKeepAliveRetransmits
         public bool isRetransmit = false;                 // set in FindRetransmits
@@ -104,6 +132,50 @@ namespace SQLNA
         public bool hasRESETFlag
         {
             get { return (flags & (byte)TCPFlag.RESET) != 0; }
+        }
+
+        public string PacketType
+        {
+            get
+            {
+                switch (frameType)
+                {
+                    case FrameType.ApplicationData:      return "AD";
+                    case FrameType.Attention:            return "ATTN";
+                    case FrameType.CipherChange:         return "CE";
+                    case FrameType.ClientHello:          return "CH";
+                    case FrameType.CommandError:         return "ERR";
+                    case FrameType.KeyExchange:          return "KE";
+                    case FrameType.Login7:               return "L7";
+                    case FrameType.LoginAck:             return "LA";
+                    case FrameType.LoginError:           return "ER";
+                    case FrameType.NTLMChallenge:        return "NC";
+                    case FrameType.NTLMResponse:         return "NR";
+                    case FrameType.PreLogin:             return "PL";
+                    case FrameType.PreLoginResponse:     return "PR";
+                    case FrameType.RPCRequest:           return "RPC";
+                    case FrameType.ServerHello:          return "SH";
+                    case FrameType.SMPAck:               return "SmpA";
+                    case FrameType.SMPFin:               return "SmpF";
+                    case FrameType.SMPSyn:               return "SmpS";
+                    case FrameType.SQLBatch:             return "BAT";
+                    case FrameType.SSPI:                 return "SS";
+                    case FrameType.TabularResponse:      return "DATA";
+                    case FrameType.XactMgrRequest:       return "TX";
+                    default:
+                        {
+                            return FormatFlags();
+                        };
+                }
+            }
+        }
+
+        public string PacketTypeAndDirection
+        {
+            get
+            {
+                return (isFromClient ? ">" : "<") + PacketType;
+            }
         }
 
 

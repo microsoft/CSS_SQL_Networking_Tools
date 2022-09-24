@@ -12,7 +12,7 @@ namespace SQLNA
     // Varous small classes used by NetTrace or by reporting methods in OutputText.cs
     //
 
-    enum FrameType
+    public enum TransportType
     {
         TCP = 0,
         UDP = 1
@@ -21,10 +21,10 @@ namespace SQLNA
    // enum TDSPacketType
    // {
    //     SQLBATCH           =  1,  //            from client only
-   //     LOGIN              =  2,
+   //     LOGIN              =  2,  //            from client only
    //     RPC                =  3,  //            from client only
    //     RESPONSE           =  4,  //            from server only
-   //     ATTENTION          =  6,
+   //     ATTENTION          =  6,  //            from client only
    //     BULKLOAD           =  7,
    //     DTC                = 14,  // 0x0E
    //     //LOGIN7           = 16,  // 0x10       can be both - both what??? - why commented out???
