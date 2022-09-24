@@ -34,6 +34,7 @@ namespace SQLNA
 
         private Guid NDIS = new Guid("2ED6006E-4729-4609-B423-3EE7BCD678EF");
         private Guid PKTMON = new Guid("4d4f80d9-c8bd-4d73-bb5b-19c90402c5ac");
+        private Guid WFP = new Guid("C22D1B14-C242-49DE-9F17-1D76B8B9C458");
         private readonly Int16 NDIS_HEADER_LENGTH = 12;
         private long FirstTimeStamp = 0;  // should be okay to use m_sessionStartTimeQPC
 
@@ -102,7 +103,7 @@ namespace SQLNA
 
             // Debug.WriteLine($"TraceEvent_EventCallback: Frame:{m_eventCount + 1}, ProviderID: {gu}, NDIS: {NDIS}, PKTMON: {PKTMON}");
 
-            if (gu != NDIS && gu != PKTMON)
+            if (gu != NDIS && gu != PKTMON && gu != WFP)
             {
                 m_eventCount++; // assuming no fragmentation of events
                 return;         // process only NDIS and PKTMON events
@@ -127,6 +128,19 @@ namespace SQLNA
                 // Debug.WriteLine($"TraceEvent_EventCallback: It's a PKTMON event.");
             }
 
+            if (gu == WFP)
+            {
+                if (eventID != 60011 && eventID != 60012 && eventID != 60021 && eventID != 60022)
+                {
+                    m_eventCount++; // Track the count
+                    return;
+                }
+                // Only preocess PKTMON events that contain a network payload
+                f_start = true;   // Are these set for WFP captures?
+                f_end = true;
+                // Debug.WriteLine($"TraceEvent_EventCallback: It's a WFP event.");
+            }
+
             if (f_start)  // data complete in a single event or the initial fragment of several
             {
                 m_eventCount++;   // only increment on the initial event
@@ -142,7 +156,7 @@ namespace SQLNA
                     // Program.logDiagnostic("Lost end of partial frame " + pf.f.frameNumber + " (PID=" + pf.ProcessID + ", TID=" + pf.ThreadID + ").");
                     // Console.WriteLine("Lost end of partial frame " + pf.f.frameNumber + " (PID=" + pf.ProcessID + ", TID=" + pf.ThreadID + ").");
                 }
-                short arrayOffset = gu == PKTMON ? (short)0 : NDIS_HEADER_LENGTH;  // we want the pktmon header to be part of the data, not so with the NDIS header
+                short arrayOffset = gu == PKTMON || gu == WFP ? (short)0 : NDIS_HEADER_LENGTH;  // we want the pktmon/wfp header to be part of the data, not so with the NDIS header
                 f = new Frame();
                 f.frameNumber = m_eventCount;
                 f.ticks = m_sessionStartTime.Ticks + ((long)(((rawData->EventHeader).TimeStamp - FirstTimeStamp) * 10000000 / m_QPCFreq));
@@ -158,7 +172,13 @@ namespace SQLNA
                 if (gu == PKTMON)
                 {
                     f.isPKTMON = true;
-                    f.pktmonEventType = eventID;
+                    f.EventType = eventID;
+                }
+
+                if (gu == WFP)
+                {
+                    f.isWFP = true;
+                    f.EventType = eventID;
                 }
 
                 if (f_end) // add Frame to FrameBuffer directly
@@ -264,7 +284,7 @@ namespace SQLNA
                     {
                         Frame f = FrameBuffer[0];
                         FrameBuffer.RemoveAt(0);
-                        Program.logDiagnostic($"***** Frame # {f.frameNumber}, Len: {f.frameLength}, isPktmon: {f.isPKTMON}, Event Type: {f.pktmonEventType}");
+                        Program.logDiagnostic($"***** Frame # {f.frameNumber}, Len: {f.frameLength}, isPktmon: {f.isPKTMON}, isWFP: {f.isWFP} Event Type: {f.EventType}");
                         return f;
                     }
                 }
