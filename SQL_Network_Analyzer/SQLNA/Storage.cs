@@ -12,7 +12,7 @@ namespace SQLNA
     // Varous small classes used by NetTrace or by reporting methods in OutputText.cs
     //
 
-    enum FrameType
+    public enum TransportType
     {
         TCP = 0,
         UDP = 1
@@ -21,10 +21,10 @@ namespace SQLNA
    // enum TDSPacketType
    // {
    //     SQLBATCH           =  1,  //            from client only
-   //     LOGIN              =  2,
+   //     LOGIN              =  2,  //            from client only
    //     RPC                =  3,  //            from client only
    //     RESPONSE           =  4,  //            from server only
-   //     ATTENTION          =  6,
+   //     ATTENTION          =  6,  //            from client only
    //     BULKLOAD           =  7,
    //     DTC                = 14,  // 0x0E
    //     //LOGIN7           = 16,  // 0x10       can be both - both what??? - why commented out???
@@ -87,6 +87,8 @@ namespace SQLNA
         public ushort sqlPort = 0;
         public bool isIPV6 = false;
         public bool hasResets = false;                         // set in OutputText.DisplaySQLServerSummary
+        public bool hasServerClosedConnections = false;        // set in OutputText.DisplaySQLServerSummary
+        public bool hasSynFailure = false;                     // set in OutputText.DisplaySQLServerSummary
         public bool hasLoginFailures = false;                  // set in OutputText.DisplaySQLServerSummary
         public bool hasAttentions = false;                     // set in OutputText.DisplaySQLServerSummary
         public bool hasLowTLSVersion = false;                  // set in OutputText.DisplaySQLServerSummary
@@ -141,8 +143,6 @@ namespace SQLNA
         public ArrayList conversations = new ArrayList(1024);  // pre-size to moderate starting amount - The DC may have few or many conversations
     }
 
-
-
     public class ResetConnectionData
     {
         public string clientIP = null;
@@ -162,7 +162,27 @@ namespace SQLNA
         public string flags = null;
         public uint keepAliveCount = 0;
         public ushort maxKeepAliveRetransmitsInARow = 0;
+        public string endFrames = null;
     }
+
+
+    public class ServerClosedConnectionData
+    {
+        public string clientIP = null;
+        public ushort sourcePort = 0;
+        public bool isIPV6 = false;
+        public int frames = 0;
+        public uint closeFrame = 0;
+        public int firstFile = 0;
+        public int lastFile = 0;
+        public long startOffset = 0;
+        public long endOffset = 0;
+        public long endTicks = 0;
+        public long duration = 0;
+        public string flags = null;
+        public string endFrames = null;
+    }
+
 
     public class PktmonDropConnectionData
     {
@@ -218,9 +238,28 @@ namespace SQLNA
         public bool hasDiffieHellman = false;
         public bool hasNullNTLMCreds = false;
         public bool LateLoginAck = false;
-        public uint Error;
-        public uint ErrorState;
-        public string ErrorMsg;
+        public uint Error = 0;
+        public uint ErrorState = 0;
+        public string ErrorMsg = null;
+    }
+
+    public class BadConnectionData
+    {
+        public string serverIP = null;
+        public string clientIP = null;
+        public ushort sourcePort = 0;
+        public ushort destPort = 0;
+        public bool isIPV6 = false;
+        public int frames = 0;
+        public uint lastFrame = 0;
+        public uint rawRetransmits = 0;
+        public int firstFile = 0;
+        public int lastFile = 0;
+        public long startOffset = 0;
+        public long endOffset = 0;
+        public long endTicks = 0;
+        public long duration = 0;
+        public string loginProgress = null;
     }
 
     public class LongConnectionData

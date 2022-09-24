@@ -1501,11 +1501,12 @@ namespace SQLNA
                     f.smpSession = utility.ReadUInt16(b, offset + headerLength + 2);
                     if (f.smpSession > f.conversation.smpMaxSession) f.conversation.smpMaxSession = f.smpSession;
                     // f.conversation.isMARSEnabled = true;   // set in TDS Parser
-                    if (smpType == 1) f.conversation.smpSynCount++;
-                    if (smpType == 2) f.conversation.smpAckCount++;
+                    if (smpType == 1) { f.conversation.smpSynCount++; f.frameType = FrameType.SMPSyn; }
+                    if (smpType == 2) { f.conversation.smpAckCount++; f.frameType = FrameType.SMPAck; }
                     if (smpType == 4)
                     {
                         f.conversation.smpFinCount++;
+                        f.frameType = FrameType.SMPFin;
                         if (f.conversation.smpFinTime == 0) f.conversation.smpFinTime = f.ticks; // so we can tell if reset occurs after SMP:FIN
                     }
                     if (smpType == 8) f.conversation.smpDataCount++;
@@ -1525,6 +1526,15 @@ namespace SQLNA
             {
                 f.conversation.finCount++;
                 if (f.conversation.FinTime == 0) f.conversation.FinTime = f.ticks;
+                if (f.isFromClient)
+                {
+                    f.conversation.hasClientFin = true;
+                }
+                else
+                {
+                    f.conversation.hasServerFin = true;
+                    if (!f.conversation.hasClientFin) f.conversation.hasServerFinFirst = true;  // not a good thing, need to report on it
+                }
             }
             if (f.hasSYNFlag) f.conversation.synCount++;
             if (f.hasRESETFlag)
