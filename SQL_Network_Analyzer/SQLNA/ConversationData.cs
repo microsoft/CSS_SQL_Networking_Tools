@@ -223,6 +223,20 @@ namespace SQLNA
             }
         }
 
+        //
+        // Did this conversation even manage to contact the server, let alone login.
+        // Needs at least one SYN packet to show the start of the conversation.
+        // Cannot have any PUSH flags for application payload.
+        // ACK + RESET + FIN are optionally allowed
+        //
+        public bool hasSynFailure
+        {
+            get
+            {
+                return (synCount > 0 && pushCount ==0);
+            }
+        }
+
         public long LoginDelay(string step, long firstFrameTick)   // times are in ticks, if prior packet time is unknown - timed to start of trace
         {
             long notPresent = (long)(-1 * utility.TICKS_PER_MILLISECOND);  // this value means a blank in the report instead of a 0.
@@ -388,8 +402,32 @@ namespace SQLNA
         public string GetPacketList(int start, int length)
         {
             string s = "";
-            for (int i = start; i < start + length; i++) s += frames[i] + " ";
+            for (int i = start; i < start + length; i++) s += ((FrameData)frames[i]).PacketTypeAndDirection + " ";
             return s.TrimEnd();
+        }
+
+        public string GetLastPacketList(int length)
+        {
+            if (length > frames.Count)
+            {
+                return GetPacketList(0, frames.Count);
+            }
+            else
+            {
+                return GetPacketList(frames.Count - length, length);
+            }
+        }
+
+        public string GetFirstPacketList(int length)
+        {
+            if (length > frames.Count)
+            {
+                return GetPacketList(0, frames.Count);
+            }
+            else
+            {
+                return GetPacketList(0, length);
+            }
         }
 
         public string ColumnHeader1()

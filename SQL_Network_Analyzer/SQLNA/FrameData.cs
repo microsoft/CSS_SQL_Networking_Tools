@@ -164,7 +164,8 @@ namespace SQLNA
                     case FrameType.XactMgrRequest:       return "TX";
                     default:
                         {
-                            return FormatFlags();
+                            if (isKeepAlive) return "KA";
+                            return FormatFlags("");
                         };
                 }
             }
@@ -235,14 +236,14 @@ namespace SQLNA
             }
         }
 
-        public string FormatFlags()
+        public string FormatFlags(string filler = ".")
         {
             string s = "";
-            s += ((flags & (byte)TCPFlag.ACK) != 0) ? "A" : ".";
-            s += ((flags & (byte)TCPFlag.PUSH) != 0) ? "P" : ".";
-            s += ((flags & (byte)TCPFlag.RESET) != 0) ? "R" : ".";
-            s += ((flags & (byte)TCPFlag.SYN) != 0) ? "S" : ".";
-            s += ((flags & (byte)TCPFlag.FIN) != 0) ? "F" : ".";
+            s += ((flags & (byte)TCPFlag.ACK) != 0) ? "A" : filler;
+            s += ((flags & (byte)TCPFlag.PUSH) != 0) ? "P" : filler;
+            s += ((flags & (byte)TCPFlag.RESET) != 0) ? "R" : filler;
+            s += ((flags & (byte)TCPFlag.SYN) != 0) ? "S" : filler;
+            s += ((flags & (byte)TCPFlag.FIN) != 0) ? "F" : filler;
             return s;
         }
 
