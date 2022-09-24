@@ -22,7 +22,8 @@ namespace SQLNA
         public byte[] data;		   	       // Byte data for frame.
         public long length = 0;		       // Length of data in bytes.
         public bool isPKTMON = false;      // ETLFileReader sets this - if false, use the linkType to determine the parser
-        public ushort pktmonEventType = 0; // ETLFileReader sets this
+        public bool isWFP = false;         // ETLFileReader sets this - if false, use the linkType to determine the parser
+        public ushort EventType = 0;       // ETLFileReader sets this
         public ushort linkType = 0;        // what provider is it - Ethernet (0 or 1), Wifi, etc.
     };
 

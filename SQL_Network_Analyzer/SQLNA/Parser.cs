@@ -256,7 +256,11 @@ namespace SQLNA
 
                         if (frame.isPKTMON)
                         {
-                            ParsePktmonFrame(frame.data, 0, t, f, frame.pktmonEventType);
+                            ParsePktmonFrame(frame.data, 0, t, f, frame.EventType);
+                        }
+                        else if (frame.isWFP)
+                        {
+                            ParseWFPFrame(frame.data, 0, t, f, frame.EventType);
                         }
                         else
                         {
@@ -626,6 +630,178 @@ namespace SQLNA
                     break;
                 default:
                     // ignore the frame
+                    break;
+            }
+        }
+
+        public static void ParseWFPFrame(byte[] b, int offset, NetworkTrace t, FrameData f, ushort eventID)
+        {
+            //
+            // Pseudo IPV4 and IPV6 headers make sure the NextProtocol is UDP or TCP, otherwise, ignore
+            //
+
+            switch (eventID)
+            {
+                case 60011: // WFP MessageV4
+                case 60012: // WFP Message2V4
+                    {
+                        uint sourceIP = utility.B2UInt32(b, offset);                       offset += 4;    // in big-endian byte order
+                        uint destIP = utility.B2UInt32(b, offset);                         offset += 4;
+                        byte NextProtocol = b[offset];                                     offset++;       // TCP = 6    UDP = 0x11 (17)
+                        if (eventID == 60012) offset += 8;                                                 // bypass FlowControl field in the Message2V4 record
+                        short payloadLength = (short)utility.ReadUInt16(b, offset);        offset += 2;    // in little-endian byte order
+
+                        // determine the last element of b[] that contains IPV4 data - also the last byte of TCP payload - ethernet may extend beyond this
+                        if (payloadLength == 0)
+                        {
+                            f.lastByteOffSet = (ushort)(b.Length - 1);
+                        }
+                        else
+                        {
+                            f.lastByteOffSet = (ushort)(offset + payloadLength - 1);
+                        }
+
+                        if (NextProtocol == 6 || NextProtocol == 0x11)
+                        {
+                            ushort SPort = utility.B2UInt16(b, offset);
+                            ushort DPort = utility.B2UInt16(b, offset + 2);
+                            ConversationData c = t.GetIPV4Conversation(sourceIP, SPort, destIP, DPort);  // adds conversation if new
+
+                            //
+                            // What:   Determine whether the TCP client port has rolled around and is re-used and this should be a new conversation
+                            //
+                            // Rule:   We see a SYN packet and there is a prior RESET or FIN packet already in the conversation, and is it older than 10 seconds.
+                            //
+                            // Action: Create a new conversation based on certain key fields of the current conversation.
+                            // Action: Add the frame to the new conversation.
+                            // Action: Add the new conversation to the conversations collection. 
+                            //
+
+                            if (NextProtocol == 6) // TCP
+                            {
+
+                                f.flags = b[offset + 13];
+                                if ((f.flags & (byte)TCPFlag.SYN) != 0 && (c.finCount > 0 || (c.resetCount > 0) && (f.ticks - ((FrameData)(c.frames[c.frames.Count - 1])).ticks) > 10 * utility.TICKS_PER_SECOND))
+                                {
+                                    ConversationData cOld = c;
+                                    c = new ConversationData();
+                                    c.sourceIP = cOld.sourceIP;
+                                    c.sourceIPHi = cOld.sourceIPHi;
+                                    c.sourceIPLo = cOld.sourceIPLo;
+                                    c.sourcePort = cOld.sourcePort;
+                                    c.destMAC = cOld.destMAC;
+                                    c.destIP = cOld.destIP;
+                                    c.destIPHi = cOld.destIPHi;
+                                    c.destIPLo = cOld.destIPLo;
+                                    c.destPort = cOld.destPort;
+                                    c.isIPV6 = cOld.isIPV6;
+                                    c.startTick = f.ticks;
+                                    c.endTick = f.ticks;
+                                    if (f.isFromClient) c.sourceFrames++; else c.destFrames++;
+                                    c.totalBytes += (ulong)b.Length;
+                                    ArrayList conv = t.GetConversationList((ushort)(c.sourcePort ^ c.destPort));   // XOR the port numbers together to generate an index into conversationIndex
+                                    conv.Add(c);
+                                    t.conversations.Add(c);
+                                }
+                            }
+                            c.nextProtocol = NextProtocol;
+                            if (c.truncatedFrameLength == 0 && f.capturedFrameLength != f.frameLength)
+                            {
+                                c.truncatedFrameLength = f.capturedFrameLength;
+                            }
+                            f.conversation = c;
+                            c.AddFrame(f, t);  // optionally add to the NetworkTrace frames collection, too
+
+                            // Is the Frame from Client or Server? This may be reversed later in ReverseBackwardConversations.
+                            if (sourceIP == c.sourceIP) f.isFromClient = true;
+                        }
+
+                        ParseNextProtocol(NextProtocol, b, offset, t, f);
+
+                        break;
+                    }
+                case 60021: // WFP MessageV6
+                case 60022: // WFP Message2V6
+                    {
+                        ulong sourceIPHi = utility.B2UInt64(b, offset);                   offset += 4;
+                        ulong sourceIPLo = utility.B2UInt64(b, offset);                   offset += 4;
+                        ulong destIPHi = utility.B2UInt64(b, offset);                     offset += 4;
+                        ulong destIPLo = utility.B2UInt64(b, offset);                     offset += 4;
+                        byte NextProtocol = b[offset];                                    offset++;        // TCP = 6    UDP = 0x11 (17)
+                        if (eventID == 60022) offset += 8;                                                 // bypass FlowContext field in the Message2V4 record
+                        short payloadLength = (short)utility.B2UInt16(b, offset);         offset += 2;
+
+                        // determine the last element of b[] that contains IP64 data - also the last byte of TCP payload - ethernet may extend beyond this
+                        if (payloadLength == 0)
+                        {
+                            f.lastByteOffSet = (ushort)(b.Length - 1);
+                        }
+                        else
+                        {
+                            f.lastByteOffSet = (ushort)(offset + payloadLength - 1);
+                        }
+
+                        if (NextProtocol == 6 || NextProtocol == 0x11)
+                        {
+                            ushort SPort = utility.B2UInt16(b, offset);
+                            ushort DPort = utility.B2UInt16(b, offset + 2);
+                            ConversationData c = t.GetIPV6Conversation(sourceIPHi, sourceIPLo, SPort, destIPHi, destIPLo, DPort);  // adds conversation if new
+
+                            //
+                            // What:   Determine whether the TCP client port has rolled around and is re-used and this should be a new conversation
+                            //
+                            // Rule:   We see a SYN packet and there is a prior RESET or FIN packet already in the conversation, and is it older than 10 seconds.
+                            //
+                            // Action: Create a new conversation based on certain key fields of the current conversation.
+                            // Action: Add the frame to the new conversation.
+                            // Action: Add the new conversation to the conversations collection. 
+                            //
+
+                            if (NextProtocol == 6) // TCP
+                            {
+
+                                f.flags = b[offset + 13];
+                                if ((f.flags & (byte)TCPFlag.SYN) != 0 && (c.finCount > 0 || (c.resetCount > 0) && (f.ticks - ((FrameData)(c.frames[c.frames.Count - 1])).ticks) > 10 * utility.TICKS_PER_SECOND))
+                                {
+                                    ConversationData cOld = c;
+                                    c = new ConversationData();
+                                    c.sourceIP = cOld.sourceIP;
+                                    c.sourceIPHi = cOld.sourceIPHi;
+                                    c.sourceIPLo = cOld.sourceIPLo;
+                                    c.sourcePort = cOld.sourcePort;
+                                    c.destMAC = cOld.destMAC;
+                                    c.destIP = cOld.destIP;
+                                    c.destIPHi = cOld.destIPHi;
+                                    c.destIPLo = cOld.destIPLo;
+                                    c.destPort = cOld.destPort;
+                                    c.isIPV6 = cOld.isIPV6;
+                                    c.startTick = f.ticks;
+                                    c.endTick = f.ticks;
+                                    if (f.isFromClient) c.sourceFrames++; else c.destFrames++;
+                                    c.totalBytes += (ulong)b.Length;
+                                    ArrayList conv = t.GetConversationList((ushort)(c.sourcePort ^ c.destPort));   // XOR the port numbers together to generate an index into conversationIndex
+                                    conv.Add(c);
+                                    t.conversations.Add(c);
+                                }
+                            }
+                            c.nextProtocol = NextProtocol;
+                            if (c.truncatedFrameLength == 0 && f.capturedFrameLength != f.frameLength)
+                            {
+                                c.truncatedFrameLength = f.capturedFrameLength;
+                            }
+                            f.conversation = c;
+                            c.AddFrame(f, t);  // optionally add to the NetworkTrace frames collection, too
+
+                            // Is the Frame from Client or Server? This may be reversed later in ReverseBackwardConversations.
+                            if (sourceIPHi == c.sourceIPHi && sourceIPLo == c.sourceIPLo) f.isFromClient = true;
+                        }
+
+                        ParseNextProtocol(NextProtocol, b, offset, t, f);
+
+                        break;
+                    }
+                default:
+                    // ignore the frame - we should never get one that's not in the list above
                     break;
             }
         }
