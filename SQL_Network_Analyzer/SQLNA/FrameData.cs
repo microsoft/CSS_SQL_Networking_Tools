@@ -165,6 +165,7 @@ namespace SQLNA
                     default:
                         {
                             if (isKeepAlive) return "KA";
+                            if (isRetransmit && payloadLength > 1) return "RET";
                             return FormatFlags("");
                         };
                 }
