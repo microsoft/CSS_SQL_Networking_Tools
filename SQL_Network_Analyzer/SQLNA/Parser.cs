@@ -667,6 +667,9 @@ namespace SQLNA
                             ushort DPort = utility.B2UInt16(b, offset + 2);
                             ConversationData c = t.GetIPV4Conversation(sourceIP, SPort, destIP, DPort);  // adds conversation if new
 
+                            // Is the Frame from Client or Server? This may be reversed later in ReverseBackwardConversations.
+                            if (sourceIP == c.sourceIP && SPort == c.sourcePort) f.isFromClient = true;
+
                             //
                             // What:   Determine whether the TCP client port has rolled around and is re-used and this should be a new conversation
                             //
@@ -711,9 +714,6 @@ namespace SQLNA
                             }
                             f.conversation = c;
                             c.AddFrame(f, t);  // optionally add to the NetworkTrace frames collection, too
-
-                            // Is the Frame from Client or Server? This may be reversed later in ReverseBackwardConversations.
-                            if (sourceIP == c.sourceIP) f.isFromClient = true;
                         }
 
                         ParseNextProtocol(NextProtocol, b, offset, t, f);
@@ -723,13 +723,13 @@ namespace SQLNA
                 case 60021: // WFP MessageV6
                 case 60022: // WFP Message2V6
                     {
-                        ulong sourceIPHi = utility.B2UInt64(b, offset);                   offset += 4;
-                        ulong sourceIPLo = utility.B2UInt64(b, offset);                   offset += 4;
-                        ulong destIPHi = utility.B2UInt64(b, offset);                     offset += 4;
-                        ulong destIPLo = utility.B2UInt64(b, offset);                     offset += 4;
+                        ulong sourceIPHi = utility.B2UInt64(b, offset);                   offset += 8;
+                        ulong sourceIPLo = utility.B2UInt64(b, offset);                   offset += 8;
+                        ulong destIPHi = utility.B2UInt64(b, offset);                     offset += 8;
+                        ulong destIPLo = utility.B2UInt64(b, offset);                     offset += 8;
                         byte NextProtocol = b[offset];                                    offset++;        // TCP = 6    UDP = 0x11 (17)
                         if (eventID == 60022) offset += 8;                                                 // bypass FlowContext field in the Message2V4 record
-                        short payloadLength = (short)utility.B2UInt16(b, offset);         offset += 2;
+                        short payloadLength = (short)utility.ReadUInt16(b, offset);       offset += 2;
 
                         // determine the last element of b[] that contains IP64 data - also the last byte of TCP payload - ethernet may extend beyond this
                         if (payloadLength == 0)
@@ -747,6 +747,9 @@ namespace SQLNA
                             ushort DPort = utility.B2UInt16(b, offset + 2);
                             ConversationData c = t.GetIPV6Conversation(sourceIPHi, sourceIPLo, SPort, destIPHi, destIPLo, DPort);  // adds conversation if new
 
+                            // Is the Frame from Client or Server? This may be reversed later in ReverseBackwardConversations.
+                            if (sourceIPHi == c.sourceIPHi && sourceIPLo == c.sourceIPLo && SPort == c.sourcePort) f.isFromClient = true;
+
                             //
                             // What:   Determine whether the TCP client port has rolled around and is re-used and this should be a new conversation
                             //
@@ -791,9 +794,6 @@ namespace SQLNA
                             }
                             f.conversation = c;
                             c.AddFrame(f, t);  // optionally add to the NetworkTrace frames collection, too
-
-                            // Is the Frame from Client or Server? This may be reversed later in ReverseBackwardConversations.
-                            if (sourceIPHi == c.sourceIPHi && sourceIPLo == c.sourceIPLo) f.isFromClient = true;
                         }
 
                         ParseNextProtocol(NextProtocol, b, offset, t, f);
@@ -1200,6 +1200,9 @@ namespace SQLNA
                 DPort = utility.B2UInt16(b, offset + HeaderLength + 2);
                 ConversationData c = t.GetIPV4Conversation(sourceIP, SPort, destIP, DPort);  // adds conversation if new
 
+                // Is the Frame from Client or Server? This may be reversed later in ReverseBackwardConversations.
+                if (sourceIP == c.sourceIP && SPort == c.sourcePort) f.isFromClient = true;
+
                 //
                 // Purpose: Do not record duplicate frames unless it has a PktmonData record associated with it
                 //
@@ -1219,7 +1222,7 @@ namespace SQLNA
 
                 int backCount = 0;
 
-                if (f.pktmon == null)  // we want to see the pktmon trace points
+                if (f.pktmon == null)  // we want to avoid the pktmon trace points
                 {
                     for (int j = c.frames.Count - 1; j >= 0; j--) // look in descending order for the same Packet ID number
                     {
@@ -1282,8 +1285,6 @@ namespace SQLNA
                 f.conversation = c;
                 c.AddFrame(f, t);  // optionally add to the NetworkTrace frames collection, too
 
-                // Is the Frame from Client or Server? This may be reversed later in ReverseBackwardConversations.
-                if (sourceIP == c.sourceIP) f.isFromClient = true;
              }
 
             ParseNextProtocol(NextProtocol, b, offset + HeaderLength, t, f);
@@ -1346,6 +1347,10 @@ namespace SQLNA
                 SPort = utility.B2UInt16(b, offset + HeaderLength);
                 DPort = utility.B2UInt16(b, offset + HeaderLength + 2);
                 ConversationData c = t.GetIPV6Conversation(sourceIPHi, sourceIPLo, SPort, destIPHi, destIPLo, DPort);
+
+                //Is the Frame from Client or Server?
+                if (sourceIPHi == c.sourceIPHi && sourceIPLo == c.sourceIPLo && SPort == c.sourcePort) f.isFromClient = true;
+
                 //
                 // Determine whether the TCP client port has rolled around and this should be a new conversation
                 //
@@ -1384,10 +1389,6 @@ namespace SQLNA
                 }
                 f.conversation = c;
                 c.AddFrame(f, t);
-
-                //Is the Frame from Client or Server?
-                if (sourceIPHi == c.sourceIPHi && sourceIPLo == c.sourceIPLo)
-                    f.isFromClient = true;
             }
 
             ParseNextProtocol(NextProtocol, b, offset + HeaderLength, t, f);

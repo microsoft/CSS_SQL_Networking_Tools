@@ -97,9 +97,15 @@ namespace SQLNA
             bool f_Wifi = ((rawData->EventHeader.Keyword) & 0x100) != 0;        // process Wi-Fi events - not yet implemented
             Guid gu = (&rawData->EventHeader)->ProviderId;
             ushort eventID = rawData->EventHeader.Id;
+            ushort WFPFragmentEventType = 0;              // WFP fragments need to remove the fragment header in event type 2000
+            uint WFPFragmentGroup = 0;                    // all fragments of the same packet have the same group number
+            uint WFPFragmentLength = 0;                   // this is 10 less than the user payload length as header is 10 bytes in length
+            bool WFPIncoming = ((rawData->EventHeader.Keyword) & 0x100000000) != 0;  // only take incoming packets and reject outgoing ones 0x200000000
             Frame f = null;
             PartialFrame pf = null;
             byte[] userData = null;
+
+            short arrayOffset = gu == PKTMON || gu == WFP ? (short)0 : NDIS_HEADER_LENGTH;  // we want the pktmon header to be part of the data, not so with the NDIS/wfp header
 
             // Debug.WriteLine($"TraceEvent_EventCallback: Frame:{m_eventCount + 1}, ProviderID: {gu}, NDIS: {NDIS}, PKTMON: {PKTMON}");
 
@@ -130,14 +136,16 @@ namespace SQLNA
 
             if (gu == WFP)
             {
-                if (eventID != 60011 && eventID != 60012 && eventID != 60021 && eventID != 60022)
+                if (eventID != 60011 && eventID != 60012 && eventID != 60021 && eventID != 60022 && eventID != 2000)  // 2000 is a fragmented packet, needs special handling
                 {
                     m_eventCount++; // Track the count
                     return;
                 }
-                // Only preocess PKTMON events that contain a network payload
-                f_start = true;   // Are these set for WFP captures?
-                f_end = true;
+                if (!WFPIncoming)  // easier to disable than if combined with the conditions above
+                {
+                    m_eventCount++; // Track the count
+                    return;
+                }
                 // Debug.WriteLine($"TraceEvent_EventCallback: It's a WFP event.");
             }
 
@@ -156,13 +164,22 @@ namespace SQLNA
                     // Program.logDiagnostic("Lost end of partial frame " + pf.f.frameNumber + " (PID=" + pf.ProcessID + ", TID=" + pf.ThreadID + ").");
                     // Console.WriteLine("Lost end of partial frame " + pf.f.frameNumber + " (PID=" + pf.ProcessID + ", TID=" + pf.ThreadID + ").");
                 }
-                short arrayOffset = gu == PKTMON || gu == WFP ? (short)0 : NDIS_HEADER_LENGTH;  // we want the pktmon/wfp header to be part of the data, not so with the NDIS header
                 f = new Frame();
                 f.frameNumber = m_eventCount;
                 f.ticks = m_sessionStartTime.Ticks + ((long)(((rawData->EventHeader).TimeStamp - FirstTimeStamp) * 10000000 / m_QPCFreq));
                 userData = new byte[rawData->UserDataLength - arrayOffset];
                 var x = ((byte*)rawData->UserData);
-                for (int i = 0; i < userData.Length; i++) userData[i] = x[i + arrayOffset];
+                for (int i = 0; i < userData.Length; i++) userData[i] = x[i + arrayOffset];  // move bytes over
+
+                if (gu == WFP && eventID == 2000)  // fragmented WFP packet
+                {
+                    WFPFragmentEventType = utility.ReadUInt16(userData, 0);
+                    WFPFragmentGroup = utility.ReadUInt32(userData, 2);
+                    WFPFragmentLength = utility.ReadUInt32(userData, 6);
+                    byte[] temp = new byte[userData.Length - 10];
+                    Array.Copy(userData, 10, temp, 0, temp.Length);  // copies from userData[10..userData.Length-1] to temp [0..temp.Length-11]
+                    userData = temp;
+                }
                 f.length = userData.Length;
                 f.frameLength = (uint)userData.Length;
                 f.bytesAvailable = (uint)userData.Length;
@@ -178,10 +195,10 @@ namespace SQLNA
                 if (gu == WFP)
                 {
                     f.isWFP = true;
-                    f.EventType = eventID;
+                    f.EventType = eventID == 2000 ? WFPFragmentEventType : eventID;  // use eventID for non-fragmented events and WFPFragmentEventType for fragmented ones
                 }
 
-                if (f_end) // add Frame to FrameBuffer directly
+                if (f_end) // add Frame to FrameBuffer directly - no fragmentation
                 {
                     lock (FrameBuffer)
                     {
@@ -211,9 +228,20 @@ namespace SQLNA
                     return;
                 }
 
-                userData = new byte[rawData->UserDataLength - NDIS_HEADER_LENGTH];
+                userData = new byte[rawData->UserDataLength - arrayOffset];
                 var x = ((byte*)rawData->UserData);
-                for (int i = 0; i < userData.Length; i++) userData[i] = x[i + NDIS_HEADER_LENGTH];
+                for (int i = 0; i < userData.Length; i++) userData[i] = x[i + arrayOffset];
+
+                if (gu == WFP && eventID == 2000)  // fragmented WFP packet
+                {
+                    WFPFragmentEventType = utility.ReadUInt16(userData, 0);
+                    WFPFragmentGroup = utility.ReadUInt32(userData, 2);
+                    WFPFragmentLength = utility.ReadUInt32(userData, 6);
+                    byte[] temp = new byte[userData.Length - 10];
+                    Array.Copy(userData, 10, temp, 0, temp.Length);  // copies from userData[10..userData.Length-1] to temp [0..temp.Length-11]
+                    userData = temp;
+                }
+
                 pf.f.length += userData.Length;
                 pf.f.frameLength += (uint)userData.Length;
                 pf.f.bytesAvailable += (uint)userData.Length;
