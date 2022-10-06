@@ -138,6 +138,9 @@ namespace SQLNA
         {
             get
             {
+                if (isKeepAlive) return "KA";
+                if (isRetransmit && payloadLength > 1) return "RET";
+
                 switch (frameType)
                 {
                     case FrameType.ApplicationData:      return "AD";
@@ -162,12 +165,7 @@ namespace SQLNA
                     case FrameType.SSPI:                 return "SS";
                     case FrameType.TabularResponse:      return "DATA";
                     case FrameType.XactMgrRequest:       return "TX";
-                    default:
-                        {
-                            if (isKeepAlive) return "KA";
-                            if (isRetransmit && payloadLength > 1) return "RET";
-                            return FormatFlags("");
-                        };
+                    default:                             return FormatFlags("");
                 }
             }
         }
