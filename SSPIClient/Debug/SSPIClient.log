@@ -1,8 +1,1 @@
-﻿  SSPIClientDlg.cpp
-c:\git\css_sql_networking_tools\sspiclient\sspiclientdlg.cpp(479): warning C4996: 'inet_addr': Use inet_pton() or InetPton() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
-  c:\program files (x86)\windows kits\10\include\10.0.17763.0\um\winsock2.h(1831): note: see declaration of 'inet_addr'
-c:\git\css_sql_networking_tools\sspiclient\sspiclientdlg.cpp(483): warning C4996: 'gethostbyname': Use getaddrinfo() or GetAddrInfoW() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
-  c:\program files (x86)\windows kits\10\include\10.0.17763.0\um\winsock2.h(2219): note: see declaration of 'gethostbyname'
-c:\git\css_sql_networking_tools\sspiclient\sspiclientdlg.cpp(516): warning C4996: 'gethostbyaddr': Use getnameinfo() or GetNameInfoW() instead or define _WINSOCK_DEPRECATED_NO_WARNINGS to disable deprecated API warnings
-  c:\program files (x86)\windows kits\10\include\10.0.17763.0\um\winsock2.h(2197): note: see declaration of 'gethostbyaddr'
-  SSPIClient.vcxproj -> C:\Git\CSS_SQL_Networking_Tools\SSPIClient\.\Debug\SSPIClient.exe
+﻿  SSPIClient.vcxproj -> C:\Git\CSS_SQL_Networking_Tools\SSPIClient\.\Debug\SSPIClient.exe
