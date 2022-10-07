@@ -71,6 +71,7 @@ struct SSPIClient_Status
 	BOOL fodbc11Available;
 	BOOL fodbc13Available;
 	BOOL fodbc17Available;
+	BOOL fodbc18Available;
 };
 
 extern SSPIClient_Status g_STATUS;

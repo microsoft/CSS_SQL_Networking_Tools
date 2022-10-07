@@ -1494,6 +1494,15 @@ void CheckKeyFiles()
 			o_printf("msodbcsql17.dll v.%s", pszVersion);
 		}
 
+		strcpy_s(szFileName, sizeof(szFileName), GetSystemFolder());
+		strcat_s(szFileName, sizeof(szFileName), "msodbcsql18.dll");
+		pszVersion = GetFileVersion(szFileName);
+		if ('\0' != pszVersion[0])
+		{
+			g_STATUS.fodbc18Available = TRUE;
+			o_printf("msodbcsql18.dll v.%s", pszVersion);
+		}
+
 		strcpy_s( szFileName, sizeof(szFileName),GetADOFolder() );
 		strcat_s( szFileName, sizeof(szFileName),"msado15.dll" );
 		pszVersion = GetFileVersion( szFileName );
@@ -1594,6 +1603,7 @@ void CSSPIClientDlg::OnBtnConnect()
 		// Strip off port.
 		port = atol( strTempConnect.Right( strTempConnect.GetLength()-(index+1) ) );
 		if ( 0 == port ) port = 1433;
+		if (port < 1 || port > 65535) port = 1433;
 		strTempConnect = strTempConnect.Left( index );
 	}
 
@@ -1609,13 +1619,13 @@ void CSSPIClientDlg::OnBtnConnect()
 		return;
 	}
 
-	o_printf( "*** Opening SSPIClient log v.2021.08.13 PID=%lu ***", GetCurrentProcessId() );
+	o_printf( "*** Opening SSPIClient log v.2022.10.07 PID=%lu ***", GetCurrentProcessId() );
 	o_printf( "" );
 
 	// Dump out what sort of test we are performing.
 	if ( m_fEncryptionTest )
 	{
-		o_printf( "User clicked 'Run Client Certificate Test' button." );
+		o_printf( "User clicked 'Run Client Certificate Test' button to test an encrypted connection and certificate validation." );
 		o_printf( "" );
 	}
 	else
@@ -1704,6 +1714,12 @@ void CSSPIClientDlg::OnBtnConnect()
 			o_printf("Detected ODBC Driver 17.");
 		}
 
+		if (g_STATUS.fodbc18Available)
+		{
+			pszDriver = "ODBC Driver 18 for SQL Server";
+			o_printf("Detected ODBC Driver 18.");
+		}
+
 		o_printf( "Selected latest detected Driver=%s.", pszDriver );
 	}
 
@@ -1715,7 +1731,7 @@ void CSSPIClientDlg::OnBtnConnect()
 				  pszDriver,
 				  ( fUserSetProtocol ) ? "" : "tcp:",
 				  strActualConnect.GetBuffer(0),
-				  ( m_fEncryptionTest ) ? "Encrypt=Yes;" : "" );
+				  ( m_fEncryptionTest ) ? "Encrypt=Yes;" : "Encrypt=No" );   // explicitly turn it off since the ODBC Driver 18 and later enable encryption by default
 		strTempConnect = szConnectIn;
 	}
 	else
@@ -1728,14 +1744,14 @@ void CSSPIClientDlg::OnBtnConnect()
 				  strActualConnect.GetBuffer(0),
 				  m_strUserId.GetBuffer(0),
 				  m_strPassword.GetBuffer(0),
-				  ( m_fEncryptionTest ) ? "Encrypt=Yes;" : "" );
+				  ( m_fEncryptionTest ) ? "Encrypt=Yes;" : "Encrypt=No" );    // explicitly turn it off since the ODBC Driver 18 and later enable encryption by default
 
 		strTempConnect.Format( "Driver=%s;Server=%s%s;UID=%s;PWD=*****;%s",
 							   pszDriver,
 							   ( fUserSetProtocol ) ? "" : "tcp:",
 							   strActualConnect.GetBuffer(0),
 							   m_strUserId.GetBuffer(0),
-							   ( m_fEncryptionTest ) ? "Encrypt=Yes;" : "" );
+							   ( m_fEncryptionTest ) ? "Encrypt=Yes;" : "Encrypt=No" );   // explicitly turn it off since the ODBC Driver 18 and later enable encryption by default
 
 	}
 	

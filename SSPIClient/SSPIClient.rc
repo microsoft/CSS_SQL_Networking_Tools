@@ -76,7 +76,7 @@ IDR_MAINFRAME           ICON                    "res\\SSPIClient.ico"
 IDD_SSPICLIENT_DIALOG DIALOGEX 0, 0, 335, 140
 STYLE DS_SETFONT | DS_MODALFRAME | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
 EXSTYLE WS_EX_APPWINDOW
-CAPTION "SSPIClient v.2021.08.13"
+CAPTION "SSPIClient v.2022.10.07"
 FONT 8, "MS Sans Serif", 0, 0, 0x0
 BEGIN
     PUSHBUTTON      "Run SSPI Connection Test",IDC_BTN_CONNECT,7,84,105,17
@@ -106,8 +106,8 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 2021,8,13,1
- PRODUCTVERSION 2021,8,13,1
+ FILEVERSION 2021,8,13,3
+ PRODUCTVERSION 2021,8,13,3
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
  FILEFLAGS 0x1L
@@ -124,12 +124,12 @@ BEGIN
         BEGIN
             VALUE "Comments", "SQL Server SSPI/Client Certificate debugging tool written by Microsoft CSS SQL Networking Team.  For testing purposes only, do not redistribute."
             VALUE "FileDescription", "SSPIClient Application"
-            VALUE "FileVersion", "2021.08.13.1"
+            VALUE "FileVersion", "2022.10.07.3"
             VALUE "InternalName", "SSPIClient"
-            VALUE "LegalCopyright", "Copyright (C) 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021"
+            VALUE "LegalCopyright", "Copyright (C) 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2020, 2021, 2022"
             VALUE "OriginalFilename", "SSPIClient.EXE"
             VALUE "ProductName", "SSPIClient Application"
-            VALUE "ProductVersion", "2021.08.13.1"
+            VALUE "ProductVersion", "2022.10.07.3"
         END
     END
     BLOCK "VarFileInfo"
