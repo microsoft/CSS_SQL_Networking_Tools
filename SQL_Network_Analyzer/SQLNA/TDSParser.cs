@@ -67,47 +67,47 @@ namespace SQLNA
                 //Skip first8 bytes of pre-login packet
                 //Read options until we hit LASTOPT=0xFF token.Options are:
                 //<Option1><Offset2><Length2>[<Option1><Offset2><Length2>]<LASTOPT>
-                for (int i = 8; 0xFF != tdsPayLoad[i]; i+=5 )
+                for (int i = 8; 0xFF != tdsPayLoad[i]; i += 5)
+                {
+                    // Get offset and length of prelogin option.
+                    // Note the offset's and lengths are reverse byte order UInt16's.
+                    offset = utility.B2UInt16(tdsPayLoad, i + 1);
+                    length = utility.B2UInt16(tdsPayLoad, i + 3);
+
+                    // Skip out now if offset is invalid.
+                    if (8 + offset >= tdsPayLoad.Length)
+                        return;
+
+                    switch (tdsPayLoad[i])
                     {
-                        // Get offset and length of prelogin option.
-                        // Note the offset's and lengths are reverse byte order UInt16's.
-                        offset = utility.B2UInt16(tdsPayLoad, i + 1);
-                        length = utility.B2UInt16(tdsPayLoad, i + 3);
-
-                        // Skip out now if offset is invalid.
-                        if (8 + offset >= tdsPayLoad.Length)
-                            return;
-
-                        switch (tdsPayLoad[i])
-                        {
-                            case 0: // Client TDS Version; - needs work - TODO
-                                    majorVersion = utility.ReadUInt16(tdsPayLoad, 8 + offset);
-                                    minorVersion = utility.B2UInt16(tdsPayLoad, 8 + offset + 2);
-                                    levelVersion = utility.B2UInt16(tdsPayLoad, 8 + offset + 4);
-                                    conv.clientVersion = majorVersion.ToString() + "." + minorVersion.ToString() + "." + levelVersion.ToString();
-                                    break;
-                            case 1: // encyption options. 
-                                    if (tdsPayLoad[8 + offset] == 1) conv.isEncrypted = true;
-                                    break;
-                            case 2: // Client requested Instance
-                                    clientInstance = utility.CleanString(utility.ReadAnsiString(tdsPayLoad, 8 + offset, length));
-                                    break;
-                            case 3: //Client TID.
-                                    if (4 == length)
-                                        conv.threadID = utility.ReadUInt32(tdsPayLoad, 8 + offset);
-                                    break;
-                            case 4: // MARS options. 
+                        case 0: // Client TDS Version; - needs work - TODO
+                            majorVersion = utility.ReadUInt16(tdsPayLoad, 8 + offset);
+                            minorVersion = utility.B2UInt16(tdsPayLoad, 8 + offset + 2);
+                            levelVersion = utility.B2UInt16(tdsPayLoad, 8 + offset + 4);
+                            conv.clientVersion = majorVersion.ToString() + "." + minorVersion.ToString() + "." + levelVersion.ToString();
+                            break;
+                        case 1: // encyption options. 
+                            if (tdsPayLoad[8 + offset] == 1) conv.isEncrypted = true;
+                            break;
+                        case 2: // Client requested Instance
+                            clientInstance = utility.CleanString(utility.ReadAnsiString(tdsPayLoad, 8 + offset, length));
+                            break;
+                        case 3: //Client TID.
+                            if (4 == length)
+                                conv.threadID = utility.ReadUInt32(tdsPayLoad, 8 + offset);
+                            break;
+                        case 4: // MARS options. 
                             if (tdsPayLoad[8 + offset] == 1) conv.isMARSEnabled = true;
                             break;
                         default:
-                                    break;
-                        }
+                            break;
                     }
+                }
             }
-            catch (Exception) 
+            catch (Exception)
             {
                 //TODO:throw an exception. 
-                
+
             };
         }
 
@@ -206,7 +206,7 @@ namespace SQLNA
                     try
                     {
                         // weed out non-TDS packets
-                        if (fd.payloadLength < 8 ) continue;  // ATTENTION payload is 8 bytes
+                        if (fd.payloadLength < 8) continue;  // ATTENTION payload is 8 bytes
 
                         // ignore continuation packets until we get a complete TDS message parser built
                         if (fd.isContinuation) continue;
@@ -235,8 +235,11 @@ namespace SQLNA
                             (firstByte != (int)TDSPacketType.ATTENTION) &&  //    6
                             (firstByte != (int)TDSPacketType.BULKLOAD) &&   //    7
                             (firstByte != (int)TDSPacketType.DTC) &&        //   14   0x0E
+                            (firstByte != (int)TDSPacketType.LOGIN7) &&     //   16   0x10
                             (firstByte != (int)TDSPacketType.SSPI) &&       //   17   0x11
                             (firstByte != (int)TDSPacketType.PRELOGIN) &&   //   18   0x12
+                            (firstByte != (int)TDSPacketType.TDS8CCS) &&    //   20   0x14 - TDS 8.0 ? only if already marked by Client Hello or Server Hello, otherwise ignore
+                            (firstByte != (int)TDSPacketType.TDS8TLS) &&    //   22   0x16 - TDS 8.0 ? if ALPN in Client Hello or Server Hello = tds/8.0; also for client-key exchange
                             (firstByte != (int)TDSPacketType.APPDATA))      //   23   0x17 - next 2 bytes give TLS version 0200, 0300 to 0303
                         {
                             continue;
@@ -251,18 +254,14 @@ namespace SQLNA
                         byte PacketID = 0;
                         byte Window = 0;
 
-                        // APPDATA does not have a TDS payload, but a TLS payload, so skip these tests if APPDATA
-                        if (firstByte == (int)TDSPacketType.APPDATA) // TLS version 0200 SSL 2.0, 0300 SSL 3.0, 0301 TLS 1.0, 0302 TLS 1.1, 0303 TLS 1.2
+                        // APPDATA and TDS8 TLS packets do not have a TDS payload, but a TLS payload, so skip these tests if APPDATA
+                        if (firstByte == (int)TDSPacketType.APPDATA || firstByte == (int)TDSPacketType.TDS8TLS|| firstByte == (int)TDSPacketType.TDS8CCS)
                         {
-                            byte sslMajor = fd.payload[1];
-                            byte sslMinor = fd.payload[2];
-                            bool validPayload = (sslMajor == 2 && sslMinor == 0) || (sslMajor == 3 && sslMinor < 4);
-                            if (validPayload) fd.frameType = FrameType.ApplicationData;
-                            // do something here - ignore if validPayload == false??? TODO
+                            // do nothing - ignore the TDS header that's in the else clause
                         }
                         else   // (firstByte != (int)TDSPacketType.APPDATA)
                         {
-                            // get header values
+                            // get header values - except for Application Data, and TDS8 packet types
                             status = fd.payload[1];
                             tdsEOM = (status & 0x1) == 1;
                             tdsResetConnection = (status & 0x18) != 0;
@@ -282,6 +281,91 @@ namespace SQLNA
 
                         switch (firstByte)
                         {
+                            case (byte)TDSPacketType.TDS8TLS:
+                                {
+                                    TLS tls = TLS.Parse(fd.payload, 0);
+                                    if (tls.handshake.hasClientHello)
+                                    {
+                                        // generic ClientHello stats, even for HTTPs, etc.
+                                        fd.frameType = FrameType.ClientHello;
+                                        c.tlsVersionClient = translateSSLVersion(tls.handshake.sslLevel);
+                                        if (!fd.isFromClient) switchClientServer++;
+                                        if (tls.hasTDS8)  // SQL-specific ClientHello stats
+                                        {
+                                            c.hasTDS8 = true;
+                                            if (c.serverName == null || c.serverName == "") c.serverName = tls.handshake.clientHello.serverName;
+                                            c.hasClientSSL = true;
+                                            if (c.ClientHelloTime == 0) c.ClientHelloTime = fd.ticks;
+                                            if (tls.handshake.sslLevel < 0x0303) c.hasLowTLSVersion = true;  // mark anything less than TLS 1.2
+                                            if (fd.isFromClient) { tdsClientSource++; } else { tdsClientDest++; };
+                                        }
+                                    }
+                                    else if (tls.handshake.hasServerHello)
+                                    {
+                                        // generic ServerHello stats, even for HTTPS, etc.
+                                        fd.frameType = FrameType.ServerHello;
+                                        if (fd.isFromClient) switchClientServer++;
+                                        c.tlsVersionServer = translateSSLVersion(tls.handshake.sslLevel);
+                                        if (tls.handshake.sslLevel < 0x0301)
+                                        {
+                                            if (translateSsl3CipherSuite(tls.handshake.sslLevel).StartsWith("SSL_DHE")) c.hasDiffieHellman = true;
+                                        }
+                                        else   // TLS 1.0, 1.1, 1.2, 1.3  (Maj.Min = 3.1, 3.2, 3.3, 3.4)
+                                        {
+                                            if (translateTlsCipherSuite(tls.handshake.sslLevel).StartsWith("TLS_DHE")) c.hasDiffieHellman = true;
+                                        }
+
+                                        if (tls.hasTDS8)  // SQL-specific ServerHello stats
+                                        {
+                                            c.hasTDS8 = true;
+                                            c.hasServerSSL = true;
+                                            if (c.ServerHelloTime == 0) c.ServerHelloTime = fd.ticks;
+                                            if (tls.handshake.sslLevel < 0x0303) c.hasLowTLSVersion = true;  // mark anything less than TLS 1.2
+                                            if (fd.isFromClient) { tdsServerSource++; } else { tdsServerDest++; };
+                                        }
+                                    }
+                                    else if (tls.handshake.hasClientKeyExchange)
+                                    {
+                                        fd.frameType = FrameType.KeyExchange;
+                                        if (c.hasTDS8)
+                                        {
+                                            if (c.KeyExchangeTime == 0) c.KeyExchangeTime = fd.ticks;
+                                            c.hasKeyExchange = true;
+                                            if (fd.isFromClient) { tdsClientSource++; } else { tdsClientDest++; switchClientServer++; };
+                                        }
+                                    }
+                                    payLoadLength += fd.payload.Length;
+                                    break;
+                                }
+                            case (byte)TDSPacketType.TDS8CCS:
+                                {
+                                    fd.frameType = FrameType.CipherChange;
+                                    if (c.hasTDS8)
+                                    {
+                                        c.hasCipherExchange = true;
+                                        if (c.CipherExchangeTime == 0) c.CipherExchangeTime = fd.ticks;
+                                        tdsOtherFrames++;  // since could be client or server
+                                    }
+                                    payLoadLength += fd.payload.Length;
+                                    break;
+                                }
+                            case (byte)TDSPacketType.APPDATA:    // 0x17 = Application data
+                                {
+                                    byte sslMajor = fd.payload[1];
+                                    byte sslMinor = fd.payload[2];
+                                    if (utility.ValidSSLVersion(sslMajor, sslMinor))
+                                    {
+                                        c.hasApplicationData = true;
+                                        fd.frameType = FrameType.ApplicationData;
+                                        if (c.LoginTime == 0) c.LoginTime = fd.ticks;
+                                        tdsOtherFrames++;  // since could be client or server
+                                    }
+
+                                    //accumulate the payload. 
+                                    payLoadLength += fd.payload.Length;
+
+                                    break;
+                                }
                             case (byte)TDSPacketType.PRELOGIN: // can be client or server
                                 {
                                     byte preloginType = fd.payload[8];  // first byte after TDS header = prelogin type
@@ -318,7 +402,7 @@ namespace SQLNA
                                                 fd.frameType = FrameType.ClientHello;
                                                 if (c.ClientHelloTime == 0) c.ClientHelloTime = fd.ticks;
                                                 c.tlsVersionClient = translateSSLVersion(sslMajorVersion, sslMinorVersion);
-                                                if (sslMajorVersion != 3 || sslMinorVersion != 3) c.hasLowTLSVersion = true;  // mark anything other than TLS 1.2
+                                                if (sslMajorVersion != 3 || sslMinorVersion < 3) c.hasLowTLSVersion = true;  // mark anything less than TLS 1.2
                                             }
                                             if (handshakeType == 0x10)
                                             {
@@ -340,7 +424,7 @@ namespace SQLNA
                                             c.hasServerSSL = true;
                                             fd.frameType = FrameType.ServerHello;
                                             if (c.ServerHelloTime == 0) c.ServerHelloTime = fd.ticks;
-                                            c.tlsVersionServer = translateSSLVersion(sslMajorVersion, sslMinorVersion);                                       
+                                            c.tlsVersionServer = translateSSLVersion(sslMajorVersion, sslMinorVersion);
                                             if (sslMajorVersion != 3 || sslMinorVersion != 3) c.hasLowTLSVersion = true;  // mark anything other than TLS 1.2
                                             byte skipLength = fd.payload[13 + 3 + 2 + 4 + 28 + 1];
                                             byte cipherHi = fd.payload[13 + 3 + 2 + 4 + 28 + 1 + skipLength + 1];
@@ -366,18 +450,6 @@ namespace SQLNA
                                         if (c.CipherExchangeTime == 0) c.CipherExchangeTime = fd.ticks;
                                         tdsOtherFrames++;  // since could be client or server
                                     }
-
-                                    //accumulate the payload. 
-                                    payLoadLength += fd.payload.Length;
-
-                                    break;
-                                }
-                            case (byte)TDSPacketType.APPDATA:    // 0x17 = Application data
-                                {
-                                    c.hasApplicationData = true;
-                                    fd.frameType = FrameType.ApplicationData;
-                                    if (c.LoginTime == 0) c.LoginTime = fd.ticks;
-                                    tdsOtherFrames++;  // since could be client or server
 
                                     //accumulate the payload. 
                                     payLoadLength += fd.payload.Length;
@@ -454,9 +526,9 @@ namespace SQLNA
                                     c.hasPostLoginResponse = true; // if we're doing this, login has already succeeded
                                     switch (firstByte)
                                     {
-                                        case (byte)TDSPacketType.RPC:         { fd.frameType = FrameType.RPCRequest;       break; }
-                                        case (byte)TDSPacketType.SQLBATCH:    { fd.frameType = FrameType.SQLBatch;         break; }
-                                        case (byte)TDSPacketType.DTC:         { fd.frameType = FrameType.XactMgrRequest;   break; }
+                                        case (byte)TDSPacketType.RPC: { fd.frameType = FrameType.RPCRequest; break; }
+                                        case (byte)TDSPacketType.SQLBATCH: { fd.frameType = FrameType.SQLBatch; break; }
+                                        case (byte)TDSPacketType.DTC: { fd.frameType = FrameType.XactMgrRequest; break; }
                                     }
                                     // if (c.LoginAckTime == 0) c.LoginAckTime = fd.ticks;
 
@@ -574,7 +646,7 @@ namespace SQLNA
                                         c.hasPostLoginResponse = true;
                                         fd.frameType = FrameType.LoginAck;
                                         if (c.LoginAckTime == 0) c.LoginAckTime = fd.ticks;
-                                       
+
                                         try
                                         {
                                             // parse LoginAck packet
@@ -603,10 +675,10 @@ namespace SQLNA
                                                 }
                                                 else if (EnvChangeType == 0x14)  // server redirection
                                                 {
-                                                        c.RedirectPort = utility.ReadUInt16(fd.payload, offset + 7);
-                                                        int ServerLen = fd.payload[offset + 9];
-                                                        c.RedirectServer = utility.ReadUnicodeString(fd.payload, offset + 11, ServerLen);
-                                                        c.hasRedirectedConnection = true;
+                                                    c.RedirectPort = utility.ReadUInt16(fd.payload, offset + 7);
+                                                    int ServerLen = fd.payload[offset + 9];
+                                                    c.RedirectServer = utility.ReadUnicodeString(fd.payload, offset + 11, ServerLen);
+                                                    c.hasRedirectedConnection = true;
                                                 }
                                                 offset = tokenOffset(fd.payload, (byte)TDSTokenType.ENVCHANGE, offset + tokenLength + 3);
                                             }
@@ -673,12 +745,18 @@ namespace SQLNA
                 // There is a possibility we're wrong, but other conversations should correct that.
                 //
 
-                if ((c.synCount > 0 && KeyFrameCount < 3) || ((tdsClientSource + tdsServerDest+ tdsServerSource + tdsClientDest) * 50) < c.frames.Count)
+                if ((c.synCount > 0 && KeyFrameCount < 3) || ((tdsClientSource + tdsServerDest + tdsServerSource + tdsClientDest) * 50) < c.frames.Count)
                 {
                     tdsClientSource = tdsServerDest = tdsServerSource = tdsClientDest = 0; // short-cut this option for determining if we have a SQL conversation
                 }
 
-                if (KeyFrameCount > 4)  // we're pretty sure this is a SQL Server -  JTDS just has Logon7 and hasPostLoginResponse special packets
+                if (c.hasTDS8)   // we know from ClientHello ALPN it is definitely a SLQ conversation
+                {
+                    c.hasTDS = true;
+                    c.isSQL = true;
+                    c.tdsFrames = tdsClientSource + tdsServerSource + tdsClientDest + tdsServerDest + tdsOtherFrames;
+                }
+                else if (KeyFrameCount > 4)  // we're pretty sure this is a SQL Server -  JTDS just has Logon7 and hasPostLoginResponse special packets
                 {
                     c.hasTDS = true;
                     c.isSQL = true;
@@ -694,7 +772,7 @@ namespace SQLNA
                 else
                 {
                     c.hasTDS = false;
-                    c.isSQL = false; 
+                    c.isSQL = false;
                 }
 
                 // based on the accumulated TDS flags, determine whether we need to switch client and server IP addresses and ports to make SQl on the destination side
@@ -810,7 +888,7 @@ namespace SQLNA
                 {
                     foreach (FrameData frame in c.frames)
                     {
-                        if ((frame.hasRESETFlag == false && frame.hasFINFlag ==false && frame.hasSYNFlag == false &&
+                        if ((frame.hasRESETFlag == false && frame.hasFINFlag == false && frame.hasSYNFlag == false &&
                              frame.hasACKFlag == true && frame.payloadLength > 1) || frame.hasPUSHFlag)
                         {
                             if (frame.isFromClient)
@@ -822,7 +900,7 @@ namespace SQLNA
                                 }
                                 // if packet truncation, only add the first frame, otherwise it would be a disjoint buffer
                                 // c.truncatedFrameLength is 0 if no truncation, or > 0 if truncation
-                                if (c.truncatedFrameLength == 0 || clientPacket.frames.Count ==0) clientPacket.frames.Add(frame);
+                                if (c.truncatedFrameLength == 0 || clientPacket.frames.Count == 0) clientPacket.frames.Add(frame);
                                 if (frame.hasPUSHFlag) clientPacket = new PacketData();
                             }
                             else
@@ -929,11 +1007,17 @@ namespace SQLNA
         public static string translateSSLVersion(byte major, byte minor)
         {
             if (major == 0 && minor == 2) return "SSL 2.0";
+            if (major == 3 && minor == 0) return "SSL 3.0";
             if (major == 3 && minor == 1) return "TLS 1.0";
             if (major == 3 && minor == 2) return "TLS 1.1";
             if (major == 3 && minor == 3) return "TLS 1.2";
             if (major == 3 && minor == 4) return "TLS 1.3";  // appears in a different token in the ClientHello packet
             return $"SSL {major}.{minor}";
+        }
+
+        public static string translateSSLVersion(ushort sslVersion)
+        {
+            return translateSSLVersion((byte)(sslVersion >> 8), (byte)(sslVersion & 0xFF));
         }
 
         public static string translateSsl3CipherSuite(byte cipherHi, byte cipherLo)
@@ -976,6 +1060,11 @@ namespace SQLNA
             }
             // not in list
             return $"{cipherHi.ToString("X2")} {cipherLo.ToString("X2")}";
+        }
+
+        public static string translateSsl3CipherSuite(ushort sslVersion)
+        {
+            return translateSsl3CipherSuite((byte)(sslVersion >> 8), (byte)(sslVersion & 0xFF));
         }
 
         public static string translateTlsCipherSuite(byte cipherHi, byte cipherLo)
@@ -1188,6 +1277,11 @@ namespace SQLNA
             }
             // not in list
             return $"{cipherHi.ToString("X2")} {cipherLo.ToString("X2")}";
+        }
+
+        public static string translateTlsCipherSuite(ushort sslVersion)
+        {
+            return translateTlsCipherSuite((byte)(sslVersion >> 8), (byte)(sslVersion & 0xFF));
         }
     }
 }

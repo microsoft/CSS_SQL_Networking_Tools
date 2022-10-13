@@ -116,6 +116,7 @@
     <Compile Include="TDSTokens.cs" />
     <Compile Include="TextGraph.cs" />
     <Compile Include="SSRPParser.cs" />
+    <Compile Include="TLSParser.cs" />
     <Compile Include="utility.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -273,7 +273,8 @@ namespace SQLNA
                                    "Kerb Conv:R",
                                    "NTLM Conv:R",
                                    "MARS Conv:R",
-                                   "non-TLS 1.2 Conv:R",
+                                   "Weak TLS Conv:R",   // TLS 1.1 and below
+                                   "TDS8 Conv:R",
                                    "Redirected Conv:R",
                                    "Frames:R",
                                    "Bytes:R",
@@ -295,6 +296,7 @@ namespace SQLNA
                     int NTLMResponseCount = 0;
                     int MARSCount = 0;
                     int lowTLSVersionCount = 0;
+                    int tds8Count = 0;
 
                     foreach (ConversationData c in s.conversations)
                     {
@@ -323,7 +325,8 @@ namespace SQLNA
                         int lastConvFile = Trace.files.IndexOf(((FrameData)(c.frames[c.frames.Count - 1])).file);
                         if (lastConvFile > lastFile) lastFile = lastConvFile;  // the last conversation may not end last, so we have to check
                         if (c.hasIntegratedSecurity) integratedCount++;
-                        if (c.hasNTLMResponse == true) NTLMResponseCount += 1;
+                        if (c.hasNTLMResponse == true) NTLMResponseCount++;
+                        if (c.hasTDS8) tds8Count++;
                     }
 
                     if (totalResets > 0) s.hasResets = true;
@@ -345,6 +348,7 @@ namespace SQLNA
                          NTLMResponseCount.ToString(),
                          MARSCount.ToString(),
                          lowTLSVersionCount.ToString(),
+                         tds8Count.ToString(),
                          (from ConversationData conv in s.conversations where conv.hasRedirectedConnection select conv).Count().ToString(),
                          totalFrames.ToString(),
                          totalBytes.ToString("#,##0"),

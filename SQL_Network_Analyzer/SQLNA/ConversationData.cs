@@ -33,6 +33,7 @@ namespace SQLNA
         public ArrayList packets = new ArrayList(); //   - packet added in CreatingPacketsFromFrames
         // SQL-specific values
         public bool hasTDS = false;                 //   - set in ProcessTDS
+        public bool hasTDS8 = false;                //   - set in ProcessTDS
         public bool isSQL = false;                  //   - set in ProcessTDS
         public bool isEncrypted = false;            //   - set in GetServerPreloginInfo
         public bool isEncRequired = false;          //   - set in 

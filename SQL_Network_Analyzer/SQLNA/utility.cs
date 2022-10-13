@@ -45,6 +45,28 @@ namespace SQLNA
         // Helper functions
         //
 
+        public static bool ValidSSLVersion(ushort SSL)
+        {
+            if (SSL == 0x0200) return true;   // SSL 2.0
+            if (SSL == 0x0300) return true;   // SSL 3.0
+            if (SSL == 0x0301) return true;   // TLS 1.0
+            if (SSL == 0x0302) return true;   // TLS 1.1
+            if (SSL == 0x0303) return true;   // TLS 1.2
+            if (SSL == 0x0304) return true;   // TLS 1.3
+            return false;
+        }
+
+        public static bool ValidSSLVersion(byte sslMajor, byte sslMinor)
+        {
+            if (sslMajor == 2 && sslMinor == 0) return true;   // SSL 2.0
+            if (sslMajor == 3 && sslMinor == 0) return true;   // SSL 3.0
+            if (sslMajor == 3 && sslMinor == 1) return true;   // TLS 1.0
+            if (sslMajor == 3 && sslMinor == 2) return true;   // TLS 1.1
+            if (sslMajor == 3 && sslMinor == 3) return true;   // TLS 1.2
+            if (sslMajor == 3 && sslMinor == 4) return true;   // TLS 1.3
+            return false;
+        }
+
         #region "String helpers"
 
         // Removes leading and trailing spaces and '\r' '\n' or '\0'.

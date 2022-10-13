@@ -18,16 +18,18 @@ namespace SQLNA
     public enum TDSPacketType
     {
         SQLBATCH    =  1,    //            from client
-        LOGIN       =  2,    //            from client          pre SQL Server 7.0 version of PRELOGIN packet
+        LOGIN       =  2,    //            from client             pre SQL Server 7.0 version of PRELOGIN packet
         RPC         =  3,    //            from client
         RESPONSE    =  4,    //            from server 
         ATTENTION   =  6,    //            from client
         BULKLOAD    =  7,    //            from client
         DTC         = 14,    // 0x0E       from client
-        LOGIN7      = 16,    // 0x10       from client          part of the encrypted login sequence - cannot parse this packet type
+        LOGIN7      = 16,    // 0x10       from client             part of the encrypted login sequence - should show as App Data and not be in unencrypted form
         SSPI        = 17,    // 0x11
-        PRELOGIN    = 18,    // 0x12       from client          for clients that support TDS 7.0 and above
-        APPDATA     = 23,    // 0x17       can come from either client or server - TODO - clarify this
+        PRELOGIN    = 18,    // 0x12       from client             for clients that support TDS 7.0 and above
+        TDS8CCS     = 20,    // 0x14       from Server             TLS Change Cipher Spec - for TDS 8.0
+        TDS8TLS     = 22,    // 0x16       from client or server   Generic TLS packets (non-SQL) and TLS 8 TLS packets
+        APPDATA     = 23,    // 0x17       from client or server
         INFO        = 171    // 0xAB       e.g. Change database context 
     }
 
