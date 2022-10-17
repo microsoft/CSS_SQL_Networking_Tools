@@ -51,7 +51,7 @@ param
 )
 
 
-#=======================================Globals =====================================
+#======================================= Globals =====================================
 
 # [console]::TreatControlCAsInput = $false   # may change this later
 [string]$global:CurrentFolder = Get-Location
@@ -60,7 +60,9 @@ param
 [string]$global:LogFolderEnvName = "SQLTraceLogFolder"
 
 $global:INISettings = $null                  # set in ReadINIFile
-$global:RunningSettings = $null
+
+
+#======================================= Code =====================================
 
 Function Main
 {
@@ -89,7 +91,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0.0066
+                  SQLTrace.ps1 version 1.0.0083.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -143,7 +145,27 @@ Usage:
 
 Function ReadINIFile
 {
-    $global:INISettings = New-Object IniValueClass
+    #$global:INISettings = New-Object IniValueClass
+
+    $global:INISettings =   @{                                     # a "splat" aka Dictionary
+                                BidTrace         = "No"            # No | Yes
+                                BidWow           = "No"            # No | Yes | Both
+                                BidProviderList  = ""
+
+                                NetTrace         = "No"
+                                Netsh            = "No"
+                                Netmon           = "No"
+                                Wireshark        = "No"
+                                Pktmon           = "No"
+
+                                AuthTrace        = "No"
+                                SSL              = "No"
+                                Kerberos         = "No"
+                                LSA              = "No"
+                                Credssp          = "No"
+                                EventViewer      = "No"
+                            }
+
     $fileName = $INIFile
 
     $fileData = get-content $fileName
@@ -254,31 +276,31 @@ Function GetLogFolderName
 
 # ================================= Class Definitions ===========================
 
-class INIValueClass             # contains all the INI file settings in one place
-{
-    [string] $BidTrace = "No"            # No | Yes
-    [string] $BidWow = "No"              # No | Yes | Both
-    [string] $BidProviderList = ""
-
-    [string] $NetTrace = "No"
-    [string] $Netsh = "No"
-    [string] $Netmon = "No"
-    [string] $Wireshark = "No"
-    [string] $Pktmon = "No"
-
-    [string] $AuthTrace = "No"
-    [string] $SSL = "No"
-    [string] $Kerberos = "No"
-    [string] $LSA = "No"
-    [string] $Credssp = "No"
-    [string] $EventViewer = "No"
-}
-
-class RunningSettings
-{
-    [System.Diagnostics.Process] $WiresharkProcess = $null
-    [System.Diagnostics.Process] $NetmonProcess = $null
-}
+#class INIValueClass             # contains all the INI file settings in one place - requires PowerShell 5
+#{
+#    [string] $BidTrace = "No"            # No | Yes
+#    [string] $BidWow = "No"              # No | Yes | Both
+#    [string] $BidProviderList = ""
+#
+#    [string] $NetTrace = "No"
+#    [string] $Netsh = "No"
+#    [string] $Netmon = "No"
+#    [string] $Wireshark = "No"
+#    [string] $Pktmon = "No"
+#
+#    [string] $AuthTrace = "No"
+#    [string] $SSL = "No"
+#    [string] $Kerberos = "No"
+#    [string] $LSA = "No"
+#    [string] $Credssp = "No"
+#    [string] $EventViewer = "No"
+#}
+#
+#class RunningSettings
+#{
+#    [System.Diagnostics.Process] $WiresharkProcess = $null
+#    [System.Diagnostics.Process] $NetmonProcess = $null
+#}
 
 # ======================================= Setup Traces =========================================
 
@@ -361,8 +383,8 @@ Function StartTraces
     LogInfo "Progress Log name: $($global:LogProgressFileName)"
 
     # $PSDefaultParameterValues['*:Encoding'] = 'Ascii'
-    $global:RunningSettings = New-Object RunningSettings
 
+    FlushExistingTraces
     FlushCaches
 
     tasklist > "$($global:LogFolderName)\TasklistAtStart.txt"
@@ -372,6 +394,37 @@ Function StartTraces
     StartNetworkTraces
 
     LogInfo "Traces have started..."
+}
+
+Function FlushExistingTraces
+{
+    # flush everything regardless of settings - may interfere with custom tracing
+
+    LogInfo "Stopping previously running traces ..."
+
+    logman stop SQLTraceBID -ets  2>&1 | Out-Null
+
+    logman stop SQLTraceNDIS -ets  2>&1 | Out-Null
+    netsh trace stop  2>&1 | Out-Null
+    nslookup "stopsqltrace.microsoft.com" 2>&1 | Out-Null     # Why the 2>&1 pipe? Do we still need that?
+    Stop-Process -Name "dumpcap" -Force  2>&1 | Out-Null
+
+    logman stop "SQLTraceKerberos" -ets  2>&1 | Out-Null
+    reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA\Kerberos\Parameters /v LogLevel /f  2>&1 | Out-Null
+    logman stop "SQLTraceNtlm_CredSSP" -ets  2>&1 | Out-Null
+    logman stop "SQLTraceSSL" -ets  2>&1 | Out-Null
+
+    nltest /dbflag:0x0  2>&1 | Out-Null
+    
+    reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v SPMInfoLevel /f  2>&1 | Out-Null
+    reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LogToFile /f  2>&1 | Out-Null
+    reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v NegEventMask /f  2>&1 | Out-Null
+    reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA\NegoExtender\Parameters /v InfoLevel /f  2>&1 | Out-Null
+    reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA\Pku2u\Parameters /v InfoLevel /f  2>&1 | Out-Null
+    reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LspDbgInfoLevel /f  2>&1 | Out-Null
+    reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LspDbgTraceOptions /f  2>&1 | Out-Null
+            
+    logman stop "SQLTraceLSA" -ets  2>&1 | Out-Null
 }
 
 Function FlushCaches
@@ -466,10 +519,9 @@ Function StartBIDTraces
             $guid | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid" -Append -Encoding Ascii
         }
 
-        logman start msbidtraces -pf "$($global:LogFolderName)\BIDTraces\ctrl.guid" -o "$($global:LogFolderName)\BIDTraces\bidtrace%d.etl" -bs 1024 -nb 1024 1024 -mode NewFile -max 200 -ets
-
+        $result = logman start SQLTraceBID -pf "$($global:LogFolderName)\BIDTraces\ctrl.guid" -o "$($global:LogFolderName)\BIDTraces\bidtrace%d.etl" -bs 1024 -nb 1024 1024 -mode NewFile -max 200 -ets
+        LogInfo "LOGMAN: $result"
     }
-
 }
 
 Function StartWireshark
@@ -482,9 +534,8 @@ Function StartWireshark
     For($cDevices=0;$cDevices -lt $DeviceList.Count;$cDevices++) { $ArgumentList = $ArgumentList + " -i " + ($cDevices+1) }
     ##Prepare command arguments 
     $ArgumentList = $ArgumentList + " -w $($global:LogFolderName)\NetworkTraces\nettrace.pcap -b filesize:200000 -b files:10"
-    $WiresharkProcess = Start-Process $WiresharkCmd -PassThru -NoNewWindow -ArgumentList $ArgumentList
-    LogInfo "Wireshark is running with PID: " + $global:RunningSettings.WiresharkProcess.ID
-
+    [System.Diagnostics.Process] $WiresharkProcess = Start-Process $WiresharkCmd -PassThru -NoNewWindow -ArgumentList $ArgumentList
+    LogInfo "Wireshark is running with PID: " + $WiresharkProcess.ID
 }
 
 
@@ -495,15 +546,14 @@ Function StartNetworkMonitor
     $NMCap = Get-ItemPropertyValue -Path 'HKLM:\HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Netmon3\' -Name InstallDir
 
     $NMCap = '"' + $NMCap + "nmcap.exe" + '" '
-    $ArgumentList = "/network * /capture /file $($global:LogFolderName)\NetworkTraces\nettrace.chn:200M /StopWhen /Frame dns.qrecord.questionname.Contains('stopmstrace')"
+    $ArgumentList = "/network * /capture /file $($global:LogFolderName)\NetworkTraces\nettrace.chn:200M /StopWhen /Frame dns.qrecord.questionname.Contains('stopsqltrace')"
     
     #Start the capture
-    $global:RunningSettings.NetmonProcess = Start-Process $NMCap -PassThru -NoNewWindow -ArgumentList $ArgumentList
-    LogInfo "Network Monitor is running with PID: " + $global:RunningSettings.NetmonProcess.ID
+    [System.Diagnostics.Process] $NetmonProcess = Start-Process $NMCap -PassThru -NoNewWindow -ArgumentList $ArgumentList
+    LogInfo "Network Monitor is running with PID: " + $NetmonProcess.ID
     LogWarning "Killing this process will corrupt the most recent capture file."
     LogWarning "Run SQLTrace.ps1 with the -stop option to terminate safely."
     LogRaw ""
-    
 }
 Function StartNetworkTraces
 {
@@ -523,8 +573,10 @@ Function StartNetworkTraces
             # $commandLine = "netsh trace start capture=yes overwrite=yes tracefile=$($global:LogFolderName)\NetworkTraces\" + $env:computername +".etl filemode=circular maxSize=200MB"
             # Invoke-Expression $commandLine
 
-            netsh trace start capture=yes maxsize=1 TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl"
-            logman start msndiscap -p Microsoft-Windows-NDIS-PacketCapture -mode newfile -max 200 -o "$($global:LogFolderName)\NetworkTraces\nettrace%d.etl" -ets
+            $result = netsh trace start capture=yes maxsize=1 TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl"
+            LogInfo "NETSH: $result"
+            $result = logman start SQLTraceNDIS -p Microsoft-Windows-NDIS-PacketCapture -mode newfile -max 200 -o "$($global:LogFolderName)\NetworkTraces\nettrace%d.etl" -ets
+            LogInfo "LOGMAN: $result"
         }
         if($global:INISettings.NETMON -eq "Yes")
         {
@@ -565,7 +617,8 @@ Function StartAuthenticationTraces
             # Kerberos Logging to SYSTEM event log in case this is a client
             reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA\Kerberos\Parameters /v LogLevel /t REG_DWORD /d 1 /f
     
-            logman start "Kerberos" -o "$($global:LogFolderName)\Auth\Kerberos.etl" -ets
+            $result = logman start "SQLTraceKerberos" -o "$($global:LogFolderName)\Auth\Kerberos.etl" -ets
+            LogInfo "Kerberos: $result"
 
             ForEach($KerberosProvider in $KerberosProviders)
             {
@@ -573,7 +626,8 @@ Function StartAuthenticationTraces
                 $KerberosParams = $KerberosProvider.Split('!')
                 $KerberosSingleTraceGUID = $KerberosParams[0]
                 $KerberosSingleTraceFlags = $KerberosParams[1]    
-                logman update trace "Kerberos" -p `"$KerberosSingleTraceGUID`" $KerberosSingleTraceFlags 0xff -ets | Out-Null
+                $result = logman update trace "SQLTraceKerberos" -p `"$KerberosSingleTraceGUID`" $KerberosSingleTraceFlags 0xff -ets
+                LogInfo "Kerberos: $result"
             }
         }
         
@@ -590,7 +644,8 @@ Function StartAuthenticationTraces
             '{DAA6CAF5-6678-43f8-A6FE-B40EE096E06E}!0xffffffffffffffff'
             )
 
-            logman create trace "Ntlm_CredSSP" -o "$($global:LogFolderName)\Auth\Ntlm_CredSSP.etl" -ets
+            $result = logman create trace "SQLTraceNtlm_CredSSP" -o "$($global:LogFolderName)\Auth\Ntlm_CredSSP.etl" -ets
+            LogInfo "NTLM_CredSSP: $result"
 
             ForEach($Ntlm_CredSSPProvider in $Ntlm_CredSSPProviders)
             {
@@ -599,7 +654,8 @@ Function StartAuthenticationTraces
                 $Ntlm_CredSSPSingleTraceGUID = $Ntlm_CredSSPParams[0]
                 $Ntlm_CredSSPSingleTraceFlags = $Ntlm_CredSSPParams[1]
         
-                logman update trace "Ntlm_CredSSP" -p `"$Ntlm_CredSSPSingleTraceGUID`" $Ntlm_CredSSPSingleTraceFlags 0xff -ets | Out-Null
+                $result = logman update trace "SQLTraceNtlm_CredSSP" -p `"$Ntlm_CredSSPSingleTraceGUID`" $Ntlm_CredSSPSingleTraceFlags 0xff -ets
+                LogInfo "NTLM_CredSSP: $result"
             }
         }
         
@@ -613,7 +669,8 @@ Function StartAuthenticationTraces
             )
 
             # Start Logman SSL     
-            logman start "SSL" -o "$($global:LogFolderName)\Auth\SSL.etl" -ets
+            $result = logman start "SQLTraceSSL" -o "$($global:LogFolderName)\Auth\SSL.etl" -ets
+            LogInfo "SSL: $result"
 
             ForEach($SSLProvider in $SSLProviders)
             {
@@ -622,7 +679,8 @@ Function StartAuthenticationTraces
                 $SSLSingleTraceGUID = $SSLParams[0]
                 $SSLSingleTraceFlags = $SSLParams[1]
         
-                logman update trace "SSL" -p `"$SSLSingleTraceGUID`" $SSLSingleTraceFlags 0xff -ets | Out-Null
+                $result = logman update trace "SQLTraceSSL" -p `"$SSLSingleTraceGUID`" $SSLSingleTraceFlags 0xff -ets
+                LogInfo "SSL: $result"
             }
         }
 
@@ -632,7 +690,8 @@ Function StartAuthenticationTraces
             LogInfo "Starting LSA Traces..."
 
             # **Netlogon logging**
-            nltest /dbflag:0x2EFFFFFF 2>&1 | Out-Null
+            $result = nltest /dbflag:0x2EFFFFFF 2>&1
+            LogInfo "NLTEST: $result"
 
             # **LSA**
             $LSAProviders = @(
@@ -669,8 +728,9 @@ Function StartAuthenticationTraces
 
 
             # Start Logman LSA
-            $LSASingleTraceName = "LSA"
-            logman create trace $LSASingleTraceName -o "$($global:LogFolderName)\Auth\LSA.etl" -ets
+            $LSASingleTraceName = "SQLTraceLSA"
+            $result = logman create trace $LSASingleTraceName -o "$($global:LogFolderName)\Auth\LSA.etl" -ets
+            LogInfo "LSA: $result"
 
             ForEach($LSAProvider in $LSAProviders)
                 {
@@ -680,7 +740,8 @@ Function StartAuthenticationTraces
                     $LSASingleTraceGUID = $LSAParams[0]
                     $LSASingleTraceFlags = $LSAParams[1]
         
-                    logman update trace $LSASingleTraceName -p `"$LSASingleTraceGUID`" $LSASingleTraceFlags 0xff -ets | Out-Null
+                    $result = logman update trace $LSASingleTraceName -p `"$LSASingleTraceGUID`" $LSASingleTraceFlags 0xff -ets
+                    LogInfo "LSA: $result"
                 }
         }
 
@@ -689,8 +750,10 @@ Function StartAuthenticationTraces
 
             LogInfo "Enabling/Collecting Event Viewer Logs..."
             # Enable Eventvwr logging
-            wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /ms:102400000 2>&1
-            wevtutil.exe set-log "Microsoft-Windows-Kerberos/Operational" /enabled:true /rt:false /q:true 2>&1
+            $result = wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /ms:102400000 2>&1
+            LogInfo "CAPI2 events: $result"
+            $result = wevtutil.exe set-log "Microsoft-Windows-Kerberos/Operational" /enabled:true /rt:false /q:true 2>&1
+            LogInfo "Kerberos events: $result"
         }
     }
 }
@@ -700,7 +763,6 @@ Function StartAuthenticationTraces
 Function StopTraces
 {
     LogInfo "Stopping Traces ..."
-    $global:RunningSettings = New-Object RunningSettings
     netstat -abon > "$($global:LogFolderName)\NetStatAtEnd.txt"
     tasklist > "$($global:LogFolderName)\TasklistAtEnd.txt"
     StopBIDTraces
@@ -719,7 +781,7 @@ Function StopBIDTraces
     {
         LogInfo "Stopping BID Traces ..."
 		# Do not clear the registry keys in case we run a second trace; use the -cleanup switch explicitly
-        logman stop msbidtraces -ets
+        logman stop SQLTraceBID -ets
     }
 }
 
@@ -735,7 +797,7 @@ Function StopNetworkTraces
         {
             LogInfo "Stopping NETSH..."
             # netsh trace stop
-            logman stop msndiscap -ets
+            logman stop SQLTraceNDIS -ets
             netsh trace stop
             del "$($global:LogFolderName)\NetworkTraces\deleteme.etl"
             Rename-Item "$($global:LogFolderName)\NetworkTraces\deleteme.cab" "network_settings.cab"
@@ -744,7 +806,7 @@ Function StopNetworkTraces
         {
             $NetmonPID = Get-Process -Name "nmcap"
             LogInfo "Stopping Network Monitor with PID: " + $NetmonPID.ID
-            nslookup "stopmstrace.microsoft.com" 2>&1 | Out-Null     # Why the 2>&1 pipe? Do we still need that?
+            nslookup "stopsqltrace.microsoft.com" 2>&1 | Out-Null     # Why the 2>&1 pipe? Do we still need that?
         }
         if($global:INISettings.WIRESHARK -eq "Yes")
         {
@@ -764,18 +826,18 @@ Function StopAuthenticationTraces
         if($global:INISettings.Kerberos -eq "Yes")
         {
             LogInfo "Stopping Kerberos ETL Traces..."
-            logman stop "Kerberos" -ets
+            logman stop "SQLTraceKerberos" -ets
             reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA\Kerberos\Parameters /v LogLevel /f  2>&1
         }
         if($global:INISettings.Credssp -eq "Yes")
         {
             LogInfo "Stopping CredSSP/NTLM Traces..."
-            logman stop "Ntlm_CredSSP" -ets
+            logman stop "SQLTraceNtlm_CredSSP" -ets
         }
         if($global:INISettings.SSL -eq "Yes")
         {
             LogInfo "Stopping SSL Traces..."
-            logman stop "SSL" -ets
+            logman stop "SQLTraceSSL" -ets
         }
         if($global:INISettings.LSA -eq "Yes")
         {
@@ -798,7 +860,7 @@ Function StopAuthenticationTraces
             reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LspDbgInfoLevel /f  2>&1 | Out-Null
             reg delete HKLM\SYSTEM\CurrentControlSet\Control\LSA /v LspDbgTraceOptions /f  2>&1 | Out-Null
             
-            logman stop "LSA" -ets
+            logman stop "SQLTraceLSA" -ets
 
             Copy-Item -Path "$($env:windir)\debug\Netlogon.*" -Destination "$($global:LogFolderName)\Auth" -Force 2>&1
 
