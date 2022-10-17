@@ -169,13 +169,13 @@ namespace SQLCheck
                 case "SQLOLEDB":                       return new DriverInfo(driverName, "OLE DB", TLS12, "No",    "SQL 7.0 - SQL 2019",  "Deprecated",  "No");
                 case "SQLNCLI":                        return new DriverInfo(driverName, "OLE DB", "No",  "No",    "SQL 7.0 - SQL 2019",  "No",          "No");
                 case "SQLNCLI10":                      return new DriverInfo(driverName, "OLE DB", TLS12, "No",    "SQL 7.0 - SQL 2019",  "No",          "No");
-                case "SQLNCLI11":                      return new DriverInfo(driverName, "OLE DB", TLS12, "No",    "SQL 7.0 - SQL 2019",  "Yes",         "No");
+                case "SQLNCLI11":                      return new DriverInfo(driverName, "OLE DB", TLS12, "No",    "SQL 7.0 - SQL 2019",  "No",          "No");
                 case "MSOLEDBSQL":                     return new DriverInfo(driverName, "OLE DB", "Yes", "No",    "SQL 2005 - SQL 2019", "Yes",         "Yes");
                 case "MSOLEDBSQL19":                   return new DriverInfo(driverName, "OLE DB", "Yes", TLS13,   "SQL 2005 - SQL 2022", "Yes",         "Yes");
                 case "SQL Server":                     return new DriverInfo(driverName, "ODBC",   TLS12, "No",    "SQL 7.0 - SQL 2019",  "Deprecated",  "No");
                 case "SQL Server Native Client 9.0":   return new DriverInfo(driverName, "ODBC",   "No",  "No",    "SQL 7.0 - SQL 2019",  "No",          "No");
                 case "SQL Server Native Client 10.0":  return new DriverInfo(driverName, "ODBC",   TLS12, "No",    "SQL 7.0 - SQL 2019",  "No",          "No");
-                case "SQL Server Native Client 11.0":  return new DriverInfo(driverName, "ODBC",   TLS12, "No",    "SQL 7.0 - SQL 2019",  "Yes",         "Yes");
+                case "SQL Server Native Client 11.0":  return new DriverInfo(driverName, "ODBC",   TLS12, "No",    "SQL 7.0 - SQL 2019",  "No",          "Yes");
                 case "ODBC Driver 11 for SQL Server":  return new DriverInfo(driverName, "ODBC",   TLS12, "No",    "SQL 7.0 - SQL 2019",  "Yes",         "Yes");
                 case "ODBC Driver 13 for SQL Server":  return new DriverInfo(driverName, "ODBC",   "Yes", "No",    "SQL 7.0 - SQL 2019",  "Yes",         "Yes");
                 case "ODBC Driver 17 for SQL Server":  return new DriverInfo(driverName, "ODBC",   "Yes", "No",    "SQL 2005 - SQL 2019", "Yes",         "Yes");
