@@ -525,6 +525,11 @@ Function StartBIDTraces
 
         $result = logman start SQLTraceBID -pf "$($global:LogFolderName)\BIDTraces\ctrl.guid" -o "$($global:LogFolderName)\BIDTraces\bidtrace%d.etl" -bs 1024 -nb 1024 1024 -mode NewFile -max 200 -ets
         LogInfo "LOGMAN: $result"
+
+        if((Test-Path "$($global:LogFolderName)\BIDTraces" -PathType Container) -eq $True)
+		{
+          StartCleanupBIDTraces -folder "$($global:LogFolderName)\BIDTraces"  # Clintonw
+        }
     }
 }
 
@@ -572,13 +577,11 @@ Function StartCleanupBIDTraces
   
   $job=Register-ScheduledJob  -Name MSCLEANBIDS -scriptblock {  
   Param($folder)
-  sleep 1 
   gci -Path $folder -Recurse | where {(-not $_.PsIsContainer) -and ($_.name -notmatch "deleteme.etl") -and ($_.name -match ".etl") } | sort CreationTime -desc | select -skip 30 | Remove-Item  -Force @args
   } -ArgumentList $folder 
   $job.Options.RunElevated=$True
   $cleanupJob=New-JobTrigger -Once -At (get-date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Minutes 30) -RepeatIndefinitely  ## -RepetitionDuration (New-TimeSpan -Minutes 20)  
   Add-JobTrigger -Trigger $cleanupjob -Name MSCLEANBIDS   
-  start-job -DefinitionName MSCLEANBIDS
 }
 
 Function StopCleanupBIDTraces
@@ -599,13 +602,11 @@ Function StartCleanupNetworkTraces
  )
   $job=Register-ScheduledJob  -Name MSCLEANNET -scriptblock {  
   Param($folder)
-  sleep 1 
   gci -Path $folder -Recurse | where {(-not $_.PsIsContainer) -and ($_.name -notmatch "deleteme.etl") -and ($_.name -match ".etl") } | sort CreationTime -desc | select -skip 30 | Remove-Item  -Force @args
   } -ArgumentList $folder 
   $job.Options.RunElevated=$True
   $cleanupJob=New-JobTrigger -Once -At (get-date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Minutes 30) -RepeatIndefinitely    ##-RepetitionDuration (New-TimeSpan -Minutes 20)  
   Add-JobTrigger -Trigger $cleanupjob -Name MSCLEANNET   
-  start-job -DefinitionName MSCLEANNET
 }
 
 
