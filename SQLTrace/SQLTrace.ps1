@@ -432,6 +432,10 @@ Function FlushCaches
     LogInfo (IPCONFIG /flushdns)
     LogInfo (NBTSTAT -R)
     Get-WmiObject Win32_LogonSession | Where-Object {$_.AuthenticationPackage -ne 'NTLM'} | ForEach-Object { LogInfo(c:\windows\system32\klist.exe purge -li ([Convert]::ToString($_.LogonId, 16))) }
+
+    ## ToDO: Cleanup any jobs from last run.
+    ## StopCleanupBIDTraces        # Clintonw
+    ## StopCleanupNetworkTraces    # clintonw
 }
 
 Function GETBIDTraceGuid($bidProvider)
@@ -555,11 +559,71 @@ Function StartNetworkMonitor
     LogWarning "Run SQLTrace.ps1 with the -stop option to terminate safely."
     LogRaw ""
 }
+
+
+
+Function StartCleanupBIDTraces
+{
+ param
+ (
+    [Parameter(ParameterSetName="Folder", Mandatory=$true)]
+    [string] $folder        
+ )
+  
+  $job=Register-ScheduledJob  -Name MSCLEANBIDS -scriptblock {  
+  Param($folder)
+  sleep 1 
+  gci -Path $folder -Recurse | where {(-not $_.PsIsContainer) -and ($_.name -notmatch "deleteme.etl") -and ($_.name -match ".etl") } | sort CreationTime -desc | select -skip 30 | Remove-Item  -Force @args
+  } -ArgumentList $folder 
+  $job.Options.RunElevated=$True
+  $cleanupJob=New-JobTrigger -Once -At (get-date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Minutes 30) -RepeatIndefinitely  ## -RepetitionDuration (New-TimeSpan -Minutes 20)  
+  Add-JobTrigger -Trigger $cleanupjob -Name MSCLEANBIDS   
+  start-job -DefinitionName MSCLEANBIDS
+}
+
+Function StopCleanupBIDTraces
+{
+  Stop-Job MSCLEANBIDS 
+  Remove-Job MSCLEANBIDS -Force
+  Remove-JobTrigger MSCLEANBIDS
+  UnRegister-ScheduledJob -Name MSCLEANBIDS -Force  
+}
+
+
+Function StartCleanupNetworkTraces
+{
+ param
+ (
+    [Parameter(ParameterSetName="Folder", Mandatory=$true)]
+    [string] $folder        
+ )
+  $job=Register-ScheduledJob  -Name MSCLEANNET -scriptblock {  
+  Param($folder)
+  sleep 1 
+  gci -Path $folder -Recurse | where {(-not $_.PsIsContainer) -and ($_.name -notmatch "deleteme.etl") -and ($_.name -match ".etl") } | sort CreationTime -desc | select -skip 30 | Remove-Item  -Force @args
+  } -ArgumentList $folder 
+  $job.Options.RunElevated=$True
+  $cleanupJob=New-JobTrigger -Once -At (get-date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Minutes 30) -RepeatIndefinitely    ##-RepetitionDuration (New-TimeSpan -Minutes 20)  
+  Add-JobTrigger -Trigger $cleanupjob -Name MSCLEANNET   
+  start-job -DefinitionName MSCLEANNET
+}
+
+
+Function StopCleanupNetworkTraces
+{
+  Stop-Job MSCLEANNET 
+  Remove-Job MSCLEANNET -Force
+  Remove-JobTrigger MSCLEANNET 
+  UnRegister-ScheduledJob -Name MSCLEANNET -Force
+}
+
+
 Function StartNetworkTraces
 {
     
     if($global:INISettings.NETTrace -eq "Yes")
     {
+        StartCleanupNetworkTraces  -folder "$($global:LogFolderName)\NetworkTraces"  # Clintonw
 
         LogInfo "Starting Network Traces..."
         if((Test-Path "$($global:LogFolderName)\NetworkTraces" -PathType Container) -eq $false)
@@ -780,6 +844,8 @@ Function StopBIDTraces
 {
     if($global:INISettings.BidTrace -eq "Yes")
     {
+        StopCleanupBIDTraces   # Clintonw
+
         LogInfo "Stopping BID Traces ..."
 		# Do not clear the registry keys in case we run a second trace; use the -cleanup switch explicitly
         logman stop SQLTraceBID -ets
@@ -802,6 +868,8 @@ Function StopNetworkTraces
             netsh trace stop
             del "$($global:LogFolderName)\NetworkTraces\deleteme.etl"
             Rename-Item "$($global:LogFolderName)\NetworkTraces\deleteme.cab" "network_settings.cab"
+
+            StopCleanupNetworkTraces    # clintonw
         }
         if($global:INISettings.NETMON -eq "Yes")
         {
