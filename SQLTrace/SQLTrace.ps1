@@ -433,9 +433,9 @@ Function FlushCaches
     LogInfo (NBTSTAT -R)
     Get-WmiObject Win32_LogonSession | Where-Object {$_.AuthenticationPackage -ne 'NTLM'} | ForEach-Object { LogInfo(c:\windows\system32\klist.exe purge -li ([Convert]::ToString($_.LogonId, 16))) }
 
-    ## ToDO: Cleanup any jobs from last run.
-    ## StopCleanupBIDTraces        # Clintonw
-    ## StopCleanupNetworkTraces    # clintonw
+    ## ToDO: Cleanup any orphan jobs from last run.
+    StopCleanupETLTraceFiles -jobname  "BIDTRACECLEANUP"
+    StopCleanupETLTraceFiles -jobname  "NETWORKTRACECLEANUP"
 }
 
 Function GETBIDTraceGuid($bidProvider)
@@ -527,8 +527,8 @@ Function StartBIDTraces
         LogInfo "LOGMAN: $result"
 
         if((Test-Path "$($global:LogFolderName)\BIDTraces" -PathType Container) -eq $True)
-		{
-          StartCleanupBIDTraces -folder "$($global:LogFolderName)\BIDTraces"  # Clintonw
+		{          
+          StartCleanupETLTraceFiles -jobname "BIDTRACECLEANUP" -folder "$($global:LogFolderName)\BIDTraces" -numofFilesToKeep 30 -jobrunintervalMin 30
         }
     }
 }
@@ -566,56 +566,43 @@ Function StartNetworkMonitor
 }
 
 
-
-Function StartCleanupBIDTraces
+## Create generic version of Cleanup Traces for BIDS, Network etc.
+Function StartCleanupETLTraceFiles
 {
  param
  (
-    [Parameter(ParameterSetName="Folder", Mandatory=$true)]
-    [string] $folder        
+    [string] $jobname,      
+    [string] $folder,        
+    [int]    $numofFilesToKeep,
+    [int]    $jobrunintervalMin
  )
   
-  $job=Register-ScheduledJob  -Name MSCLEANBIDS -scriptblock {  
-  Param($folder)
-  gci -Path $folder -Recurse | where {(-not $_.PsIsContainer) -and ($_.name -notmatch "deleteme.etl") -and ($_.name -match ".etl") } | sort CreationTime -desc | select -skip 30 | Remove-Item  -Force @args
-  } -ArgumentList $folder 
+  $job=Register-ScheduledJob  -Name $jobname -scriptblock {  
+  Param($jobname, 
+        [string] $folder, 
+        [int] $numofFilesToKeep, 
+        [int] $jobrunintervalMin)
+  gci -Path $folder -Recurse | where {(-not $_.PsIsContainer) -and ($_.name -notmatch "deleteme.etl") -and ($_.name -match ".etl") } | sort CreationTime -desc | select -skip $numofFilesToKeep | Remove-Item  -Force @args
+  } -ArgumentList $jobname, $folder, $numofFilesToKeep, $jobrunintervalMin 
   $job.Options.RunElevated=$True
-  $cleanupJob=New-JobTrigger -Once -At (get-date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Minutes 30) -RepeatIndefinitely  ## -RepetitionDuration (New-TimeSpan -Minutes 20)  
-  Add-JobTrigger -Trigger $cleanupjob -Name MSCLEANBIDS   
-}
-
-Function StopCleanupBIDTraces
-{
-  Stop-Job MSCLEANBIDS 
-  Remove-Job MSCLEANBIDS -Force
-  Remove-JobTrigger MSCLEANBIDS
-  UnRegister-ScheduledJob -Name MSCLEANBIDS -Force  
+  $cleanupJob=New-JobTrigger -Once -At (get-date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Minutes $jobrunintervalMin) -RepeatIndefinitely  ## -RepetitionDuration (New-TimeSpan -Minutes 20)  
+  Add-JobTrigger -Trigger $cleanupjob -Name $jobname    
 }
 
 
-Function StartCleanupNetworkTraces
+Function StopCleanupETLTraceFiles
 {
- param
- (
-    [Parameter(ParameterSetName="Folder", Mandatory=$true)]
-    [string] $folder        
- )
-  $job=Register-ScheduledJob  -Name MSCLEANNET -scriptblock {  
-  Param($folder)
-  gci -Path $folder -Recurse | where {(-not $_.PsIsContainer) -and ($_.name -notmatch "deleteme.etl") -and ($_.name -match ".etl") } | sort CreationTime -desc | select -skip 30 | Remove-Item  -Force @args
-  } -ArgumentList $folder 
-  $job.Options.RunElevated=$True
-  $cleanupJob=New-JobTrigger -Once -At (get-date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Minutes 30) -RepeatIndefinitely    ##-RepetitionDuration (New-TimeSpan -Minutes 20)  
-  Add-JobTrigger -Trigger $cleanupjob -Name MSCLEANNET   
-}
-
-
-Function StopCleanupNetworkTraces
-{
-  Stop-Job MSCLEANNET 
-  Remove-Job MSCLEANNET -Force
-  Remove-JobTrigger MSCLEANNET 
-  UnRegister-ScheduledJob -Name MSCLEANNET -Force
+  param(
+  $jobname    
+  )
+  try
+  {
+   Stop-Job $jobname -ErrorAction SilentlyContinue
+   Remove-Job $jobname -Force -ErrorAction SilentlyContinue
+   Remove-JobTrigger $jobname -ErrorAction SilentlyContinue
+   UnRegister-ScheduledJob -Name $jobname -Force -ErrorAction SilentlyContinue
+  }
+  catch { "Cleanup Job." }
 }
 
 
@@ -624,8 +611,6 @@ Function StartNetworkTraces
     
     if($global:INISettings.NETTrace -eq "Yes")
     {
-        StartCleanupNetworkTraces  -folder "$($global:LogFolderName)\NetworkTraces"  # Clintonw
-
         LogInfo "Starting Network Traces..."
         if((Test-Path "$($global:LogFolderName)\NetworkTraces" -PathType Container) -eq $false)
         {
@@ -643,6 +628,9 @@ Function StartNetworkTraces
             LogInfo "NETSH: $result"
             $result = logman start SQLTraceNDIS -p Microsoft-Windows-NDIS-PacketCapture -mode newfile -max 200 -o "$($global:LogFolderName)\NetworkTraces\nettrace%d.etl" -ets
             LogInfo "LOGMAN: $result"
+
+            # StartCleanupNetworkTraces  -folder "$($global:LogFolderName)\NetworkTraces"  # Clintonw
+            StartCleanupETLTraceFiles -jobname "NETWORKTRACECLEANUP" -folder "$($global:LogFolderName)\NetworkTraces" -numofFilesToKeep 30 -jobrunintervalMin 30           
         }
         if($global:INISettings.NETMON -eq "Yes")
         {
@@ -845,7 +833,8 @@ Function StopBIDTraces
 {
     if($global:INISettings.BidTrace -eq "Yes")
     {
-        StopCleanupBIDTraces   # Clintonw
+        ## StopCleanupBIDTraces   # Clintonw
+        StopCleanupETLTraceFiles -jobname "BIDTRACECLEANUP"
 
         LogInfo "Stopping BID Traces ..."
 		# Do not clear the registry keys in case we run a second trace; use the -cleanup switch explicitly
@@ -870,7 +859,8 @@ Function StopNetworkTraces
             del "$($global:LogFolderName)\NetworkTraces\deleteme.etl"
             Rename-Item "$($global:LogFolderName)\NetworkTraces\deleteme.cab" "network_settings.cab"
 
-            StopCleanupNetworkTraces    # clintonw
+            ## StopCleanupNetworkTraces    # clintonw
+            StopCleanupETLTraceFiles -jobname "NETWORKTRACECLEANUP"
         }
         if($global:INISettings.NETMON -eq "Yes")
         {
