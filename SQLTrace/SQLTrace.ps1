@@ -856,8 +856,16 @@ Function StopNetworkTraces
             # netsh trace stop
             logman stop SQLTraceNDIS -ets
             netsh trace stop
-            del "$($global:LogFolderName)\NetworkTraces\deleteme.etl"
-            Rename-Item "$($global:LogFolderName)\NetworkTraces\deleteme.cab" "network_settings.cab"
+
+            if (Test-Path "$($global:LogFolderName)\NetworkTraces\deleteme.etl")
+            {
+               del "$($global:LogFolderName)\NetworkTraces\deleteme.etl"
+            }
+             
+            if (Test-Path "$($global:LogFolderName)\NetworkTraces\deleteme.cab")
+            {
+             Rename-Item "$($global:LogFolderName)\NetworkTraces\deleteme.cab" "network_settings.cab"
+            }
 
             ## StopCleanupNetworkTraces    # clintonw
             StopCleanupETLTraceFiles -jobname "NETWORKTRACECLEANUP"
