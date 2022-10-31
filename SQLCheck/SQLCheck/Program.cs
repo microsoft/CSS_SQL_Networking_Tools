@@ -26,9 +26,17 @@ namespace SQLCheck
         static void Main(string[] args)
         {
             if (args.Length > 0 && args[0].ToUpper() == "T") TraceOn = true;
+
+            Console.WriteLine("Starting SQLCheck ....");
+
             DataSet ds = Storage.CreateDataSet("Test");
             Collectors.Collect(ds);
-            TextReport.Report(ds, Console.Out);
+
+            // Clintonw-Oct17
+            // Create file
+            Console.WriteLine("Writing SQLCheck Log ....");
+            TextReport.Report(ds, Utility.openLogOutputFile());
+            Utility.closeLogOutputFile();
         }
 
         public static void Trace(string Message)

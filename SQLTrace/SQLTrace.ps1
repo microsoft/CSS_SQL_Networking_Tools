@@ -432,6 +432,10 @@ Function FlushCaches
     LogInfo (IPCONFIG /flushdns)
     LogInfo (NBTSTAT -R)
     Get-WmiObject Win32_LogonSession | Where-Object {$_.AuthenticationPackage -ne 'NTLM'} | ForEach-Object { LogInfo(c:\windows\system32\klist.exe purge -li ([Convert]::ToString($_.LogonId, 16))) }
+
+    ## ToDO: Cleanup any orphan jobs from last run.
+    StopCleanupETLTraceFiles -jobname  "BIDTRACECLEANUP"
+    StopCleanupETLTraceFiles -jobname  "NETWORKTRACECLEANUP"
 }
 
 Function GETBIDTraceGuid($bidProvider)
@@ -521,6 +525,11 @@ Function StartBIDTraces
 
         $result = logman start SQLTraceBID -pf "$($global:LogFolderName)\BIDTraces\ctrl.guid" -o "$($global:LogFolderName)\BIDTraces\bidtrace%d.etl" -bs 1024 -nb 1024 1024 -mode NewFile -max 200 -ets
         LogInfo "LOGMAN: $result"
+
+        if((Test-Path "$($global:LogFolderName)\BIDTraces" -PathType Container) -eq $True)
+		{          
+          StartCleanupETLTraceFiles -jobname "BIDTRACECLEANUP" -folder "$($global:LogFolderName)\BIDTraces" -numofFilesToKeep 30 -jobrunintervalMin 30
+        }
     }
 }
 
@@ -555,12 +564,53 @@ Function StartNetworkMonitor
     LogWarning "Run SQLTrace.ps1 with the -stop option to terminate safely."
     LogRaw ""
 }
+
+
+## Create generic version of Cleanup Traces for BIDS, Network etc.
+Function StartCleanupETLTraceFiles
+{
+ param
+ (
+    [string] $jobname,      
+    [string] $folder,        
+    [int]    $numofFilesToKeep,
+    [int]    $jobrunintervalMin
+ )
+  
+  $job=Register-ScheduledJob  -Name $jobname -scriptblock {  
+  Param($jobname, 
+        [string] $folder, 
+        [int] $numofFilesToKeep, 
+        [int] $jobrunintervalMin)
+  gci -Path $folder -Recurse | where {(-not $_.PsIsContainer) -and ($_.name -notmatch "deleteme.etl") -and ($_.name -match ".etl") } | sort CreationTime -desc | select -skip $numofFilesToKeep | Remove-Item  -Force @args
+  } -ArgumentList $jobname, $folder, $numofFilesToKeep, $jobrunintervalMin 
+  $job.Options.RunElevated=$True
+  $cleanupJob=New-JobTrigger -Once -At (get-date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Minutes $jobrunintervalMin) -RepeatIndefinitely  ## -RepetitionDuration (New-TimeSpan -Minutes 20)  
+  Add-JobTrigger -Trigger $cleanupjob -Name $jobname    
+}
+
+
+Function StopCleanupETLTraceFiles
+{
+  param(
+  $jobname    
+  )
+  try
+  {
+   Stop-Job $jobname -ErrorAction SilentlyContinue
+   Remove-Job $jobname -Force -ErrorAction SilentlyContinue
+   Remove-JobTrigger $jobname -ErrorAction SilentlyContinue
+   UnRegister-ScheduledJob -Name $jobname -Force -ErrorAction SilentlyContinue
+  }
+  catch { "Cleanup Job." }
+}
+
+
 Function StartNetworkTraces
 {
     
     if($global:INISettings.NETTrace -eq "Yes")
     {
-
         LogInfo "Starting Network Traces..."
         if((Test-Path "$($global:LogFolderName)\NetworkTraces" -PathType Container) -eq $false)
         {
@@ -573,10 +623,14 @@ Function StartNetworkTraces
             # $commandLine = "netsh trace start capture=yes overwrite=yes tracefile=$($global:LogFolderName)\NetworkTraces\" + $env:computername +".etl filemode=circular maxSize=200MB"
             # Invoke-Expression $commandLine
 
-            $result = netsh trace start capture=yes maxsize=1 TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl"
+            # $result = netsh trace start capture=yes maxsize=1 TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl"
+            $result = netsh trace start capture=yes maxsize=1 report=disabled TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl" # Faster netsh shutdown clintonw #53
             LogInfo "NETSH: $result"
             $result = logman start SQLTraceNDIS -p Microsoft-Windows-NDIS-PacketCapture -mode newfile -max 200 -o "$($global:LogFolderName)\NetworkTraces\nettrace%d.etl" -ets
             LogInfo "LOGMAN: $result"
+
+            # StartCleanupNetworkTraces  -folder "$($global:LogFolderName)\NetworkTraces"  # Clintonw
+            StartCleanupETLTraceFiles -jobname "NETWORKTRACECLEANUP" -folder "$($global:LogFolderName)\NetworkTraces" -numofFilesToKeep 30 -jobrunintervalMin 30           
         }
         if($global:INISettings.NETMON -eq "Yes")
         {
@@ -779,6 +833,9 @@ Function StopBIDTraces
 {
     if($global:INISettings.BidTrace -eq "Yes")
     {
+        ## StopCleanupBIDTraces   # Clintonw
+        StopCleanupETLTraceFiles -jobname "BIDTRACECLEANUP"
+
         LogInfo "Stopping BID Traces ..."
 		# Do not clear the registry keys in case we run a second trace; use the -cleanup switch explicitly
         logman stop SQLTraceBID -ets
@@ -799,8 +856,19 @@ Function StopNetworkTraces
             # netsh trace stop
             logman stop SQLTraceNDIS -ets
             netsh trace stop
-            del "$($global:LogFolderName)\NetworkTraces\deleteme.etl"
-            Rename-Item "$($global:LogFolderName)\NetworkTraces\deleteme.cab" "network_settings.cab"
+
+            if (Test-Path "$($global:LogFolderName)\NetworkTraces\deleteme.etl")
+            {
+               del "$($global:LogFolderName)\NetworkTraces\deleteme.etl"
+            }
+             
+            if (Test-Path "$($global:LogFolderName)\NetworkTraces\deleteme.cab")
+            {
+             Rename-Item "$($global:LogFolderName)\NetworkTraces\deleteme.cab" "network_settings.cab"
+            }
+
+            ## StopCleanupNetworkTraces    # clintonw
+            StopCleanupETLTraceFiles -jobname "NETWORKTRACECLEANUP"
         }
         if($global:INISettings.NETMON -eq "Yes")
         {
