@@ -566,7 +566,8 @@ Function StartNetworkTraces
             $trucatePackets = ""
             if ($global:INISettings.TruncatePackets -eq "Yes") { $trucatePackets = "PACKETTRUNCATEBYTES=250"; }
 
-            $result = netsh trace start capture=yes maxsize=1 TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl $truncatePackets"
+            $result = netsh trace start capture=yes maxsize=1 report=disabled TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl $truncatePackets" # Faster netsh shutdown clintonw #53
+
             LogInfo "NETSH: $result"
             $result = logman start SQLTraceNDIS -p Microsoft-Windows-NDIS-PacketCapture -mode newfile -max 200 -o "$($global:LogFolderName)\NetworkTraces\nettrace%d.etl" -ets
             LogInfo "LOGMAN: $result"
