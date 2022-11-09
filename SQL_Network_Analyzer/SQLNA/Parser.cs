@@ -1142,6 +1142,7 @@ namespace SQLNA
 
             ushort HeaderLength = 0;
             ushort Length = 0;
+            byte TTL = 0;
             byte NextProtocol = 0;     // TCP = 6    UDP = 0x11 (17)
             uint sourceIP = 0;
             uint destIP = 0;
@@ -1151,6 +1152,7 @@ namespace SQLNA
             HeaderLength = (ushort)((b[offset] & 0xf) * 4);
             Length = utility.B2UInt16(b, offset + 2);
             f.packetID = utility.B2UInt16(b, offset + 4);
+            TTL = b[offset + 8];                                     // is usually 128 - TTL for # hops, sometimes 64 - TTL or 255 - TTL
             NextProtocol = b[offset + 9];
             sourceIP = utility.B2UInt32(b, offset + 12);
             destIP = utility.B2UInt32(b, offset + 16);
