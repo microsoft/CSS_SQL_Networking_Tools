@@ -506,6 +506,7 @@ namespace SQLNA
                             rd.isIPV6 = c.isIPV6;
                             rd.frames = c.frames.Count;
                             rd.ResetFrame = 0;
+                            rd.ResetFile = 0;
                             rd.firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
                             rd.lastFile = Trace.files.IndexOf(((FrameData)(c.frames[c.frames.Count - 1])).file);
                             rd.startOffset = ((FrameData)c.frames[0]).ticks - firstTick;
@@ -527,6 +528,7 @@ namespace SQLNA
                                 if ((f.flags & (byte)TCPFlag.RESET) > 0)
                                 {
                                     rd.ResetFrame = f.frameNo;
+                                    rd.ResetFile = Trace.files.IndexOf(f.file);
                                     rd.isClientReset = f.isFromClient;
                                     rd.flags = f.FormatFlags();
                                     g.AddData(new DateTime(f.ticks), 1.0); // for graphing
@@ -546,17 +548,17 @@ namespace SQLNA
                         {
                             case "N":
                                 {
-                                    rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "KA Timeout:R", "Retransmits:R", "Max RT:R", "End Frames:L");
+                                    rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Reset File:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "KA Timeout:R", "Retransmits:R", "Max RT:R", "End Frames:L");
                                     break;
                                 }
                             case "W":
                                 {
-                                    rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "KA Timeout:R", "Retransmits:R", "Max RT:R", "End Frames:L");
+                                    rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Reset File:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "KA Timeout:R", "Retransmits:R", "Max RT:R", "End Frames:L");
                                     break;
                                 }
                             default:
                                 {
-                                    rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "KA Timeout:R", "Retransmits:R", "Max RT:R", "End Frames:L");
+                                    rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Reset File:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "KA Timeout:R", "Retransmits:R", "Max RT:R", "End Frames:L");
                                     break;
                                 }
                         }
@@ -569,8 +571,9 @@ namespace SQLNA
                             {
                                 case "N":  // list client IP and port as a NETMON filter string
                                     {
-                                        rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                        rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
                                                          (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                         row.ResetFile.ToString(),
                                                          row.ResetFrame.ToString(),
                                                          (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
                                                          (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -590,6 +593,7 @@ namespace SQLNA
                                     {
                                         rf.SetcolumnData((row.isIPV6 ? "ipv6" : "ip") + ".addr==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
                                                          (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                         row.ResetFile.ToString(),
                                                          row.ResetFrame.ToString(),
                                                          (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
                                                          (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -610,6 +614,7 @@ namespace SQLNA
                                         rf.SetcolumnData(row.clientIP,
                                                          row.sourcePort.ToString(),
                                                          (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                         row.ResetFile.ToString(),
                                                          row.ResetFrame.ToString(),
                                                          (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
                                                          (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -719,6 +724,7 @@ namespace SQLNA
                             scd.isIPV6 = c.isIPV6;
                             scd.frames = c.frames.Count;
                             scd.closeFrame = 0;
+                            scd.closeFile = 0;
                             scd.firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
                             scd.lastFile = Trace.files.IndexOf(((FrameData)(c.frames[c.frames.Count - 1])).file);
                             scd.startOffset = ((FrameData)c.frames[0]).ticks - firstTick;
@@ -734,6 +740,7 @@ namespace SQLNA
                                 if ((f.flags & (byte)TCPFlag.FIN) > 0)
                                 {
                                     scd.closeFrame = f.frameNo;
+                                    scd.closeFile = Trace.files.IndexOf(f.file);
                                     scd.flags = f.FormatFlags();
                                     g.AddData(new DateTime(f.ticks), 1.0); // for graphing
                                     break;
@@ -752,17 +759,17 @@ namespace SQLNA
                         {
                             case "N":
                                 {
-                                    rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Flags:L", "End Frames:L");
+                                    rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Close File:R", "Close Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Flags:L", "End Frames:L");
                                     break;
                                 }
                             case "W":
                                 {
-                                    rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Flags:L", "End Frames:L");
+                                    rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Close File:R", "Close Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Flags:L", "End Frames:L");
                                     break;
                                 }
                             default:
                                 {
-                                    rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Flags:L", "End Frames:L");
+                                    rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Close File:R", "Close Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Flags:L", "End Frames:L");
                                     break;
                                 }
                         }
@@ -775,8 +782,9 @@ namespace SQLNA
                             {
                                 case "N":  // list client IP and port as a NETMON filter string
                                     {
-                                        rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                        rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
                                                          (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                         row.closeFile.ToString(),
                                                          row.closeFrame.ToString(),
                                                          (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
                                                          (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -791,6 +799,7 @@ namespace SQLNA
                                     {
                                         rf.SetcolumnData((row.isIPV6 ? "ipv6" : "ip") + ".addr==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
                                                          (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                         row.closeFile.ToString(),
                                                          row.closeFrame.ToString(),
                                                          (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
                                                          (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -806,6 +815,7 @@ namespace SQLNA
                                         rf.SetcolumnData(row.clientIP,
                                                          row.sourcePort.ToString(),
                                                          (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                         row.closeFile.ToString(),
                                                          row.closeFrame.ToString(),
                                                          (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
                                                          (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -968,7 +978,7 @@ namespace SQLNA
                                 {
                                     case "N":  // list client IP and port as a NETMON filter string
                                         {
-                                            rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                            rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
                                                              (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
                                                              row.dropFrame.ToString(),
                                                              (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -1154,7 +1164,7 @@ namespace SQLNA
                             case "N":  // list client IP and port as a NETMON filter string
                                 {
                                     rf.SetcolumnData(row.protocolName,
-                                                     (row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.sourceIP + " AND tcp.port==" + row.sourcePort.ToString() + " AND " + (row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.destIP + " AND tcp.port==" + row.destPort.ToString(),
+                                                     (row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.sourceIP + " and tcp.port==" + row.sourcePort.ToString() + " AND " + (row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.destIP + " and tcp.port==" + row.destPort.ToString(),
                                                      row.delayFrame.ToString(),
                                                      row.delayFile.ToString(),
                                                      (row.delayOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -1311,8 +1321,8 @@ namespace SQLNA
                     {
                         case "N":  // list client IP and port as a NETMON filter string
                             {
-                                rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.serverIP + " AND tcp.port==" + row.destPort.ToString(), 
-                                                    (row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.serverIP + " and tcp.port==" + row.destPort.ToString(), 
+                                                    (row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
                                                     (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
                                                     row.lastFrame.ToString(),
                                                     (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -1506,7 +1516,7 @@ namespace SQLNA
                         {
                             case "N":  // list client IP and port as a NETMON filter string
                                 {
-                                    rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                    rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
                                                         (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
                                                         (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
                                                         (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -1694,7 +1704,7 @@ namespace SQLNA
                     {
                         case "N":  // list client IP and port as a NETMON filter string
                             {
-                                rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
                                                  (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
                                                  row.lastFrame.ToString(),
                                                  (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -1839,7 +1849,7 @@ namespace SQLNA
                         {
                             case "N":  // list client IP and port as a NETMON filter string
                                 {
-                                    rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                    rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
                                                      (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
                                                      row.lastFrame.ToString(),
                                                      (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -2033,7 +2043,7 @@ namespace SQLNA
                             case "N":  // list client IP and port as a NETMON filter string
                                 {
                                     rf.SetcolumnData(row.destPort.ToString(),
-                                                     (row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                                     (row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
                                                      (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
                                                      row.lastFrame.ToString(),
                                                      (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -2203,7 +2213,7 @@ namespace SQLNA
                         {
                             case "N":  // list client IP and port as a NETMON filter string
                                 {
-                                    rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                    rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
                                                      row.AttentionFile.ToString(),
                                                      row.AttentionFrame.ToString(),
                                                      (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -2351,7 +2361,7 @@ namespace SQLNA
                         {
                             case "N":  // list client IP and port as a NETMON filter string
                                 {
-                                    rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                    rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
                                                      (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
                                                      (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
                                                      row.frames.ToString(),
@@ -2494,7 +2504,7 @@ namespace SQLNA
                         {
                             rf.SetcolumnData(row.ServerIPAddress,
                                              row.PipeName,
-                                             (row.IsIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.ClientIPAddress + " AND tcp.port==" + row.ClientPort.ToString(),
+                                             (row.IsIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.ClientIPAddress + " and tcp.port==" + row.ClientPort.ToString(),
                                              row.File.ToString(),
                                              row.FrameNumber.ToString(),
                                              (row.TimeOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
@@ -3146,7 +3156,7 @@ namespace SQLNA
                         {
                             case "N":  // list client IP and port as a NETMON filter string
                                 {
-                                    rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " AND tcp.port==" + row.sourcePort.ToString(),
+                                    rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
                                                         (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
                                                         row.lastFrame.ToString(),
                                                         (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),

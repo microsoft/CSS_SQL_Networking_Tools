@@ -150,6 +150,7 @@ namespace SQLNA
         public bool isIPV6 = false;
         public int frames = 0;
         public uint ResetFrame = 0;
+        public int ResetFile = 0;
         public uint rawRetransmits = 0;
         public ushort maxRetransmitsInARow = 0;
         public int firstFile = 0;
@@ -173,6 +174,7 @@ namespace SQLNA
         public bool isIPV6 = false;
         public int frames = 0;
         public uint closeFrame = 0;
+        public int closeFile = 0;
         public int firstFile = 0;
         public int lastFile = 0;
         public long startOffset = 0;

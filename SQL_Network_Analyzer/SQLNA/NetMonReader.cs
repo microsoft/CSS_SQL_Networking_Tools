@@ -65,12 +65,16 @@ namespace SQLNA
             minorVersion = r.ReadByte();
             majorVersion = r.ReadByte();
 
+            Program.logDiagnostic($"Netmon file version {majorVersion}.{minorVersion}");
+
             if (2 != majorVersion)
             {
                 throw new Exception("majorVersion is not Netmon 2.x format, cannot continue.");
             }
 
             networkType = r.ReadUInt16();   // used if none specified after the packet data
+            Program.logDiagnostic($"Default network link layer type from header record: {networkType}");
+
             captureTime = new SYSTEMTIME();
             captureTime.wYear = r.ReadUInt16();
             captureTime.wMonth = r.ReadUInt16();
@@ -132,7 +136,20 @@ namespace SQLNA
             long ticksLo;
             long seekOffset;
             long nextOffset = 0;
-            int linkLayerBytes = 0;
+
+            //
+            // Packet trailers for different NETMON file versions:
+            //
+            // NETMON 1.x     Link layer is in the file header record not after each packet bytes
+            // NETMON 2.1     LinkLayer(2) 
+            // NETMON 2.2     LinkLayer(2), ProcessInfoIndex(4)
+            // NETMON 2.3     LinkLayer(2), ProcessInfoIndex(4), TimeStampOffsetFromUTC(8), TimeZoneIndex(1)
+            //
+
+            int linkLayerBytes = 0;              // this should be consistently 2 bytes
+            uint ProcessInfoIndex = 0;           // NETMON 2.2 file format - we have not implemented code to read this table and store it
+            long TimeStampOffsetFromUTC = 0;     // NETMON 2.3 file format
+            byte TimeZoneIndex = 0;              // NETMON 2.3 file format
 
             frameNumber++;
 
@@ -199,6 +216,16 @@ namespace SQLNA
             nextOffset = (frameNumber < frameTable.Length) ? frameTable[frameNumber] : frameTableOffset;  // last frame ends right before the frame table
             linkLayerBytes = (int)(nextOffset - r.BaseStream.Position);
 
+
+            //
+            // Read file specs and version changes in NETMON help file: Network Monitor Capture File Format 2.3
+            //                                                          Capture File Header
+            //                                                          Frame Layout
+            //                                                          ProcessInfo
+            //
+
+            //
+
             //
             // Log the link types and where reading them from. NETMON files aren't 100% consistent.
             //
@@ -208,19 +235,30 @@ namespace SQLNA
 
             switch (linkLayerBytes)
             {
-                case 0:
+                case 0:  // we should never have this, except in NETMON 1.x files, which we do not process right now
                     {
                         nf.linkType = networkType; // Read in the file header
-                        // Too much noise
-                        // Program.logDiagnostic($"NetMonReader: Using default link layer type of {networkType} at frame {frameNumber}.");
+                        // Too much noise ???
+                        Program.logDiagnostic($"NetMonReader: Invalid link type length of {linkLayerBytes} at frame {frameNumber}. Should be 2, 6, or 15. Using default link layer type of {networkType}. Offset: {frameTable[frameNumber - 1].ToString("X8")}. Next Offset: {nextOffset.ToString("X8")}.");
                         break;
                     }
-                case 1:
+                case 1:  // ????
                     {
                         nf.linkType = r.ReadByte();
+                        Program.logDiagnostic($"NetMonReader: Invalid link type length of {linkLayerBytes} at frame {frameNumber}. Should be 2, 6, or 15. Reading 1 byte. Offset: {frameTable[frameNumber - 1].ToString("X8")}. Next Offset: {nextOffset.ToString("X8")}.");
                         break;
                     }
-                case 2:
+                case 2:  // NETMON 2.1 file format - Link Layer 2 bytes
+                    {
+                        nf.linkType = r.ReadUInt16();
+                        break;
+                    }
+                case 6:  // NETMON version 2.2 file format - Link Layer 2 bytes, Process Table offset 4 bytes
+                    {
+                        nf.linkType = r.ReadUInt16();
+                        break;
+                    }
+                case 15:  // NETMON 2.3 file format - Link Layer 2 bytes, Process Table offset 4 bytes, Time Zone offet in ticks 8 bytes, Time Zone 1 byte
                     {
                         nf.linkType = r.ReadUInt16();
                         break;
@@ -237,7 +275,7 @@ namespace SQLNA
                         {
                             nf.linkType = networkType; // Read in the file header
                         }
-                        Program.logDiagnostic($"NetMonReader: Invalid link type length of {linkLayerBytes} at frame {frameNumber}. Should be 0, 1, or 2. {(fReadTwoBytes ? "Reading first 2 bytes." : "Using default link type.")}");
+                        Program.logDiagnostic($"NetMonReader: Invalid link type length of {linkLayerBytes} at frame {frameNumber}. Should be 2, 6, or 15. {(fReadTwoBytes ? "Reading first 2 bytes." : "Using default link type.")} Offset: {frameTable[frameNumber - 1].ToString("X8")}. Next Offset: {nextOffset.ToString("X8")}.");
                         break;
                     }
             }

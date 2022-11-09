@@ -91,7 +91,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0083.0
+                  SQLTrace.ps1 version 1.0.0085.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -157,13 +157,18 @@ Function ReadINIFile
                                 Netmon           = "No"
                                 Wireshark        = "No"
                                 Pktmon           = "No"
+                                TruncatePackets  = "No"
 
                                 AuthTrace        = "No"
                                 SSL              = "No"
                                 Kerberos         = "No"
                                 LSA              = "No"
                                 Credssp          = "No"
+
                                 EventViewer      = "No"
+                                SQLErrorLog      = "No"
+                                SQLXEventLog     = "No"
+                                DeleteOldFiles   = "No"
                             }
 
     $fileName = $INIFile
@@ -203,12 +208,16 @@ Function ReadINIFile
            "NETMON"            { $global:INISettings.NETMON             = $value }
            "WireShark"         { $global:INISettings.WireShark          = $value }
            "PktMon"            { $global:INISettings.PktMon             = $value }
+           "TruncatePackets"   { $global:INISettings.TruncatePackets    = $value }
            "AuthTrace"         { $global:INISettings.AuthTrace          = $value }
            "SSL"               { $global:INISettings.SSL                = $value }
            "CredSSP_NTLM"      { $global:INISettings.CredSSP            = $value }
            "Kerberos"          { $global:INISettings.Kerberos           = $value }
            "LSA"               { $global:INISettings.LSA                = $value }
            "EventViewer"       { $global:INISettings.EventViewer        = $value }
+           "SQLErrorLog"       { $global:INISettings.SQLErrorLog        = $value }
+           "SQLXEventLog"      { $global:INISettings.SQLXEventLog       = $value }
+           "DeleteOldFiles"    { $global:INISettings.DeleteOldFiles     = $value }
            default             { "Unknown keyword $keyWord in line: $l" }
         }
     }
@@ -227,13 +236,18 @@ Function DisplayINIValues
     "NETMON              " + $global:INISettings.NETMON
     "WireShark           " + $global:INISettings.WireShark
     "PktMon              " + $global:INISettings.PktMon
+    "TruncatePackets     " + $global:INISettings.TruncatePackets
     ""
     "AuthTrace           " + $global:INISettings.AuthTrace
     "SSL                 " + $global:INISettings.SSL
     "CredSSP_NTLM        " + $global:INISettings.CredSSP
     "Kerberos            " + $global:INISettings.Kerberos
     "LSA                 " + $global:INISettings.LSA
+    ""
     "EventViewer         " + $global:INISettings.EventViewer
+    "SQLErrorLog         " + $global:INISettings.SQLErrorLog
+    "SQLXEventLog        " + $global:INISettings.SQLXEventLog
+    "DeleteOldFiles      " + $global:INISettings.DeleteOldFiles
 }
 
 Function PreReqsOkay
@@ -274,33 +288,6 @@ Function GetLogFolderName
     LogInfo "Progress Log name: $($global:LogProgressFileName)"
 }
 
-# ================================= Class Definitions ===========================
-
-#class INIValueClass             # contains all the INI file settings in one place - requires PowerShell 5
-#{
-#    [string] $BidTrace = "No"            # No | Yes
-#    [string] $BidWow = "No"              # No | Yes | Both
-#    [string] $BidProviderList = ""
-#
-#    [string] $NetTrace = "No"
-#    [string] $Netsh = "No"
-#    [string] $Netmon = "No"
-#    [string] $Wireshark = "No"
-#    [string] $Pktmon = "No"
-#
-#    [string] $AuthTrace = "No"
-#    [string] $SSL = "No"
-#    [string] $Kerberos = "No"
-#    [string] $LSA = "No"
-#    [string] $Credssp = "No"
-#    [string] $EventViewer = "No"
-#}
-#
-#class RunningSettings
-#{
-#    [System.Diagnostics.Process] $WiresharkProcess = $null
-#    [System.Diagnostics.Process] $NetmonProcess = $null
-#}
 
 # ======================================= Setup Traces =========================================
 
@@ -551,11 +538,14 @@ Function StartWireshark
 Function StartNetworkMonitor
 {
 
+    $trucatePackets = ""
+    if ($global:INISettings.TruncatePackets -eq "Yes") { $trucatePackets = "/maxframelength 180"; }
+
     #Look for the path where Wireshark is installed
     $NMCap = Get-ItemPropertyValue -Path 'HKLM:\HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Netmon3\' -Name InstallDir
 
     $NMCap = '"' + $NMCap + "nmcap.exe" + '" '
-    $ArgumentList = "/network * /capture /file $($global:LogFolderName)\NetworkTraces\nettrace.chn:200M /StopWhen /Frame dns.qrecord.questionname.Contains('stopsqltrace')"
+    $ArgumentList = "/network * /capture /file $($global:LogFolderName)\NetworkTraces\nettrace.chn:200M /StopWhen /Frame dns.qrecord.questionname.Contains('stopsqltrace') $truncatePackets"
     
     #Start the capture
     [System.Diagnostics.Process] $NetmonProcess = Start-Process $NMCap -PassThru -NoNewWindow -ArgumentList $ArgumentList
@@ -622,9 +612,12 @@ Function StartNetworkTraces
             LogInfo "Starting NETSH..."
             # $commandLine = "netsh trace start capture=yes overwrite=yes tracefile=$($global:LogFolderName)\NetworkTraces\" + $env:computername +".etl filemode=circular maxSize=200MB"
             # Invoke-Expression $commandLine
+            
+            $trucatePackets = ""
+            if ($global:INISettings.TruncatePackets -eq "Yes") { $trucatePackets = "PACKETTRUNCATEBYTES=250"; }
 
-            # $result = netsh trace start capture=yes maxsize=1 TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl"
-            $result = netsh trace start capture=yes maxsize=1 report=disabled TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl" # Faster netsh shutdown clintonw #53
+            $result = netsh trace start capture=yes maxsize=1 report=disabled TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl $truncatePackets" # Faster netsh shutdown clintonw #53
+
             LogInfo "NETSH: $result"
             $result = logman start SQLTraceNDIS -p Microsoft-Windows-NDIS-PacketCapture -mode newfile -max 200 -o "$($global:LogFolderName)\NetworkTraces\nettrace%d.etl" -ets
             LogInfo "LOGMAN: $result"
@@ -799,16 +792,18 @@ Function StartAuthenticationTraces
                 }
         }
 
-        if($global:INISettings.EventViewer -eq "Yes")
-        {
+    }
 
-            LogInfo "Enabling/Collecting Event Viewer Logs..."
-            # Enable Eventvwr logging
-            $result = wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /ms:102400000 2>&1
-            LogInfo "CAPI2 events: $result"
-            $result = wevtutil.exe set-log "Microsoft-Windows-Kerberos/Operational" /enabled:true /rt:false /q:true 2>&1
-            LogInfo "Kerberos events: $result"
-        }
+    # Not controlled by the Auth Flag
+    if($global:INISettings.EventViewer -eq "Yes")
+    {
+
+        LogInfo "Enabling/Collecting Event Viewer Logs..."
+        # Enable Eventvwr logging
+        $result = wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /ms:102400000 2>&1
+        LogInfo "CAPI2 events: $result"
+        $result = wevtutil.exe set-log "Microsoft-Windows-Kerberos/Operational" /enabled:true /rt:false /q:true 2>&1
+        LogInfo "Kerberos events: $result"
     }
 }
 
@@ -941,36 +936,36 @@ Function StopAuthenticationTraces
                 LogWarning "File $($env:windir)\system32\Lsass.log does not exist."
             }
         }
+    }
 
-    
-        if($global:INISettings.EventViewer -eq "Yes")
-        {
+    # Not controlled by the Auth Flag
+    if($global:INISettings.EventViewer -eq "Yes")
+    {
 
-            LogInfo "Disabling/Collecting Event Viewer Logs..."
+        LogInfo "Disabling/Collecting Event Viewer Logs..."
 			
-			# Filter to just the last 24 hours:                                                "/q:*[System[TimeCreated[timediff(@SystemTime) <= 86400000]]]"
-			# Alternate filter, events after a set time. Use variables in implementation:      "/q:*[System[TimeCreated[@SystemTime>='2022-08-08T10:00:00']]]"
-			$EventLogFilter = "/q:*[System[TimeCreated[timediff(@SystemTime) <= 86400000]]]"
+		# Filter to just the last 24 hours:                                                "/q:*[System[TimeCreated[timediff(@SystemTime) <= 86400000]]]"
+		# Alternate filter, events after a set time. Use variables in implementation:      "/q:*[System[TimeCreated[@SystemTime>='2022-08-08T10:00:00']]]"
+		$EventLogFilter = "/q:*[System[TimeCreated[timediff(@SystemTime) <= 86400000]]]"
 			
-            # Event/Operational logs
-            wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /enabled:false  2>&1   # stop logging
-            wevtutil.exe export-log "Microsoft-Windows-CAPI2/Operational" "$($global:LogFolderName)\Auth\Capi2_Oper.evtx" "$EventLogFilter" /overwrite:true  2>&1  # export recent events to .evtx
-			wevtutil.exe query-events "Microsoft-Windows-CAPI2/Operational" "$EventLogFilter" /f:Text > "$($global:LogFolderName)\Auth\Capi2_Oper.txt"             # export recent events to .txt
+        # Event/Operational logs
+        wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /enabled:false  2>&1   # stop logging
+        wevtutil.exe export-log "Microsoft-Windows-CAPI2/Operational" "$($global:LogFolderName)\Auth\Capi2_Oper.evtx" "$EventLogFilter" /overwrite:true  2>&1  # export recent events to .evtx
+		wevtutil.exe query-events "Microsoft-Windows-CAPI2/Operational" "$EventLogFilter" /f:Text > "$($global:LogFolderName)\Auth\Capi2_Oper.txt"             # export recent events to .txt
 			
-            wevtutil.exe set-log "Microsoft-Windows-Kerberos/Operational" /enabled:false  2>&1   # stop logging
-            wevtutil.exe export-log "Microsoft-Windows-Kerberos/Operational" "$($global:LogFolderName)\Auth\Kerb_Oper.evtx" "$EventLogFilter" /overwrite:true  2>&1  # export recent events to .evtx
-			wevtutil.exe query-events "Microsoft-Windows-Kerberos/Operational" "$EventLogFilter" /f:Text > "$($global:LogFolderName)\Auth\Kerb_Oper.txt"             # export recent events to .txt
+        wevtutil.exe set-log "Microsoft-Windows-Kerberos/Operational" /enabled:false  2>&1   # stop logging
+        wevtutil.exe export-log "Microsoft-Windows-Kerberos/Operational" "$($global:LogFolderName)\Auth\Kerb_Oper.evtx" "$EventLogFilter" /overwrite:true  2>&1  # export recent events to .evtx
+		wevtutil.exe query-events "Microsoft-Windows-Kerberos/Operational" "$EventLogFilter" /f:Text > "$($global:LogFolderName)\Auth\Kerb_Oper.txt"             # export recent events to .txt
 
-            # Main event logs - security, system, and application
-            wevtutil.exe export-log SECURITY "$($global:LogFolderName)\Auth\Security.evtx" "$EventLogFilter" /overwrite:true  2>&1        # export recent events to .evtx
-			wevtutil.exe query-events SECURITY "$EventLogFilter" /f:Text > "$($global:LogFolderName)\Auth\Security.txt"                   # export recent events to .txt
+        # Main event logs - security, system, and application
+        wevtutil.exe export-log SECURITY "$($global:LogFolderName)\Auth\Security.evtx" "$EventLogFilter" /overwrite:true  2>&1        # export recent events to .evtx
+		wevtutil.exe query-events SECURITY "$EventLogFilter" /f:Text > "$($global:LogFolderName)\Auth\Security.txt"                   # export recent events to .txt
 			
-            wevtutil.exe export-log SYSTEM "$($global:LogFolderName)\Auth\System.evtx" "$EventLogFilter" /overwrite:true  2>&1            # export recent events to .evtx
-			wevtutil.exe query-events SYSTEM "$EventLogFilter" /f:Text > "$($global:LogFolderName)\Auth\System.txt"                       # export recent events to .txt
+        wevtutil.exe export-log SYSTEM "$($global:LogFolderName)\Auth\System.evtx" "$EventLogFilter" /overwrite:true  2>&1            # export recent events to .evtx
+		wevtutil.exe query-events SYSTEM "$EventLogFilter" /f:Text > "$($global:LogFolderName)\Auth\System.txt"                       # export recent events to .txt
 			
-            wevtutil.exe export-log APPLICATION "$($global:LogFolderName)\Auth\Application.evtx" "$EventLogFilter" /overwrite:true  2>&1  # export recent events to .evtx
-			wevtutil.exe query-events APPLICATION "$EventLogFilter" /f:Text > "$($global:LogFolderName)\Auth\Application.txt"             # export recent events to .txt
-        }
+        wevtutil.exe export-log APPLICATION "$($global:LogFolderName)\Auth\Application.evtx" "$EventLogFilter" /overwrite:true  2>&1  # export recent events to .evtx
+		wevtutil.exe query-events APPLICATION "$EventLogFilter" /f:Text > "$($global:LogFolderName)\Auth\Application.txt"             # export recent events to .txt
     }
 }
 
@@ -979,51 +974,59 @@ Function StopAuthenticationTraces
 # Makes a copy of ERRORLOG and Extended Events as long as the file size is lower than 500MB
 Function CopySQLErrorLog()
 {
-    LogInfo "Saving SQL Server ERRORLOG files"
-
-    if (!(Test-Path "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL"))
+    if(($global:INISettings.SQLErrorLog -eq "Yes") -or ($global:INISettings.SQLXEventLog -eq "Yes"))
     {
-        LogInfo "No SQL Server instances were found on this machine."
-        return;
-    }
+        LogInfo "Saving SQL Server files"
 
-    $SQLKey = Get-Item "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL"
-    $ValueNames = $SQLKey.GetValueNames()
-    cd $($global:LogFolderName)
-    mkdir "SQLLogFolder" | out-null
-    cd "SQLLogFolder" | out-null
-    ForEach ($ValueName in $ValueNames)
-    {
-       LogInfo("Copying SQL ERRORLOG files for instance: $ValueName")
-       mkdir $ValueName | out-null
-       $instanceFolderName = $SQLKey.GetValue($ValueName); #Get Instance Folder Name
-       $errorLogPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\$instanceFolderName\MSSQLServer\Parameters\").psobject.properties |
-          where {$_.name -like "xls*" -or $_.value -like "*ERRORLOG*"} |
-            select value
+        if (!(Test-Path "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL"))
+        {
+            LogInfo "No SQL Server instances were found on this machine."
+            return;
+        }
 
-        #Remove any parameter prior to the path
-        $errorLogPath = $($errorLogPath.Value.ToString()).Substring(2)
-        #Clear the error log from the string
-        $errorLogPath = $errorLogPath.Substring(0,$errorLogPath.LastIndexOf('\')+1)
+        $SQLKey = Get-Item "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\Instance Names\SQL"
+        $ValueNames = $SQLKey.GetValueNames()
+        cd $($global:LogFolderName)
+        mkdir "SQLLogFolder" | out-null
+        cd "SQLLogFolder" | out-null
+        ForEach ($ValueName in $ValueNames)
+        {
+           LogInfo("Copying SQL files for instance: $ValueName")
+           mkdir $ValueName | out-null
+           $instanceFolderName = $SQLKey.GetValue($ValueName); #Get Instance Folder Name
+           $errorLogPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\$instanceFolderName\MSSQLServer\Parameters\").psobject.properties |
+              where {$_.name -like "xls*" -or $_.value -like "*ERRORLOG*"} |
+                select value
+
+            #Remove any parameter prior to the path
+            $errorLogPath = $($errorLogPath.Value.ToString()).Substring(2)
+            #Clear the error log from the string
+            $errorLogPath = $errorLogPath.Substring(0,$errorLogPath.LastIndexOf('\')+1)
         
-        #Copy Error Log files as long as they are less than 500Mb
-        $items=Get-ChildItem $errorLogPath -filter ERRORLOG* | Where { $_.Length -lt 500MB}
-        Foreach($item in $items){
-        copy-item $item.fullname .\$ValueName -force
+            if ($global:INISettings.SQLErrorLog -eq "Yes")
+            {
+                #Copy Error Log files as long as they are less than 500Mb
+                $items=Get-ChildItem $errorLogPath -filter ERRORLOG* | Where { $_.Length -lt 500MB}
+                Foreach($item in $items){
+                copy-item $item.fullname .\$ValueName -force
+                }
+            }
+
+            if ($global:INISettings.SQLXEventLog -eq "Yes")
+            {
+                #Copy XEvents Log files as long as they are less than 500Mb
+                $items=Get-ChildItem $errorLogPath -filter *.xel | Where { $_.Length -lt 500MB}
+                Foreach($item in $items){
+                copy-item $item.fullname .\$ValueName -force
+                }
+            }
+
         }
 
-        #Copy XEvents Log files as long as they are less than 500Mb
-        $items=Get-ChildItem $errorLogPath -filter *.xel | Where { $_.Length -lt 500MB}
-        Foreach($item in $items){
-        copy-item $item.fullname .\$ValueName -force
-        }
-
+        cd .. | out-null
+        cd .. | out-null
     }
 
-    cd .. | out-null
-    cd .. | out-null
-
-}
 
 # ======================================= Cleanup Traces =========================================
 
