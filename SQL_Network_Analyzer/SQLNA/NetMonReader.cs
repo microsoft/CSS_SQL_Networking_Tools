@@ -19,7 +19,7 @@ namespace SQLNA
         private const int MAX_FRAME_SIZE = 0x100000; // upped from 0x10000 (64Kb) to 0x100000 (1Mb) - no real reason for these limits as they are UINT32
         private const byte ESP_PROTOCOL = 0x32;
         private const byte IP_PROTOCOL = 0x06;
-        public UInt32 magicNumber;		// Netmon magic number 
+        public UInt32 magicNumber;		// Netmon magic number
         public byte minorVersion;			// Minor version number
         public byte majorVersion;			// Major version number
         public UInt16 networkType;		// Network type

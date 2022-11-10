@@ -14,7 +14,7 @@ namespace SQLNA
     // Helper methods for dumping conversations for debugging purposes
     //
 
-    public class ConversationData              //               - constructed in GetIPV4Conversation and GetIPV6Conversation
+    public class ConversationData              //              - constructed in GetIPV4Conversation and GetIPV6Conversation
     {
         public ulong sourceMAC = 0;     // six bytes     - set in ParseEthernetFrame
         public uint sourceIP = 0;       // IPV4          - set in GetIPV4Conversation
