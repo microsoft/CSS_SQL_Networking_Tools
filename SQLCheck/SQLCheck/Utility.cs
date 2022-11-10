@@ -22,6 +22,8 @@ namespace SQLCheck
     static class Utility
     {
 
+        public static StreamWriter outLogFile;  // Clintonw-1017
+
         //
         // Wrapper for making a WMI call
         //
@@ -231,6 +233,31 @@ namespace SQLCheck
             {
                 return oVal.ToInt();
             }
+        }
+
+        //
+        //  Gets Local computer name and creates local log output file      // Clintonw-1017
+        // 
+        public static StreamWriter openLogOutputFile()
+        {
+            string computerName = System.Net.Dns.GetHostName();
+            computerName = "SQLCheckLog_" + computerName + "_" + ConvertCurrTimeToString() + ".txt";
+            outLogFile = new StreamWriter(computerName);
+            Console.WriteLine("Generating SQLCheck log ...............");
+            return outLogFile;
+        }
+
+        public static void WriteLine(string message)
+        {
+            if (outLogFile != null) outLogFile.WriteLine(message);
+            Console.Write(".");
+        }
+
+        public static Boolean closeLogOutputFile()
+        {
+            outLogFile.Close();
+            Console.WriteLine($"Output file was generated.");
+            return true;
         }
 
         //
@@ -540,6 +567,14 @@ namespace SQLCheck
                 if (word.Substring(0, 1).IsInt()) return word;
             }
             return v;
+        }
+
+        // Format Time for filename with leading zero
+        public static string ConvertCurrTimeToString()
+        {
+            DateTime dt = DateTime.Now;
+            string fmt = "00";
+            return $"{dt.Year}{dt.Month.ToString(fmt)}{dt.Day.ToString(fmt)}{dt.Hour.ToString(fmt)}{dt.Minute.ToString(fmt)}{dt.Second.ToString(fmt)}";
         }
 
         // FormatInterval -TimeSpan to Days, Hours and Min as string
