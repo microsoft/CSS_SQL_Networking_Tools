@@ -91,7 +91,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0085.0
+                  SQLTrace.ps1 version 1.0.0089.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -513,7 +513,7 @@ Function StartBIDTraces
         $result = logman start SQLTraceBID -pf "$($global:LogFolderName)\BIDTraces\ctrl.guid" -o "$($global:LogFolderName)\BIDTraces\bidtrace%d.etl" -bs 1024 -nb 1024 1024 -mode NewFile -max 200 -ets
         LogInfo "LOGMAN: $result"
 
-        if((Test-Path "$($global:LogFolderName)\BIDTraces" -PathType Container) -eq $True)
+        if(((Test-Path "$($global:LogFolderName)\BIDTraces" -PathType Container) -eq $True) -and ($global:INISettings.DeleteOldFiles -eq "Yes"))
 		{          
           StartCleanupETLTraceFiles -jobname "BIDTRACECLEANUP" -folder "$($global:LogFolderName)\BIDTraces" -numofFilesToKeep 30 -jobrunintervalMin 30
         }
@@ -623,8 +623,11 @@ Function StartNetworkTraces
             $result = logman start SQLTraceNDIS -p Microsoft-Windows-NDIS-PacketCapture -mode newfile -max 200 -o "$($global:LogFolderName)\NetworkTraces\nettrace%d.etl" -ets
             LogInfo "LOGMAN: $result"
 
-            # StartCleanupNetworkTraces  -folder "$($global:LogFolderName)\NetworkTraces"  # Clintonw
-            StartCleanupETLTraceFiles -jobname "NETWORKTRACECLEANUP" -folder "$($global:LogFolderName)\NetworkTraces" -numofFilesToKeep 30 -jobrunintervalMin 30           
+            if ($global:INISettings.DeleteOldFiles -eq "Yes")
+            {
+                # StartCleanupNetworkTraces  -folder "$($global:LogFolderName)\NetworkTraces"  # Clintonw
+                StartCleanupETLTraceFiles -jobname "NETWORKTRACECLEANUP" -folder "$($global:LogFolderName)\NetworkTraces" -numofFilesToKeep 30 -jobrunintervalMin 30  
+            }         
         }
         if($global:INISettings.NETMON -eq "Yes")
         {
