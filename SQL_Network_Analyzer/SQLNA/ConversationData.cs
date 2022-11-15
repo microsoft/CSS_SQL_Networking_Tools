@@ -16,22 +16,64 @@ namespace SQLNA
 
     public class ConversationData              //              - constructed in GetIPV4Conversation and GetIPV6Conversation
     {
+        // Collections
+        public ArrayList frames = new ArrayList();  //   - frame added in ParseIPV4Frame and ParseIPV6Frame
+        public ArrayList packets = new ArrayList(); //   - packet added in CreatingPacketsFromFrames
+        // Packet Monitor Stats
+        public bool hasPktmonDroppedEvent = false;     // - set in ConversationData.AddFrame
+        public uint pktmonDropReason = 0;              // - set in ConversationData.AddFrame
+        public long pktmonMaxDelay = 0;                // - set in OutputText.DisplayDelayedPktmonEvents
+        // Link Layer Properties - Ethernet and WiFi
         public ulong sourceMAC = 0;     // six bytes     - set in ParseEthernetFrame
+        public ulong destMAC = 0;       // six bytes     - set in ParseEthernetFrame
+        // IP Properties - IPV4 and IPV6
+        public bool isIPV6 = false;     //               - set in GetIPV6Conversation; GetIPV4Conversation leaves at default
         public uint sourceIP = 0;       // IPV4          - set in GetIPV4Conversation
         public ulong sourceIPHi = 0;    // IPV6          - set in GetIPV6Conversation
         public ulong sourceIPLo = 0;    // IPV6          - set in GetIPV6Conversation
-        public ushort sourcePort = 0;   //               - set in GetIPV4Conversation and GetIPV6Conversation
-        public ulong destMAC = 0;       // six bytes     - set in ParseEthernetFrame
         public uint destIP = 0;         // IPV4          - set in GetIPV4Conversation
         public ulong destIPHi = 0;      // IPV6          - set in GetIPV6Conversation
         public ulong destIPLo = 0;      // IPV6          - set in GetIPV6Conversation
-        public ushort destPort = 0;     //               - set in GetIPV4Conversation and GetIPV6Conversation
-        public bool isIPV6 = false;     //               - set in GetIPV6Conversation; GetIPV4Conversation leaves at default
+        public uint TTLSumIn = 0;       // IPV4/IPV6     - set in GetIPV4/6Conversation - Accumulates the first 10 values - to get the average # hops and compare against the minimum
+        public uint TTLCountIn = 0;     // IPV4/IPV6     - set in GetIPV4/6Conversation - Counts the first 10 values
+        public byte minTTLHopsIn = 255; // IPV4/IPV6     - set in GetIPV4/6Conversation
+        public uint TTLSumOut = 0;      // IPV4/IPV6     - set in GetIPV4/6Conversation - Accumulates the first 10 values - to get the average # hops and compare against the minimum
+        public uint TTLCountOut = 0;    // IPV4/IPV6     - set in GetIPV4/6Conversation - Counts the first 10 values
+        public byte minTTLHopsOut = 255;// IPV4/IPV6     - set in GetIPV4/6Conversation
+        // Transport Properties - TCP and UDP
+        public byte nextProtocol = 0;   //               - set in ParseIPV4Frame and ParseIPV6Frame (6 = TCP or 17 = UDP)
         public bool isUDP = false;      //               - set in ParseUDPFrame; ParseTCPFrame leaves it at default
-        public byte nextProtocol = 0;   //               - set in ParseIPV4Frame and ParseIPV6Frame (6 or 17)
-        public ArrayList frames = new ArrayList();  //   - frame added in ParseIPV4Frame and ParseIPV6Frame
-        public ArrayList packets = new ArrayList(); //   - packet added in CreatingPacketsFromFrames
+        public ushort sourcePort = 0;   //               - set in GetIPV4Conversation and GetIPV6Conversation
+        public ushort destPort = 0;     //               - set in GetIPV4Conversation and GetIPV6Conversation
+        // Conversation statistics
+        public ulong totalBytes = 0;    //               - set in ParseTCPFrame
+        public ulong totalPayloadBytes = 0;         //   - set in ParseTCPFrame
+        public long startTick = 0;      //               - set in ParseEthernetFrame
+        public long endTick = 0;        //               - set in ParseEthernetFrame
+        public int ackCount = 0;        //               - accumulated in ParseTCPFrame - can be in combination with other flags
+        public int pushCount = 0;       //               - accumulated in ParseTCPFrame - can be in combination with other flags
+        public int resetCount = 0;      //               - accumulated in ParseTCPFrame - can be in combination with other flags
+        public int synCount = 0;        //               - accumulated in ParseTCPFrame - can be in combination with other flags
+        public int finCount = 0;        //               - accumulated in ParseTCPFrame - can be in combination with other flags
+        public bool hasClientFin = false;           //   - set in ParseTCPFrame
+        public bool hasServerFin = false;           //   - set in ParseTCPFrame
+        public bool hasServerFinFirst = false;      //   - set in ParseTCPFrame - used to determine whether the server closed the conversation
+        public uint missingPackets = 0;
+        public uint duplicateClientPackets = 0;     //   - accumulated in ParseIPV4Frame - unfortunately IPV6 does not have a packet identifier ****
+        public uint duplicateServerPackets = 0;     //   - accumulated in ParseIPV4Frame - unfortunately IPV6 does not have a packet identifier ****
+        public uint rawRetransmits = 0;             //   - accumulated in FindRetransmits
+        public uint sigRetransmits = 0;             //   - accumulated in FindRetransmits
+        public ushort maxRetransmitCount = 0;       //   - accumulated in FindRetransmits
+        public uint sourceFrames = 0;               //   - accumulated in ParseEthernetFrame
+        public uint destFrames = 0;                 //   - accumulated in ParseEthernetFrame
+        public uint keepAliveCount = 0;             //   - accumulated in ParseTCPFrame
+        public ushort maxKeepAliveRetransmits = 0;  //   - accoumulated in FindKeepAliveRetransmits
+        public uint truncatedFrameLength = 0;       //         
+        public uint truncationErrorCount = 0;       //         
+        public int maxPayloadSize = 0;              //   - accumulated in ParseTCPFrame
+        public bool maxPayloadLimit = false;        //   - accumulated in ParseTCPFrame
         // SQL-specific values
+        public int tdsFrames = 0;                   //   - set in ProcessTDS
         public bool hasTDS = false;                 //   - set in ProcessTDS
         public bool hasTDS8 = false;                //   - set in ProcessTDS
         public bool isSQL = false;                  //   - set in ProcessTDS
@@ -53,6 +95,11 @@ namespace SQLNA
         public bool hasIntegratedSecurity = false;  //   - set in ProcessTDS
         public bool hasPostLoginResponse = false;   //   - set in ProcessTDS   - this contains the ENVCHANGE token - login was a success
         public bool hasDiffieHellman = false;       //   - set in ProcessTDS
+        public int smpSynCount = 0;                 //   - accumulated in ParseTCPFrame
+        public int smpAckCount = 0;                 //   - accumulated in ParseTCPFrame
+        public int smpFinCount = 0;                 //   - accumulated in ParseTCPFrame
+        public int smpDataCount = 0;                //   - accumulated in ParseTCPFrame
+        public int smpMaxSession = -1;              //   - accumulated in ParseTCPFrame
         public int SPID = 0;
         public string clientVersion = null;         //   - set in GetClientPreloginInfo
         public string serverVersion = null;         //   - set in ProcessTDS
@@ -65,39 +112,7 @@ namespace SQLNA
         public string serverName = null;            //   - set in ProcessTDS
         public uint processID = 0;
         public uint threadID = 0;                   //   - set in GetClientPreloginInfo
-        // Conversation statistics
-        public int tdsFrames = 0;       //               - set in ProcessTDS
-        public ulong totalBytes = 0;    //               - set in ParseTCPFrame
-        public ulong totalPayloadBytes = 0;         //   - set in ParseTCPFrame
-        public long startTick = 0;      //               - set in ParseEthernetFrame
-        public long endTick = 0;        //               - set in ParseEthernetFrame
-        public int ackCount = 0;        //               - accumulated in ParseTCPFrame - can be in combination with other flags
-        public int pushCount = 0;       //               - accumulated in ParseTCPFrame - can be in combination with other flags
-        public int resetCount = 0;      //               - accumulated in ParseTCPFrame - can be in combination with other flags
-        public int synCount = 0;        //               - accumulated in ParseTCPFrame - can be in combination with other flags
-        public int finCount = 0;        //               - accumulated in ParseTCPFrame - can be in combination with other flags
-        public bool hasClientFin = false;           //   - set in ParseTCPFrame
-        public bool hasServerFin = false;           //   - set in ParseTCPFrame
-        public bool hasServerFinFirst = false;      //   - set in ParseTCPFrame - used to determine whether the server closed the conversation
-        public int smpSynCount = 0;     //               - accumulated in ParseTCPFrame
-        public int smpAckCount = 0;     //               - accumulated in ParseTCPFrame
-        public int smpFinCount = 0;     //               - accumulated in ParseTCPFrame
-        public int smpDataCount = 0;    //               - accumulated in ParseTCPFrame
-        public int smpMaxSession = -1;  //               - accumulated in ParseTCPFrame
-        public uint missingPackets = 0;
-        public uint duplicateClientPackets = 0;     //   - accumulated in ParseIPV4Frame - unfortunately IPV6 does not have a packet identifier ****
-        public uint duplicateServerPackets = 0;     //   - accumulated in ParseIPV4Frame - unfortunately IPV6 does not have a packet identifier ****
-        public uint rawRetransmits = 0;             //   - accumulated in FindRetransmits
-        public uint sigRetransmits = 0;             //   - accumulated in FindRetransmits
-        public ushort maxRetransmitCount = 0;       //   - accumulated in FindRetransmits
-        public uint sourceFrames = 0;               //   - accumulated in ParseEthernetFrame
-        public uint destFrames = 0;                 //   - accumulated in ParseEthernetFrame
-        public uint keepAliveCount = 0;             //   - accumulated in ParseTCPFrame
-        public ushort maxKeepAliveRetransmits = 0;  //   - accoumulated in FindKeepAliveRetransmits
-        public uint truncatedFrameLength = 0;       //         
-        public uint truncationErrorCount = 0;       //         
-        public int maxPayloadSize = 0;              //   - accumulated in ParseTCPFrame
-        public bool maxPayloadLimit = false;        //   - accumulated in ParseTCPFrame
+        // Login Error and Delay Stats
         public long synTime = 0;                    //
         public long ackSynTime = 0;                 //
         public long PreLoginTime = 0;               //   - set in TDS Parser - so we can time the PreLogin packet delay
@@ -124,9 +139,6 @@ namespace SQLNA
         public string RedirectServer = "";
         public string PipeAdminName = "";              // - set in TCP Parser
         public ArrayList PipeNames = new ArrayList();  // - set in TCP Parser
-        public bool hasPktmonDroppedEvent = false;     // - set in ConversationData.AddFrame
-        public uint pktmonDropReason = 0;              // - set in ConversationData.AddFrame
-        public long pktmonMaxDelay = 0;                // - set in OutputText.DisplayDelayedPktmonEvents
 
         public void AddFrame(FrameData f, NetworkTrace t)  // replaces adding the frame directly to the frames ArrayList
         {

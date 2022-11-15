@@ -501,7 +501,33 @@ namespace SQLNA
 
                             ResetConnectionData rd = new ResetConnectionData();
 
-                            rd.clientIP = (c.isIPV6) ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP);
+                            string clientIP = (c.isIPV6) ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP);
+
+                            bool traceOnServer = c.minTTLHopsOut != 0;
+                            if (c.minTTLHopsIn != 0) Program.logDiagnostic($"Both client and server have non-zero TTL hops. IP: {clientIP}, Port: {c.sourcePort}.");
+                            double avgTTL = -1.0;
+                            byte TTL = 0;
+                            byte minHops = 0;
+                            if (traceOnServer)
+                            {
+                                if (c.TTLCountOut != 0)
+                                {
+                                    avgTTL = (1.0 * c.TTLSumOut) / c.TTLCountOut;
+                                    TTL = (byte)(avgTTL + ((avgTTL == (byte)avgTTL) ? 0 : 1)); // round up if fractional
+                                    minHops = c.minTTLHopsOut;
+                                }
+                            }
+                            else
+                            {
+                                if (c.TTLCountIn != 0)
+                                {
+                                    avgTTL = (1.0 * c.TTLSumIn) / c.TTLCountIn;
+                                    TTL = (byte)(avgTTL + ((avgTTL == (byte)avgTTL) ? 0 : 1)); // round up if fractional
+                                    minHops = c.minTTLHopsIn;
+                                }
+                            }
+
+                            rd.clientIP = clientIP;
                             rd.sourcePort = c.sourcePort;
                             rd.isIPV6 = c.isIPV6;
                             rd.frames = c.frames.Count;
@@ -519,6 +545,11 @@ namespace SQLNA
                             rd.keepAliveCount = c.keepAliveCount;
                             rd.maxKeepAliveRetransmitsInARow = (ushort)(c.maxKeepAliveRetransmits == 0 ? 0 : c.maxKeepAliveRetransmits + 1);
                             rd.flags = null;
+                            if (avgTTL != -1.0)  // count of outgoing packets must be > 0 - it's possible the conversation may be filtered to incoming packets or have just 1 packet total
+                            {
+                                rd.TTL = TTL;
+                                rd.lowTTLHop = minHops;
+                            }
                             rd.endFrames = c.GetLastPacketList(20);
 
                             //for (int i = c.frames.Count - 1; i >= 0; i--)
@@ -548,17 +579,17 @@ namespace SQLNA
                         {
                             case "N":
                                 {
-                                    rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Reset File:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "KA Timeout:R", "Retransmits:R", "Max RT:R", "End Frames:L");
+                                    rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Reset File:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "TTL:R", "Hops:R", "Low TTL:R", "Keep-Alives:R", "KA Timeout:R", "Retransmits:R", "Max RT:R", "End Frames:L");
                                     break;
                                 }
                             case "W":
                                 {
-                                    rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Reset File:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "KA Timeout:R", "Retransmits:R", "Max RT:R", "End Frames:L");
+                                    rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Reset File:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "TTL:R", "Hops:R", "Low TTL:R", "Keep-Alives:R", "KA Timeout:R", "Retransmits:R", "Max RT:R", "End Frames:L");
                                     break;
                                 }
                             default:
                                 {
-                                    rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Reset File:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "Keep-Alives:R", "KA Timeout:R", "Retransmits:R", "Max RT:R", "End Frames:L");
+                                    rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Reset File:R", "Reset Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Who Reset:L", "Flags:L", "TTL:R", "Hops:R", "Low TTL:R", "Keep-Alives:R", "KA Timeout:R", "Retransmits:R", "Max RT:R", "End Frames:L");
                                     break;
                                 }
                         }
@@ -582,6 +613,9 @@ namespace SQLNA
                                                          (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
                                                          (row.isClientReset ? "Client" : "Server"),
                                                          row.flags,
+                                                         row.TTL == 0 ? "" : row.TTL.ToString(),
+                                                         row.TTL == 0 ? "" : Parser.CalculateTTLHops(row.TTL).ToString(),
+                                                         row.TTL == 0 ? "" : (Parser.CalculateTTLHops(row.TTL) != row.lowTTLHop ? row.lowTTLHop.ToString() : ""),
                                                          row.keepAliveCount.ToString(),
                                                          row.maxKeepAliveRetransmitsInARow.ToString(),
                                                          row.rawRetransmits.ToString(),
@@ -602,6 +636,9 @@ namespace SQLNA
                                                          (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
                                                          (row.isClientReset ? "Client" : "Server"),
                                                          row.flags,
+                                                         row.TTL == 0 ? "" : row.TTL.ToString(),
+                                                         row.TTL == 0 ? "" : Parser.CalculateTTLHops(row.TTL).ToString(),
+                                                         row.TTL == 0 ? "" : (Parser.CalculateTTLHops(row.TTL) != row.lowTTLHop ? row.lowTTLHop.ToString() : ""),
                                                          row.keepAliveCount.ToString(),
                                                          row.maxKeepAliveRetransmitsInARow.ToString(),
                                                          row.rawRetransmits.ToString(),
@@ -623,6 +660,9 @@ namespace SQLNA
                                                          (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
                                                          (row.isClientReset ? "Client" : "Server"),
                                                          row.flags,
+                                                         row.TTL == 0 ? "" : row.TTL.ToString(),
+                                                         row.TTL == 0 ? "" : Parser.CalculateTTLHops(row.TTL).ToString(),
+                                                         row.TTL == 0 ? "" : (Parser.CalculateTTLHops(row.TTL) != row.lowTTLHop ? row.lowTTLHop.ToString() : ""),
                                                          row.keepAliveCount.ToString(),
                                                          row.maxKeepAliveRetransmitsInARow.ToString(),
                                                          row.rawRetransmits.ToString(),
@@ -1303,7 +1343,7 @@ namespace SQLNA
                         }
                     case "W":
                         {
-                            rf.SetColumnNames("WireShark Filter (Client conv.):L", "(Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Packets:L");
+                            rf.SetColumnNames("WireShark Filter (Server conv.):L", "(Client conv.):L", "Files:R", "Last Frame:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "Packets:L");
                             break;
                         }
                     default:
@@ -3249,7 +3289,7 @@ namespace SQLNA
 
         private static void OutputStats(NetworkTrace Trace)
         {
-            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,Retransmit,ClientDup,ServerDup,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason,MaxPayloadSize,PayloadSizeLimit,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ServerName,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
+            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,Retransmit,ClientDup,ServerDup,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason,MaxPayloadSize,PayloadSizeLimit,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ClientTTL,ClientLowHops,ServerTTL,ServerLowHops,ServerName,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
             foreach (ConversationData c in Trace.conversations)
             {
                 int firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
@@ -3302,6 +3342,10 @@ namespace SQLNA
                                 new DateTime(firstTick).ToString(utility.TIME_FORMAT) + "," +
                                 new DateTime(endTicks).ToString(utility.TIME_FORMAT) + "," +
                                 (duration / utility.TICKS_PER_SECOND).ToString("0.000000") + "," +
+                                (c.TTLCountOut == 0 ? "" : (c.TTLSumOut / c.TTLCountOut).ToString()) + "," +
+                                (c.TTLCountOut == 0 ? "" : c.minTTLHopsOut.ToString()) + "," +
+                                (c.TTLCountIn == 0 ? "" : (c.TTLSumIn / c.TTLCountIn).ToString()) + "," +
+                                (c.TTLCountIn == 0 ? "" : c.minTTLHopsIn.ToString()) + "," +
                                 ServerName + "," +
                                 ServerVersion + "," +
                                 ((c.databaseName == null) ? "" : c.databaseName) + "," +

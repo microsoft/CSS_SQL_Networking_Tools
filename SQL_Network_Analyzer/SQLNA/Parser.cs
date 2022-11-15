@@ -1205,6 +1205,28 @@ namespace SQLNA
                 // Is the Frame from Client or Server? This may be reversed later in ReverseBackwardConversations.
                 if (sourceIP == c.sourceIP && SPort == c.sourcePort) f.isFromClient = true;
 
+                // Accumulate TTL stats - record in and out incase the conversation is reversed; report on IN stats
+
+                byte TTLHops = CalculateTTLHops(TTL);
+                if (f.isFromClient == false)  // server packets come "In"
+                {
+                    if (c.TTLCountIn < 10)
+                    {
+                        c.TTLCountIn++;
+                        c.TTLSumIn += TTL;
+                    }
+                    if (TTLHops < c.minTTLHopsIn) c.minTTLHopsIn = TTLHops;
+                }
+                else  // client packets go "Out" - should be consistently 128 or 64 or 255 depending on the OS - TTLHops should be 0 always
+                {
+                    if (c.TTLCountOut < 10)
+                    {
+                        c.TTLCountOut++;
+                        c.TTLSumOut += TTL;
+                    }
+                    if (TTLHops < c.minTTLHopsOut) c.minTTLHopsOut = TTLHops;
+                }
+
                 //
                 // Purpose: Do not record duplicate frames unless it has a PktmonData record associated with it
                 //
@@ -1297,6 +1319,7 @@ namespace SQLNA
             ushort HeaderLength = 40;   // we ignore packets with header extensions right now ... http://en.wikipedia.org/wiki/IPv6_packet
             ushort PayloadLength = 0;
             byte NextProtocol = 0;     // TCP = 6    UDP = 0x11 (17)
+            byte TTL = 0;  // in IPV6 frame, it is called Hop Limit - is usually 128 - TTL for # hops, sometimes 64 - TTL or 255 - TTL
             ulong sourceIPHi = 0;
             ulong sourceIPLo = 0;
             ulong destIPHi = 0;
@@ -1306,6 +1329,7 @@ namespace SQLNA
 
             PayloadLength = utility.B2UInt16(b, offset + 4);
             NextProtocol = b[offset + 6];
+            TTL = b[offset + 7];
             sourceIPHi = utility.B2UInt64(b, offset + 8);
             sourceIPLo = utility.B2UInt64(b, offset + 16);
             destIPHi = utility.B2UInt64(b, offset + 24);
@@ -1352,6 +1376,28 @@ namespace SQLNA
 
                 //Is the Frame from Client or Server?
                 if (sourceIPHi == c.sourceIPHi && sourceIPLo == c.sourceIPLo && SPort == c.sourcePort) f.isFromClient = true;
+
+                // Accumulate TTL stats - record in and out incase the conversation is reversed; report on IN stats
+
+                byte TTLHops = CalculateTTLHops(TTL);
+                if (f.isFromClient == false)  // server packets come "In"
+                {
+                    if (c.TTLCountIn < 10)
+                    {
+                        c.TTLCountIn++;
+                        c.TTLSumIn += TTL;
+                    }
+                    if (TTLHops < c.minTTLHopsIn) c.minTTLHopsIn = TTLHops;
+                }
+                else  // client packets go "Out" - should be consistently 128 or 64 or 255 depending on the OS - TTLHops should be 0 always
+                {
+                    if (c.TTLCountOut < 10)
+                    {
+                        c.TTLCountOut++;
+                        c.TTLSumOut += TTL;
+                    }
+                    if (TTLHops < c.minTTLHopsOut) c.minTTLHopsOut = TTLHops;
+                }
 
                 //
                 // Determine whether the TCP client port has rolled around and this should be a new conversation
@@ -1886,5 +1932,13 @@ namespace SQLNA
                 return pipeInfo;
             }
         }  // end of GetPipeName
+
+        public static byte CalculateTTLHops(byte TTL)
+        {
+            if (TTL <= 64) return (byte)(64 - TTL);
+            if (TTL <= 128) return (byte)(128 - TTL);
+            return (byte)(255 - TTL);
+        }
+
     }  // end of class
 }      // end of namespace

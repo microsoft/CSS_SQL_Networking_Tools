@@ -163,6 +163,8 @@ namespace SQLNA
         public string flags = null;
         public uint keepAliveCount = 0;
         public ushort maxKeepAliveRetransmitsInARow = 0;
+        public byte TTL = 0;
+        public byte lowTTLHop = 0;
         public string endFrames = null;
     }
 

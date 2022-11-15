@@ -287,8 +287,9 @@ namespace SQLNA
                                     if (tls.handshake.hasClientHello)
                                     {
                                         // generic ClientHello stats, even for HTTPs, etc.
+                                        ushort sslLevel = tls.handshake.clientHello.sslLevel;
                                         fd.frameType = FrameType.ClientHello;
-                                        c.tlsVersionClient = translateSSLVersion(tls.handshake.sslLevel);
+                                        c.tlsVersionClient = translateSSLVersion(sslLevel);
                                         if (!fd.isFromClient) switchClientServer++;
                                         if (tls.hasTDS8)  // SQL-specific ClientHello stats
                                         {
@@ -296,23 +297,24 @@ namespace SQLNA
                                             if (c.serverName == null || c.serverName == "") c.serverName = tls.handshake.clientHello.serverName;
                                             c.hasClientSSL = true;
                                             if (c.ClientHelloTime == 0) c.ClientHelloTime = fd.ticks;
-                                            if (tls.handshake.sslLevel < 0x0303) c.hasLowTLSVersion = true;  // mark anything less than TLS 1.2
+                                            if (sslLevel < 0x0303) c.hasLowTLSVersion = true;  // mark anything less than TLS 1.2
                                             if (fd.isFromClient) { tdsClientSource++; } else { tdsClientDest++; };
                                         }
                                     }
                                     else if (tls.handshake.hasServerHello)
                                     {
                                         // generic ServerHello stats, even for HTTPS, etc.
+                                        ushort sslLevel = tls.handshake.serverHello.sslLevel;
                                         fd.frameType = FrameType.ServerHello;
                                         if (fd.isFromClient) switchClientServer++;
-                                        c.tlsVersionServer = translateSSLVersion(tls.handshake.sslLevel);
-                                        if (tls.handshake.sslLevel < 0x0301)
+                                        c.tlsVersionServer = translateSSLVersion(sslLevel);
+                                        if (sslLevel < 0x0301)
                                         {
-                                            if (translateSsl3CipherSuite(tls.handshake.sslLevel).StartsWith("SSL_DHE")) c.hasDiffieHellman = true;
+                                            if (translateSsl3CipherSuite(sslLevel).StartsWith("SSL_DHE")) c.hasDiffieHellman = true;
                                         }
                                         else   // TLS 1.0, 1.1, 1.2, 1.3  (Maj.Min = 3.1, 3.2, 3.3, 3.4)
                                         {
-                                            if (translateTlsCipherSuite(tls.handshake.sslLevel).StartsWith("TLS_DHE")) c.hasDiffieHellman = true;
+                                            if (translateTlsCipherSuite(sslLevel).StartsWith("TLS_DHE")) c.hasDiffieHellman = true;
                                         }
 
                                         if (tls.hasTDS8)  // SQL-specific ServerHello stats
@@ -320,7 +322,7 @@ namespace SQLNA
                                             c.hasTDS8 = true;
                                             c.hasServerSSL = true;
                                             if (c.ServerHelloTime == 0) c.ServerHelloTime = fd.ticks;
-                                            if (tls.handshake.sslLevel < 0x0303) c.hasLowTLSVersion = true;  // mark anything less than TLS 1.2
+                                            if (sslLevel < 0x0303) c.hasLowTLSVersion = true;  // mark anything less than TLS 1.2
                                             if (fd.isFromClient) { tdsServerSource++; } else { tdsServerDest++; };
                                         }
                                     }
@@ -398,6 +400,8 @@ namespace SQLNA
                                         {
                                             if (handshakeType == 1)
                                             {
+                                                sslMajorVersion = fd.payload[17]; // we want the inner SSL version, 8 bytes further in
+                                                sslMinorVersion = fd.payload[18]; // next byte
                                                 c.hasClientSSL = true;
                                                 fd.frameType = FrameType.ClientHello;
                                                 if (c.ClientHelloTime == 0) c.ClientHelloTime = fd.ticks;
@@ -421,6 +425,8 @@ namespace SQLNA
                                         else if (handshakeType == 2) // Server Hello -- do we sometimes hit here, or is it just in the TDS RESPONSE version of this logic
                                         {
                                             //Program.logDiagnostic($"TDS:Prelogin Server Hello packet seen at frame {fd.frameNo}.");
+                                            sslMajorVersion = fd.payload[17]; // we want the inner SSL version, 8 bytes further in
+                                            sslMinorVersion = fd.payload[18]; // next byte
                                             c.hasServerSSL = true;
                                             fd.frameType = FrameType.ServerHello;
                                             if (c.ServerHelloTime == 0) c.ServerHelloTime = fd.ticks;
@@ -600,6 +606,8 @@ namespace SQLNA
                                         byte sslMinorVersion = fd.payload[10];  // next byte
                                         if (handshakeType == 2) // Server Hello
                                         {
+                                            sslMajorVersion = fd.payload[17];   // we want the innter SSL version, not at the handshake level (that's 8 bytes further in)
+                                            sslMinorVersion = fd.payload[18];  // next byte
                                             c.hasServerSSL = true;
                                             fd.frameType = FrameType.ServerHello;
                                             if (c.ServerHelloTime == 0) c.ServerHelloTime = fd.ticks;
@@ -957,7 +965,6 @@ namespace SQLNA
             c.sourceIPHi = c.destIPHi;
             c.destIPHi = temp;
 
-
             temp = c.sourceIPLo;
             c.sourceIPLo = c.destIPLo;
             c.destIPLo = temp;
@@ -969,6 +976,18 @@ namespace SQLNA
             temp = c.sourceFrames;
             c.sourceFrames = c.destFrames;
             c.destFrames = (uint)temp;
+
+            temp = c.TTLCountIn;
+            c.TTLCountIn = c.TTLCountOut;
+            c.TTLCountOut = (uint)temp;
+
+            temp = c.TTLSumIn;
+            c.TTLSumIn = c.TTLSumOut;
+            c.TTLSumOut = (uint)temp;
+
+            temp = c.minTTLHopsIn;
+            c.minTTLHopsIn = c.minTTLHopsOut;
+            c.minTTLHopsOut = (byte)temp;
 
             bool fTemp = false;
             fTemp = c.hasServerFin;
