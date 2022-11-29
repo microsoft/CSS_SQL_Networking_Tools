@@ -465,6 +465,7 @@ namespace SQLCheck
             s.WriteLine(rf.GetSeparatorText());
             for (int i = 0; i < rf.GetRowCount(); i++) s.WriteLine(rf.GetDataText(i));
             s.WriteLine();
+            ReportMessages(ds, s, "TLS", -1);  // returns a blank line at the end ... -1 = messages for all rows
 
             //
             // ProtocolOrder

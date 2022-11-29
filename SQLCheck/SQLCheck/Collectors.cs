@@ -790,6 +790,14 @@ namespace SQLCheck
             string defVal = "", enVal = "", disVal = "", effVal = "";
             TLSInfo tlsInfo = TLSInfo.GetTLSInfo(Computer);
 
+            bool isTLS13Unsupported = tlsInfo.GetComputerDefault("TLS 1.3", "Client") == "Not Supported" ? true : false;
+            bool isTLS13KeyPresent = false;
+            if (isTLS13Unsupported)
+            {
+                temp = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\TLS 1.3", "", ""); // get default value
+                if (temp != null) Computer.LogWarning($@"TLS 1.3 registry keys exist on an OS that does not support it. This may result in TLS error messages when connecting. Please delete the key 'TLS 1.3' under HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols and reboot.");
+            }
+
             foreach (string cs in ClientServer)
             {
                 foreach (string tlsVersion in TLSVersions)
@@ -805,11 +813,22 @@ namespace SQLCheck
                     defVal = tlsInfo.GetComputerDefault(tlsVersion, cs);
                     TLS["Defaultvalue"] = defVal;
                     temp = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\{tlsVersion}\{cs}", "Enabled", "");
+                    if (tlsVersion == "TLS 1.3" && temp != null) isTLS13KeyPresent = true;
                     enVal = temp == null ? "" : ((temp.ToInt() != 0) ? $"True " : "False") + $" (0x{temp.ToInt().ToString("X8")})" + CheckTLS(tlsVersion, "Enabled", temp.ToInt());
                     TLS["EnabledValue"] = enVal;
                     temp = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\{tlsVersion}\{cs}", "DisabledByDefault", "");
+                    if (tlsVersion == "TLS 1.3" && temp != null) isTLS13KeyPresent = true;
                     disVal = temp == null ? "" : ((temp.ToInt() != 0) ? $"True " : "False") + $" (0x{temp.ToInt().ToString("X8")})" + CheckTLS(tlsVersion, "DisabledByDefault", temp.ToInt());
                     TLS["DisabledByDefaultValue"] = disVal;
+
+                    //
+                    // Check if TLS 1.3 is enabled on Lower operating systems
+                    //
+
+                    if (tlsVersion == "TLS 1.3" && isTLS13Unsupported && isTLS13KeyPresent)
+                    {
+                        TLS.LogWarning($@"TLS 1.3 registry keys exist on an OS that does not support it. This may result in TLS error messages when connecting. Please delete the key 'TLS 1.3' under HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols and reboot.");
+                    }
 
                     //
                     // Calculate the effective Value
