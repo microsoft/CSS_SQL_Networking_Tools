@@ -33,7 +33,7 @@ param
 #    [Parameter(ParameterSetName = 'Start', Mandatory=$false)]
 #    [int] $StopAfter = [int]::Parse("0"),
 
-    [Parameter(ParameterSetName = 'Stop', Mandatory=$false)]
+    [Parameter(ParameterSetName = 'Stop', Mandatory=$true)]
     [switch] $Stop,
 
     [Parameter(ParameterSetName = 'Cleanup', Mandatory=$true)]
@@ -91,7 +91,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0089.0
+                  SQLTrace.ps1 version 1.0.0090.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -377,8 +377,8 @@ Function StartTraces
     tasklist > "$($global:LogFolderName)\TasklistAtStart.txt"
     netstat -abon > "$($global:LogFolderName)\NetStatAtStart.txt"
     StartBIDTraces
+	StartNetworkTraces
     StartAuthenticationTraces
-    StartNetworkTraces
 
     LogInfo "Traces have started..."
 }
@@ -618,8 +618,8 @@ Function StartNetworkTraces
             if ($global:INISettings.TruncatePackets -eq "Yes") { $trucatePackets = "PACKETTRUNCATEBYTES=250"; }
 
             $result = netsh trace start capture=yes maxsize=1 report=disabled TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl $truncatePackets" # Faster netsh shutdown clintonw #53
-
             LogInfo "NETSH: $result"
+			
             $result = logman start SQLTraceNDIS -p Microsoft-Windows-NDIS-PacketCapture -mode newfile -max 200 -o "$($global:LogFolderName)\NetworkTraces\nettrace%d.etl" -ets
             LogInfo "LOGMAN: $result"
 
