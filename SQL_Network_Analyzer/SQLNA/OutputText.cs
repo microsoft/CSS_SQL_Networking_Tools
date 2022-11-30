@@ -3289,7 +3289,14 @@ namespace SQLNA
 
         private static void OutputStats(NetworkTrace Trace)
         {
-            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,Retransmit,ClientDup,ServerDup,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason,MaxPayloadSize,PayloadSizeLimit,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ClientTTL,ClientLowHops,ServerTTL,ServerLowHops,ServerName,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
+            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,AckSynDelayms,Retransmit,ClientDup,ServerDup,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,PacketVisualization,Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason,MaxPayloadSize,PayloadSizeLimit,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ClientTTL,ClientLowHops,ServerTTL,ServerLowHops,ServerName,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
+
+            long traceFirstTick = 0;
+            if (Trace.frames != null && Trace.frames.Count > 0)
+            {
+                traceFirstTick = ((FrameData)Trace.frames[0]).ticks;
+            }
+
             foreach (ConversationData c in Trace.conversations)
             {
                 int firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
@@ -3316,6 +3323,7 @@ namespace SQLNA
                                 c.synCount + "," +
                                 c.finCount + "," +
                                 c.resetCount + "," +
+                                (c.isUDP || c.ackSynTime == 0 ? "" : ((int)(c.LoginDelay("AS", firstTick) / utility.TICKS_PER_MILLISECOND)).ToString()) + "," +
                                 c.rawRetransmits + "," +
                                 c.duplicateClientPackets + "," +
                                 c.duplicateServerPackets + "," +
@@ -3325,6 +3333,7 @@ namespace SQLNA
                                 (c.hasLogin7 ? "Y" : "") + "," +
                                 (c.isEncrypted ? (c.isEncRequired ? "R" : "Y") : "") + "," +
                                 (c.isSQL && (c.isMARSEnabled || (c.smpAckCount + c.smpSynCount + c.smpFinCount + c.smpDataCount) > 0) ? "Y" : "") + "," +
+                                (c.isUDP ? "" : c.frames.Count <= 40 ? c.GetPacketList(0, c.frames.Count -1) : c.GetFirstPacketList(20) + " ... " + c.GetLastPacketList(20)) + "," +
                                 // Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason
                                 (Trace.hasPktmonRecords ? "Y" : "") + "," +
                                 (Trace.hasPktmonRecords ? $"{(c.pktmonMaxDelay / utility.TICKS_PER_SECOND).ToString("0.000000")}" : "") + "," +
