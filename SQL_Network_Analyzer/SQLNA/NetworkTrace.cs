@@ -26,6 +26,7 @@ namespace SQLNA
         public ArrayList sqlServers = new ArrayList();                // added to in ProcessTDS - not pre-sized because of estimated small size
         public ArrayList SSRPRequests = new ArrayList();              // added to in ProcessUDP - not pre-sized because of estimated small size
         public ArrayList DNSResponses = new ArrayList();              // problem DNS responses
+        public ArrayList DNSDelayedResponses = new ArrayList();       // slow DNS Responses
         public int DNSRequestCount = 0;                               // total number of DNS Requests
         public ArrayList KerbResponses = new ArrayList();
         public ArrayList DomainControllers = new ArrayList();

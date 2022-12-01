@@ -2852,9 +2852,9 @@ namespace SQLNA
                         long endOffset = f.ticks - firstTick;
                         long endTicks = f.ticks;
                         long deltaTicks = endTicks - startTicks;
-                        long deltaTicksms = (long)(deltaTicks / utility.TICKS_PER_MILLISECOND);
+                        int deltaMS = (int)(deltaTicks / utility.TICKS_PER_MILLISECOND);
 
-                        if (deltaTicksms < 990) continue;
+                        if (deltaMS < 990) continue;
 
                         int firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
                         int lastFile = Trace.files.IndexOf(((FrameData)(c.frames[c.frames.Count - 1])).file);
@@ -2869,7 +2869,7 @@ namespace SQLNA
                                                      new DateTime(endTicks).ToString(utility.DATE_FORMAT),
                                                      (startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
                                                      (endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
-                                                     deltaTicksms.ToString(),
+                                                     deltaMS.ToString(),
                                                      SSRPRequest.instanceName);
                                     break;
                                 }
@@ -2881,7 +2881,7 @@ namespace SQLNA
                                                      new DateTime(endTicks).ToString(utility.DATE_FORMAT),
                                                      (startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
                                                      (endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
-                                                     deltaTicksms.ToString(),
+                                                     deltaMS.ToString(),
                                                      SSRPRequest.instanceName);
                                     break;
                                 }
@@ -2894,7 +2894,7 @@ namespace SQLNA
                                                      new DateTime(endTicks).ToString(utility.DATE_FORMAT),
                                                      (startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
                                                      (endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
-                                                     deltaTicksms.ToString(),
+                                                     deltaMS.ToString(),
                                                      SSRPRequest.instanceName);
                                     break;
                                 }
@@ -2914,7 +2914,7 @@ namespace SQLNA
             }
         }   
 
-         private static void DisplayDNSResponsesReport(NetworkTrace Trace)
+        private static void DisplayDNSResponsesReport(NetworkTrace Trace)
         {
             if (Trace.DNSRequestCount == 0)
             {
@@ -2927,18 +2927,18 @@ namespace SQLNA
             {
                 Program.logMessage("All " + Trace.DNSRequestCount + " DNS requests in the network trace were successful.");
                 Program.logMessage();
-                return;
             }
-
+            else
+            {
                 Program.logMessage("The problematic DNS responses are:\r\n");
 
                 ReportFormatter rf = new ReportFormatter();
                 rf.SetColumnNames("Client Address:L",
                                   "Requested Name:L",
                                   "Error Message:L",
-                                  "DateTime:L", 
-                                  "File#:R", 
-                                  "Frame#:R", 
+                                  "DateTime:L",
+                                  "File#:R",
+                                  "Frame#:R",
                                   "Client Port:R");
 
                 foreach (DNS DNSResponse in Trace.DNSResponses)
@@ -2952,10 +2952,10 @@ namespace SQLNA
                                      firstFile.ToString(),
                                      DNSResponse.frameNo.ToString(),
                                      DNSResponse.convData.sourcePort.ToString());
-                        
 
-                
-                 }
+
+
+                }
 
                 Program.logMessage(rf.GetHeaderText());
                 Program.logMessage(rf.GetSeparatorText());
@@ -2966,7 +2966,51 @@ namespace SQLNA
                 }
 
                 Program.logMessage();
+            }
 
+            if (Trace.DNSDelayedResponses.Count == 0)
+            {
+                Program.logMessage("All DNS requests completed in less than 2 seconds.");
+                Program.logMessage();
+            }
+            else
+            {
+                Program.logMessage("The following DNS requests received a slow delay (2000ms or longer):\r\n");
+
+                ReportFormatter rf = new ReportFormatter();
+                rf.SetColumnNames("Client Address:L",
+                                  "Requested Name:L",
+                                  "Error Message:L",
+                                  "DateTime:L",
+                                  "Delay (ms):R",
+                                  "File#:R",
+                                  "Frame#:R",
+                                  "Client Port:R");
+
+                foreach (DNS DNSResponse in Trace.DNSResponses)
+                {
+                    int firstFile = Trace.files.IndexOf(((FrameData)(DNSResponse.convData.frames[0])).file);
+
+                    rf.SetcolumnData(DNSResponse.convData.isIPV6 ? utility.FormatIPV6Address(DNSResponse.convData.sourceIPHi, DNSResponse.convData.sourceIPLo) : utility.FormatIPV4Address(DNSResponse.convData.sourceIP),
+                                     DNSResponse.nameReqested,
+                                     DNSResponse.ErrorDesc,
+                                     DNSResponse.TimeStamp,
+                                     DNSResponse.deltaMS.ToString(),
+                                     firstFile.ToString(),
+                                     DNSResponse.frameNo.ToString(),
+                                     DNSResponse.convData.sourcePort.ToString());
+                }
+
+                Program.logMessage(rf.GetHeaderText());
+                Program.logMessage(rf.GetSeparatorText());
+
+                for (int i = 0; i < rf.GetRowCount(); i++)
+                {
+                    Program.logMessage(rf.GetDataText(i));
+                }
+
+                Program.logMessage();
+            }
         }
 
         private static void DisplayKerberosResponseReport(NetworkTrace Trace)

@@ -28,6 +28,7 @@ namespace SQLNA
         public int QuestionCount;
         public int AnswerCount;
         public int QueryID=0;
+        public int deltaMS = 0;
         public ConversationData convData;
 
     }

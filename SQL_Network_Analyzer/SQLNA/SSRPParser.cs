@@ -129,8 +129,8 @@ namespace SQLNA
                             if (requestTicks > 0)   // ignore responses without requests
                             {
                                 long deltaTicks = responseTicks - requestTicks;
-                                long deltaTicksms = (long)(deltaTicks / utility.TICKS_PER_MILLISECOND);
-                                if (deltaTicksms >= 990)
+                                long deltaMS = (int)(deltaTicks / utility.TICKS_PER_MILLISECOND);
+                                if (deltaMS >= 990)
                                 {
                                     SSRPRequest.hasSlowResponse = true;
                                 }
