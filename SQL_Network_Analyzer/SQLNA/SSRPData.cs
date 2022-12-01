@@ -28,6 +28,7 @@ namespace SQLNA
         public String instanceRequested;    // populated by ssrp request
         public bool hasResponse = false;
         public bool hasNoResponse = false;
+        public bool hasSlowResponse = false;  // time delta > 990ms
         public ArrayList conversations = new ArrayList();
 
         public bool hasConversation(ConversationData c)

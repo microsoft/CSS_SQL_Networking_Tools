@@ -2809,6 +2809,108 @@ namespace SQLNA
 
                     }
                 }
+
+                if (SSRPRequest.hasSlowResponse)
+                {
+
+                    ReportFormatter rf = new ReportFormatter();
+
+                    Program.logMessage("The following SQL Browser requests may have timed out. Time delta >= 1 second; cutoff = 990ms:\r\n");
+
+                    switch (Program.filterFormat)
+                    {
+                        case "N":
+                            {
+                                rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "Frame:R", "DateTime:L", "Start Offset:R", "End Offset:R", "Delay (ms):R", "Instance:L");
+                                break;
+                            }
+                        case "W":
+                            {
+                                rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "Frame:R", "DateTime:L", "Start Offset:R", "End Offset:R", "Delay (ms):R", "Instance:L");
+                                break;
+                            }
+                        default:
+                            {
+                                rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "Frame:R", "DateTime:L", "Start Offset:R", "End Offset:R", "Delay (ms):R", "Instance:L");
+                                break;
+                            }
+                    }
+
+                    foreach (ConversationData c in SSRPRequest.conversations)
+                    {
+
+                        FrameData f = (FrameData)c.frames[c.frames.Count - 1];
+
+                        if (f.payload[0] != 5) continue;
+
+                        ushort Length = utility.ReadUInt16(f.payload, 1);
+                        String UDPResponse = utility.ReadAnsiString(f.payload, 3, Length);
+                        SSRPParser.ParseSSRPResponse(UDPResponse, SSRPRequest, Trace);
+
+                        long startTicks = ((FrameData)(c.frames[0])).ticks;
+                        long startOffset = startTicks - firstTick;
+                        long endOffset = f.ticks - firstTick;
+                        long endTicks = f.ticks;
+                        long deltaTicks = endTicks - startTicks;
+                        long deltaTicksms = (long)(deltaTicks / utility.TICKS_PER_MILLISECOND);
+
+                        if (deltaTicksms < 990) continue;
+
+                        int firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
+                        int lastFile = Trace.files.IndexOf(((FrameData)(c.frames[c.frames.Count - 1])).file);
+
+                        switch (Program.filterFormat)
+                        {
+                            case "N":  // list client IP and port as a NETMON filter string
+                                {
+                                    rf.SetcolumnData((c.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + (c.isIPV6 ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP)) + " AND udp.port==" + c.sourcePort.ToString(),
+                                                     firstFile == lastFile ? firstFile.ToString() : firstFile + "-" + lastFile,
+                                                     f.frameNo.ToString(),
+                                                     new DateTime(endTicks).ToString(utility.DATE_FORMAT),
+                                                     (startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                     (endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                     deltaTicksms.ToString(),
+                                                     SSRPRequest.instanceName);
+                                    break;
+                                }
+                            case "W":  // list client IP and port as a WireShark filter string
+                                {
+                                    rf.SetcolumnData((c.isIPV6 ? "ipv6" : "ip") + ".addr==" + (c.isIPV6 ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP)) + " and udp.port==" + c.sourcePort.ToString(),
+                                                     firstFile == lastFile ? firstFile.ToString() : firstFile + "-" + lastFile,
+                                                     f.frameNo.ToString(),
+                                                     new DateTime(endTicks).ToString(utility.DATE_FORMAT),
+                                                     (startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                     (endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                     deltaTicksms.ToString(),
+                                                     SSRPRequest.instanceName);
+                                    break;
+                                }
+                            default:  // list client IP and port as separate columns
+                                {
+                                    rf.SetcolumnData(c.isIPV6 ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP),
+                                                     c.sourcePort.ToString(),
+                                                     firstFile == lastFile ? firstFile.ToString() : firstFile + "-" + lastFile,
+                                                     f.frameNo.ToString(),
+                                                     new DateTime(endTicks).ToString(utility.DATE_FORMAT),
+                                                     (startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                     (endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                     deltaTicksms.ToString(),
+                                                     SSRPRequest.instanceName);
+                                    break;
+                                }
+                        }
+                    }
+
+                    Program.logMessage(rf.GetHeaderText());
+                    Program.logMessage(rf.GetSeparatorText());
+
+                    for (int i = 0; i < rf.GetRowCount(); i++)
+                    {
+                        Program.logMessage(rf.GetDataText(i));
+                    }
+
+                    Program.logMessage();
+                }
             }
         }   
 

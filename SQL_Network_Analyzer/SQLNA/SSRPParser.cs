@@ -95,6 +95,9 @@ namespace SQLNA
                 if (!SSRPRequest.hasConversation(c))
                     SSRPRequest.conversations.Add(c);
 
+                long requestTicks = 0;
+                long responseTicks = 0;
+
                 foreach (FrameData fd in c.frames)
                 {
                     try
@@ -106,6 +109,7 @@ namespace SQLNA
 
                         else if ((byte)(fd.payload[0]) == (byte)4) // Request for specific instance  (CLNT_UCAST_INST)
                         {
+                            requestTicks = fd.ticks;
                             SSRPRequest.hasResponse = false;
 
                             if (c.frames.Count == 1)
@@ -119,8 +123,19 @@ namespace SQLNA
                             SSRPRequest.sqlIPHi = c.destIPHi;
                             SSRPRequest.sqlIPLo = c.destIPLo;
                         }
-                        else if ((byte)(fd.payload[0]) == (byte)5) // Response of specifric instance (SVR_RESP)
+                        else if ((byte)(fd.payload[0]) == (byte)5) // Response of specific instance (SVR_RESP)
                         {
+                            responseTicks = fd.ticks;
+                            if (requestTicks > 0)   // ignore responses without requests
+                            {
+                                long deltaTicks = responseTicks - requestTicks;
+                                long deltaTicksms = (long)(deltaTicks / utility.TICKS_PER_MILLISECOND);
+                                if (deltaTicksms >= 990)
+                                {
+                                    SSRPRequest.hasSlowResponse = true;
+                                }
+                            }
+
                             SSRPRequest.hasResponse = true;
                             ushort Length = utility.ReadUInt16(fd.payload, 1);
                             String Response = utility.ReadAnsiString(fd.payload, 3, Length);
