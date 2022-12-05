@@ -91,7 +91,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0090.0
+                  SQLTrace.ps1 version 1.0.0091.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -559,40 +559,42 @@ Function StartNetworkMonitor
 ## Create generic version of Cleanup Traces for BIDS, Network etc.
 Function StartCleanupETLTraceFiles
 {
- param
- (
-    [string] $jobname,      
-    [string] $folder,        
-    [int]    $numofFilesToKeep,
+    param
+    (
+        [string] $jobname,      
+        [string] $folder,        
+        [int]    $numofFilesToKeep,
     [int]    $jobrunintervalMin
- )
+    )
   
-  $job=Register-ScheduledJob  -Name $jobname -scriptblock {  
-  Param($jobname, 
+    $job=Register-ScheduledJob  -Name $jobname -scriptblock {  
+    Param($jobname, 
         [string] $folder, 
         [int] $numofFilesToKeep, 
         [int] $jobrunintervalMin)
-  gci -Path $folder -Recurse | where {(-not $_.PsIsContainer) -and ($_.name -notmatch "deleteme.etl") -and ($_.name -match ".etl") } | sort CreationTime -desc | select -skip $numofFilesToKeep | Remove-Item  -Force @args
-  } -ArgumentList $jobname, $folder, $numofFilesToKeep, $jobrunintervalMin 
-  $job.Options.RunElevated=$True
-  $cleanupJob=New-JobTrigger -Once -At (get-date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Minutes $jobrunintervalMin) -RepeatIndefinitely  ## -RepetitionDuration (New-TimeSpan -Minutes 20)  
-  Add-JobTrigger -Trigger $cleanupjob -Name $jobname    
+    gci -Path $folder -Recurse | where {(-not $_.PsIsContainer) -and ($_.name -notmatch "deleteme.etl") -and ($_.name -match ".etl") } | sort CreationTime -desc | select -skip $numofFilesToKeep | Remove-Item  -Force @args
+                                       } -ArgumentList $jobname, $folder, $numofFilesToKeep, $jobrunintervalMin 
+    $job.Options.RunElevated=$True
+    $cleanupJob=New-JobTrigger -Once -At (get-date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Minutes $jobrunintervalMin) -RepeatIndefinitely  ## -RepetitionDuration (New-TimeSpan -Minutes 20)  
+    Add-JobTrigger -Trigger $cleanupjob -Name $jobname    
 }
 
 
 Function StopCleanupETLTraceFiles
 {
-  param(
-  $jobname    
-  )
-  try
-  {
-   Stop-Job $jobname -ErrorAction SilentlyContinue
-   Remove-Job $jobname -Force -ErrorAction SilentlyContinue
-   Remove-JobTrigger $jobname -ErrorAction SilentlyContinue
-   UnRegister-ScheduledJob -Name $jobname -Force -ErrorAction SilentlyContinue
-  }
-  catch { "Cleanup Job." }
+    param
+	(
+      $jobname    
+    )
+	
+    try
+    {
+        Stop-Job $jobname -ErrorAction SilentlyContinue
+        Remove-Job $jobname -Force -ErrorAction SilentlyContinue
+        Remove-JobTrigger $jobname -ErrorAction SilentlyContinue
+        UnRegister-ScheduledJob -Name $jobname -Force -ErrorAction SilentlyContinue
+    }
+    catch { "Error stopping the Cleanup Job $jobname." }
 }
 
 
@@ -617,7 +619,7 @@ Function StartNetworkTraces
             $trucatePackets = ""
             if ($global:INISettings.TruncatePackets -eq "Yes") { $trucatePackets = "PACKETTRUNCATEBYTES=250"; }
 
-            $result = netsh trace start capture=yes maxsize=1 report=disabled TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl $truncatePackets" # Faster netsh shutdown clintonw #53
+            $result = netsh trace start capture=yes maxsize=1 report=disabled TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl" $truncatePackets # Faster netsh shutdown clintonw #53
             LogInfo "NETSH: $result"
 			
             $result = logman start SQLTraceNDIS -p Microsoft-Windows-NDIS-PacketCapture -mode newfile -max 200 -o "$($global:LogFolderName)\NetworkTraces\nettrace%d.etl" -ets
@@ -647,8 +649,9 @@ Function StartAuthenticationTraces
     if($global:INISettings.AuthTrace -eq "Yes")
     {
  
-        if((Test-Path "$($global:LogFolderName)\Auth" -PathType Container) -eq $false){
-           md "$($global:LogFolderName)\Auth" > $null
+        if((Test-Path "$($global:LogFolderName)\Auth" -PathType Container) -eq $false)
+		{
+            md "$($global:LogFolderName)\Auth" > $null
         }
    
         if($global:INISettings.Kerberos -eq "Yes")
@@ -657,13 +660,13 @@ Function StartAuthenticationTraces
 
             # **Kerberos**
             $KerberosProviders = @(
-            '{6B510852-3583-4e2d-AFFE-A67F9F223438}!0x7ffffff'
-            '{60A7AB7A-BC57-43E9-B78A-A1D516577AE3}!0xffffff'
-            '{FACB33C4-4513-4C38-AD1E-57C1F6828FC0}!0xffffffff'
-            '{97A38277-13C0-4394-A0B2-2A70B465D64F}!0xff'
-            '{8a4fc74e-b158-4fc1-a266-f7670c6aa75d}!0xffffffffffffffff'
-            '{98E6CFCB-EE0A-41E0-A57B-622D4E1B30B1}!0xffffffffffffffff'
-            ) 
+									  '{6B510852-3583-4e2d-AFFE-A67F9F223438}!0x7ffffff'
+									  '{60A7AB7A-BC57-43E9-B78A-A1D516577AE3}!0xffffff'
+									  '{FACB33C4-4513-4C38-AD1E-57C1F6828FC0}!0xffffffff'
+									  '{97A38277-13C0-4394-A0B2-2A70B465D64F}!0xff'
+									  '{8a4fc74e-b158-4fc1-a266-f7670c6aa75d}!0xffffffffffffffff'
+									  '{98E6CFCB-EE0A-41E0-A57B-622D4E1B30B1}!0xffffffffffffffff'
+								  ) 
 
             # Kerberos Logging to SYSTEM event log in case this is a client
             reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA\Kerberos\Parameters /v LogLevel /t REG_DWORD /d 1 /f
@@ -688,12 +691,12 @@ Function StartAuthenticationTraces
             LogInfo "Starting CredSSP/NTLM Traces..."
             # **Ntlm_CredSSP**
             $Ntlm_CredSSPProviders = @(
-            '{5BBB6C18-AA45-49b1-A15F-085F7ED0AA90}!0x5ffDf'
-            '{AC69AE5B-5B21-405F-8266-4424944A43E9}!0xffffffff'
-            '{6165F3E2-AE38-45D4-9B23-6B4818758BD9}!0xffffffff'
-            '{AC43300D-5FCC-4800-8E99-1BD3F85F0320}!0xffffffffffffffff'
-            '{DAA6CAF5-6678-43f8-A6FE-B40EE096E06E}!0xffffffffffffffff'
-            )
+										  '{5BBB6C18-AA45-49b1-A15F-085F7ED0AA90}!0x5ffDf'
+										  '{AC69AE5B-5B21-405F-8266-4424944A43E9}!0xffffffff'
+										  '{6165F3E2-AE38-45D4-9B23-6B4818758BD9}!0xffffffff'
+										  '{AC43300D-5FCC-4800-8E99-1BD3F85F0320}!0xffffffffffffffff'
+										  '{DAA6CAF5-6678-43f8-A6FE-B40EE096E06E}!0xffffffffffffffff'
+									  )
 
             $result = logman create trace "SQLTraceNtlm_CredSSP" -o "$($global:LogFolderName)\Auth\Ntlm_CredSSP.etl" -ets
             LogInfo "NTLM_CredSSP: $result"
@@ -716,8 +719,8 @@ Function StartAuthenticationTraces
             LogInfo "Starting SSL Traces..."
             # **SSL**
             $SSLProviders = @(
-            '{37D2C3CD-C5D4-4587-8531-4696C44244C8}!0x4000ffff'
-            )
+								 '{37D2C3CD-C5D4-4587-8531-4696C44244C8}!0x4000ffff'
+							 )
 
             # Start Logman SSL     
             $result = logman start "SQLTraceSSL" -o "$($global:LogFolderName)\Auth\SSL.etl" -ets
@@ -746,20 +749,20 @@ Function StartAuthenticationTraces
 
             # **LSA**
             $LSAProviders = @(
-            '{D0B639E0-E650-4D1D-8F39-1580ADE72784}!0xC43EFF'
-            '{169EC169-5B77-4A3E-9DB6-441799D5CACB}!0xffffff'
-            '{DAA76F6A-2D11-4399-A646-1D62B7380F15}!0xffffff'
-            '{366B218A-A5AA-4096-8131-0BDAFCC90E93}!0xfffffff'
-            '{4D9DFB91-4337-465A-A8B5-05A27D930D48}!0xff'
-            '{7FDD167C-79E5-4403-8C84-B7C0BB9923A1}!0xFFF'
-            '{CA030134-54CD-4130-9177-DAE76A3C5791}!0xfffffff'
-            '{5a5e5c0d-0be0-4f99-b57e-9b368dd2c76e}!0xffffffffffffffff'
-            '{2D45EC97-EF01-4D4F-B9ED-EE3F4D3C11F3}!0xffffffffffffffff'
-            '{C00D6865-9D89-47F1-8ACB-7777D43AC2B9}!0xffffffffffffffff'
-            '{7C9FCA9A-EBF7-43FA-A10A-9E2BD242EDE6}!0xffffffffffffffff'
-            '{794FE30E-A052-4B53-8E29-C49EF3FC8CBE}!0xffffffffffffffff'
-            '{ba634d53-0db8-55c4-d406-5c57a9dd0264}!0xffffffffffffffff'
-            )
+								 '{D0B639E0-E650-4D1D-8F39-1580ADE72784}!0xC43EFF'
+								 '{169EC169-5B77-4A3E-9DB6-441799D5CACB}!0xffffff'
+								 '{DAA76F6A-2D11-4399-A646-1D62B7380F15}!0xffffff'
+								 '{366B218A-A5AA-4096-8131-0BDAFCC90E93}!0xfffffff'
+								 '{4D9DFB91-4337-465A-A8B5-05A27D930D48}!0xff'
+								 '{7FDD167C-79E5-4403-8C84-B7C0BB9923A1}!0xFFF'
+								 '{CA030134-54CD-4130-9177-DAE76A3C5791}!0xfffffff'
+								 '{5a5e5c0d-0be0-4f99-b57e-9b368dd2c76e}!0xffffffffffffffff'
+								 '{2D45EC97-EF01-4D4F-B9ED-EE3F4D3C11F3}!0xffffffffffffffff'
+								 '{C00D6865-9D89-47F1-8ACB-7777D43AC2B9}!0xffffffffffffffff'
+								 '{7C9FCA9A-EBF7-43FA-A10A-9E2BD242EDE6}!0xffffffffffffffff'
+								 '{794FE30E-A052-4B53-8E29-C49EF3FC8CBE}!0xffffffffffffffff'
+								 '{ba634d53-0db8-55c4-d406-5c57a9dd0264}!0xffffffffffffffff'
+							 )
     
             #Registry LSA
             reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA /v SPMInfoLevel /t REG_DWORD /d 0xC43EFF /f 2>&1
