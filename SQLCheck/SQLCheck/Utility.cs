@@ -240,8 +240,8 @@ namespace SQLCheck
         // 
         public static StreamWriter openLogOutputFile()
         {
-            string computerName = System.Net.Dns.GetHostName();
-            computerName = "SQLCheckLog_" + computerName + "_" + ConvertCurrTimeToString() + ".txt";
+            string computerName = Environment.MachineName;   // won't crash
+            computerName = $"SQLCheck.{computerName}.{ConvertCurrTimeToString()}.txt";
             outLogFile = new StreamWriter(computerName);
             Console.WriteLine("Generating SQLCheck log ...............");
             return outLogFile;
