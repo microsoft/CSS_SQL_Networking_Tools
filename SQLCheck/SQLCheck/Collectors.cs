@@ -82,12 +82,22 @@ namespace SQLCheck
                 Computer.LogWarning($"The application is being run from a local account: {w.Name}. Please run using a domain account with local Admin priviledges.");
             }
 
-            IPHostEntry Hostentry = Dns.GetHostEntry(NETBIOSName);
-            string FQDN = Hostentry.HostName;
-            Computer["FQDN"] = FQDN;
-
-            string DNSSuffix = SmartString.GetRemainder(FQDN, ".");  // outputs everything after the period
-            Computer["DNSSuffix"] = DNSSuffix;
+            string FQDN = "";
+            string DNSSuffix = "";
+            try
+            {
+                IPHostEntry Hostentry = Dns.GetHostEntry(NETBIOSName);
+                FQDN = Hostentry.HostName;
+                Computer["FQDN"] = FQDN;
+                DNSSuffix = SmartString.GetRemainder(FQDN, ".");  // outputs everything after the period
+                Computer["DNSSuffix"] = DNSSuffix;
+            }
+            catch (Exception ex)
+            {
+                Computer["FQDN"] = FQDN = "";
+                Computer["DNSSuffix"] = DNSSuffix = "";
+                Computer.LogException("Failed to get the FQDN of the computer.",ex);
+            }
 
             //
             // Computer Role, Joined to Domain, Domain or WorkGroup Name
