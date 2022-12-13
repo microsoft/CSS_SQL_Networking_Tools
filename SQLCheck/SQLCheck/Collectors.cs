@@ -1313,16 +1313,23 @@ namespace SQLCheck
             return info;
         }
 
-        public static void CollectHostAlias(DataSet ds)
+        public static void CollectHostAlias(DataSet ds)  // not being used any more
         {
             DataRow Computer = ds.Tables["Computer"].Rows[0];
 
-            IPHostEntry HostEntry = Dns.GetHostEntry(Environment.MachineName);
-            foreach (string Alias in HostEntry.Aliases)
+            try
             {
-                DataRow HostAlias = ds.Tables["HostAlias"].NewRow();
-                HostAlias["DNS_Alias"] = Alias;
-                ds.Tables["HostAlias"].Rows.Add(HostAlias);
+                IPHostEntry HostEntry = Dns.GetHostEntry(Environment.MachineName);
+                foreach (string Alias in HostEntry.Aliases)
+                {
+                    DataRow HostAlias = ds.Tables["HostAlias"].NewRow();
+                    HostAlias["DNS_Alias"] = Alias;
+                    ds.Tables["HostAlias"].Rows.Add(HostAlias);
+                }
+            }
+            catch (Exception ex)
+            {
+                Computer.LogException("Failed to get DNS Aliases.", ex);
             }
         }
 
@@ -1370,13 +1377,20 @@ namespace SQLCheck
         {
             DataRow Computer = ds.Tables["Computer"].Rows[0];
 
-            IPHostEntry HostEntry = Dns.GetHostEntry(Environment.MachineName);
-            foreach (IPAddress Addr in HostEntry.AddressList)
+            try
             {
-                DataRow IPAddress = ds.Tables["IPAddress"].NewRow();
-                IPAddress["AddressFamily"] = Addr.AddressFamily.ToString();
-                IPAddress["Address"] = Addr.ToString();
-                ds.Tables["IPAddress"].Rows.Add(IPAddress);
+                IPHostEntry HostEntry = Dns.GetHostEntry(Environment.MachineName);
+                foreach (IPAddress Addr in HostEntry.AddressList)
+                {
+                    DataRow IPAddress = ds.Tables["IPAddress"].NewRow();
+                    IPAddress["AddressFamily"] = Addr.AddressFamily.ToString();
+                    IPAddress["Address"] = Addr.ToString();
+                    ds.Tables["IPAddress"].Rows.Add(IPAddress);
+                }
+            }
+            catch (Exception ex)
+            {
+                Computer.LogException("Failed to enumerate IP addresses.", ex);
             }
         }
 
