@@ -380,7 +380,7 @@ namespace SQLNA
             if (Trace.possibleSqlServers != null && Trace.possibleSqlServers.Count > 0)
             {
                 Program.logMessage("The following servers listening on port 1433 might be SQL Servers, but insufficient traffic was available to validate them.");
-                Program.logMessage("Copy the IP Address,Port into SQLNAUI and run the analysis again if it is a valid SQL Server or use /sql IP Address,Port in the SQLNA command-line if running directly.\r\n");
+                Program.logMessage("If it is a valid SQL Server, copy the IP Address,Port into SQLNAUI and run the analysis again, or use /sql IP Address,Port in the SQLNA command-line if running directly.\r\n");
 
                 ReportFormatter rf = new ReportFormatter();
                 rf.SetColumnNames("IP Address,Port:L",
