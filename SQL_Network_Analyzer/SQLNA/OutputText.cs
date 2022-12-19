@@ -24,6 +24,7 @@ namespace SQLNA
             DisplayTrafficStatistics(Trace);
             DisplayDuplicatedPacketStatistics(Trace);
             DisplaySQLServerSummary(Trace);
+            DisplayPossibleSQLServers(Trace);
             DisplayDomainControllerSummary(Trace);
             if (Program.outputConversationList) DisplaySucessfulLoginReport(Trace);  // optional section; must be explicitly requested
             DisplayResetConnections(Trace);
@@ -369,6 +370,81 @@ namespace SQLNA
             else // no SQL Servers found
             {
                 Program.logMessage("There were no SQL Servers found in the network trace.");
+            }
+
+            Program.logMessage();
+        }
+
+        private static void DisplayPossibleSQLServers(NetworkTrace Trace)
+        {
+            if (Trace.possibleSqlServers != null && Trace.possibleSqlServers.Count > 0)
+            {
+                Program.logMessage("The following servers listening on port 1433 might be SQL Servers, but insufficient traffic was available to validate them.");
+                Program.logMessage("Copy the IP Address,Port into SQLNAUI and run the analysis again if it is a valid SQL Server or use /sql IP Address,Port in the SQLNA command-line if running directly.\r\n");
+
+                ReportFormatter rf = new ReportFormatter();
+                rf.SetColumnNames("IP Address,Port:L",
+                                   "Files:R",
+                                   "Clients:R",
+                                   "Conversations:R",
+                                   "Frames:R",
+                                   "Bytes:R",
+                                   "Resets:R",
+                                   "Retransmits:R");
+
+                foreach (SQLServer s in Trace.possibleSqlServers)
+                {
+                    ulong totalBytes = 0;
+                    int totalFrames = 0, totalResets = 0, totalRetransmits = 0;
+                    ArrayList clientIPs = new ArrayList();
+                    string IPAddress = null;  // client IP address or Server IP address
+                    string sqlIP = (s.isIPV6) ? utility.FormatIPV6Address(s.sqlIPHi, s.sqlIPLo) : utility.FormatIPV4Address(s.sqlIP);
+                    int firstFile = 0;
+                    if (s.conversations.Count > 0) firstFile = Trace.files.IndexOf(((FrameData)(((ConversationData)s.conversations[0]).frames[0])).file);
+                    int lastFile = 0;
+
+                    foreach (ConversationData c in s.conversations)
+                    {
+                        totalBytes += c.totalBytes;
+                        totalFrames += c.frames.Count;
+                        totalResets += c.resetCount;
+                        totalRetransmits += (int)c.rawRetransmits;
+                        if (c.isIPV6)
+                            IPAddress = utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo);
+                        else
+                            IPAddress = utility.FormatIPV4Address(c.sourceIP);
+                        if (clientIPs.IndexOf(IPAddress) == -1) clientIPs.Add(IPAddress);
+                        int lastConvFile = Trace.files.IndexOf(((FrameData)(c.frames[c.frames.Count - 1])).file);
+                        if (lastConvFile > lastFile) lastFile = lastConvFile;  // the last conversation may not end last, so we have to check
+                    }
+
+                    if (s.isIPV6)
+                        IPAddress = utility.FormatIPV6Address(s.sqlIPHi, s.sqlIPLo);
+                    else
+                        IPAddress = utility.FormatIPV4Address(s.sqlIP);
+
+                    rf.SetcolumnData($"{sqlIP},{s.sqlPort.ToString()}",
+                         (s.conversations.Count == 0 ? "NO TRAFFIC" : ((firstFile == lastFile) ? firstFile.ToString() : firstFile + "-" + lastFile)),
+                         clientIPs.Count.ToString(),
+                         s.conversations.Count.ToString(),
+                         totalFrames.ToString(),
+                         totalBytes.ToString("#,##0"),
+                         totalResets.ToString(),
+                         totalRetransmits.ToString());
+                }
+
+                Program.logMessage(rf.GetHeaderText());
+                Program.logMessage(rf.GetSeparatorText());
+
+                for (int i = 0; i < rf.GetRowCount(); i++)
+                {
+                    Program.logMessage(rf.GetDataText(i));
+                }
+
+            }
+            else // no other SQL Servers found
+            {
+                Program.logMessage("There were no other Servers listening on port 1433 found in the network trace.");
             }
 
             Program.logMessage();

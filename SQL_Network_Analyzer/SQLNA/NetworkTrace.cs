@@ -24,6 +24,7 @@ namespace SQLNA
         public ArrayList conversations = new ArrayList();             // set in ParseFileSpec - added to in GetIPV4Converation and GetIPV6Conversation
         public ArrayList frames = new ArrayList();                    // set in ParseFileSpec - added to in ParseIPV4Frame and ParseIPV6Frame
         public ArrayList sqlServers = new ArrayList();                // added to in ProcessTDS - not pre-sized because of estimated small size
+        public ArrayList possibleSqlServers = new ArrayList();        // added to in ProcessTDS - not pre-sized because of estimated small size
         public ArrayList SSRPRequests = new ArrayList();              // added to in ProcessUDP - not pre-sized because of estimated small size
         public ArrayList DNSResponses = new ArrayList();              // problem DNS responses
         public ArrayList DNSDelayedResponses = new ArrayList();       // slow DNS Responses
@@ -133,6 +134,29 @@ namespace SQLNA
             s2.sqlIPLo = IPLo;
             s2.sqlPort = Port;
             sqlServers.Add(s2);
+            return s2;
+        }
+
+        public SQLServer GetPossibleSQLServer(uint IP, ulong IPHi, ulong IPLo, ushort Port, bool isIPV6)
+        {
+            // search for existing SQL Server and return it - can use foreach loop as this is not called often and there are a small number of entries
+            foreach (SQLServer s in possibleSqlServers)
+            {
+                if (s.isIPV6 == isIPV6 && s.sqlIP == IP && s.sqlIPHi == IPHi && s.sqlIPLo == IPLo && s.sqlPort == Port)
+                {
+                    return s;
+                }
+            }
+
+            // not found - create new SQLServer and return it
+
+            SQLServer s2 = new SQLServer();
+            s2.isIPV6 = isIPV6;
+            s2.sqlIP = IP;
+            s2.sqlIPHi = IPHi;
+            s2.sqlIPLo = IPLo;
+            s2.sqlPort = Port;
+            possibleSqlServers.Add(s2);
             return s2;
         }
 

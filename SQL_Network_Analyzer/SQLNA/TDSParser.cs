@@ -842,6 +842,15 @@ namespace SQLNA
                         }
                         server.AddConversation(c);
                     }
+                    else if (c.sourcePort == 1433 || c.destPort == 1433)
+                    {
+                        if (c.destPort != 1433)
+                        {
+                            reverseSourceDest(c);
+                        }
+                        server = trace.GetPossibleSQLServer(c.destIP, c.destIPHi, c.destIPLo, c.destPort, c.isIPV6);
+                        server.AddConversation(c);
+                    }
                 }
             }
         }
