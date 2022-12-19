@@ -105,6 +105,7 @@ namespace SQLNA
                 //
                 // set filterFormat
                 //
+                filterFormat = "A";   // override default to be the same as "Auto"
                 values = cp.GetArgs("filterfmt");
                 if (values.Count != 0)
                 {
@@ -124,6 +125,11 @@ namespace SQLNA
                         case "AUTO":
                             {
                                 filterFormat = "A";  // gets set to N or W based on the file type of the first file opened
+                                break;
+                            }
+                        case "DEFAULT":
+                            {
+                                filterFormat = "";  // blank means to display the IP address and filter as two separate columns and not a network filter string
                                 break;
                             }
                         default:
