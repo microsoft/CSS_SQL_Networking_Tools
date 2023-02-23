@@ -8,6 +8,7 @@ using System.Linq;
 namespace SQLNA
 {
 
+
     //
     // Written by the Microsoft CSS SQL Networking Team
     //
