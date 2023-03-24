@@ -59,7 +59,10 @@ param
 [string]$global:LogProgressFileName = ""
 [string]$global:LogFolderEnvName = "SQLTraceLogFolder"
 
+$global:EventSourceName = "MSSQL-SQLTrace"   # For logging to the Application Event log
 $global:INISettings = $null                  # set in ReadINIFile
+
+$PathsToClean = @{}                          # for DeleteOldFiles
 
 
 #======================================= Code =====================================
@@ -70,7 +73,8 @@ Function Main
     if (PreReqsOkay)
     {
         ReadINIFile
-        # DisplayINIValues  # TODO hide
+        DisplayINIValues  # TODO hide
+        RegisterEventLog
 
         if     ($Setup)    { DisplayLicenseAndHeader; SetupTraces }                       # set BID Trace :Path registry if asked for in the INI file
         elseif ($Start)    { SetLogFolderName; DisplayLicenseAndHeader; StartTraces }     # set BID Trace registry if not already set, then pause and prompt to restart app
@@ -91,7 +95,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0091.0
+                  SQLTrace.ps1 version 1.0.0150.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -145,12 +149,10 @@ Usage:
 
 Function ReadINIFile
 {
-    #$global:INISettings = New-Object IniValueClass
-
     $global:INISettings =   @{                                     # a "splat" aka Dictionary
                                 BidTrace         = "No"            # No | Yes
                                 BidWow           = "No"            # No | Yes | Both
-                                BidProviderList  = ""
+                                BidProviderList  = ""              # Empty default
 
                                 NetTrace         = "No"
                                 Netsh            = "No"
@@ -158,6 +160,8 @@ Function ReadINIFile
                                 Wireshark        = "No"
                                 Pktmon           = "No"
                                 TruncatePackets  = "No"
+                                TCPEvents        = "No"
+                                FilterString     = ""              # Empty default
 
                                 AuthTrace        = "No"
                                 SSL              = "No"
@@ -165,10 +169,13 @@ Function ReadINIFile
                                 LSA              = "No"
                                 Credssp          = "No"
 
+                                FlushTickets     = "No"
                                 EventViewer      = "No"
                                 SQLErrorLog      = "No"
                                 SQLXEventLog     = "No"
                                 DeleteOldFiles   = "No"
+                                MinFiles         = "20"
+                                MinMinutes       = "30"
                             }
 
     $fileName = $INIFile
@@ -186,7 +193,7 @@ Function ReadINIFile
 
         # $l contains some text, split it on the = character and trim the parts
 
-        [String[]]$lineParts = $l.Split('=')
+        [String[]]$lineParts = $l.Split('=', 2)   # filter strings may have one or more = signs embedded in the filter. Split to max of 2 parts, key name and value
 
         if ($lineParts.Length -ne 2)
         {
@@ -200,25 +207,30 @@ Function ReadINIFile
         
         switch($keyWord)
         {
-           "BIDTrace"          { $global:INISettings.BIDTrace           = $value }
-           "BIDWow"            { $global:INISettings.BIDWow             = $value }
-           "BIDProviderList"   { $global:INISettings.BIDProviderList    = $value ; while ( $global:INISettings.BIDProviderList.IndexOf("  ") -ge 0) { $global:INISettings.BIDProviderList = $global:INISettings.BIDProviderList.Replace("  ", " ") } } # remove extra spaces between provider names
-           "NETTrace"          { $global:INISettings.NetTrace           = $value }
-           "NETSH"             { $global:INISettings.NETSH              = $value }
-           "NETMON"            { $global:INISettings.NETMON             = $value }
-           "WireShark"         { $global:INISettings.WireShark          = $value }
-           "PktMon"            { $global:INISettings.PktMon             = $value }
-           "TruncatePackets"   { $global:INISettings.TruncatePackets    = $value }
-           "AuthTrace"         { $global:INISettings.AuthTrace          = $value }
-           "SSL"               { $global:INISettings.SSL                = $value }
-           "CredSSP_NTLM"      { $global:INISettings.CredSSP            = $value }
-           "Kerberos"          { $global:INISettings.Kerberos           = $value }
-           "LSA"               { $global:INISettings.LSA                = $value }
-           "EventViewer"       { $global:INISettings.EventViewer        = $value }
-           "SQLErrorLog"       { $global:INISettings.SQLErrorLog        = $value }
-           "SQLXEventLog"      { $global:INISettings.SQLXEventLog       = $value }
-           "DeleteOldFiles"    { $global:INISettings.DeleteOldFiles     = $value }
-           default             { "Unknown keyword $keyWord in line: $l" }
+            "BIDTrace"          { $global:INISettings.BIDTrace           = $value }
+            "BIDWow"            { $global:INISettings.BIDWow             = $value }
+            "BIDProviderList"   { $global:INISettings.BIDProviderList    = $value ; while ( $global:INISettings.BIDProviderList.IndexOf("  ") -ge 0) { $global:INISettings.BIDProviderList = $global:INISettings.BIDProviderList.Replace("  ", " ") } } # remove extra spaces between provider names
+            "NETTrace"          { $global:INISettings.NetTrace           = $value }
+            "NETSH"             { $global:INISettings.NETSH              = $value }
+            "NETMON"            { $global:INISettings.NETMON             = $value }
+            "WireShark"         { $global:INISettings.WireShark          = $value }
+            "PktMon"            { $global:INISettings.PktMon             = $value }
+            "TruncatePackets"   { $global:INISettings.TruncatePackets    = $value }
+            "TCPEvents"         { $global:INISettings.TCPEvents          = $value }
+            "FilterString"      { $global:INISettings.FilterString       = $value }
+            "AuthTrace"         { $global:INISettings.AuthTrace          = $value }
+            "SSL"               { $global:INISettings.SSL                = $value }
+            "CredSSP_NTLM"      { $global:INISettings.CredSSP            = $value }
+            "Kerberos"          { $global:INISettings.Kerberos           = $value }
+            "LSA"               { $global:INISettings.LSA                = $value }
+            "FlushTickets"      { $global:INISettings.FlushTickets       = $value }
+            "EventViewer"       { $global:INISettings.EventViewer        = $value }
+            "SQLErrorLog"       { $global:INISettings.SQLErrorLog        = $value }
+            "SQLXEventLog"      { $global:INISettings.SQLXEventLog       = $value }
+            "DeleteOldFiles"    { $global:INISettings.DeleteOldFiles     = $value }
+            "MinFiles"          { $global:INISettings.MinFiles           = $value }
+            "MinMinutes"        { $global:INISettings.MinMinutes         = $value }
+            default             { "Unknown keyword $keyWord in line: $l" }
         }
     }
 }
@@ -237,6 +249,8 @@ Function DisplayINIValues
     "WireShark           " + $global:INISettings.WireShark
     "PktMon              " + $global:INISettings.PktMon
     "TruncatePackets     " + $global:INISettings.TruncatePackets
+    "TCPEvents           " + $global:INISettings.TCPEvents
+    "FilterString        " + $global:INISettings.FilterString
     ""
     "AuthTrace           " + $global:INISettings.AuthTrace
     "SSL                 " + $global:INISettings.SSL
@@ -244,10 +258,23 @@ Function DisplayINIValues
     "Kerberos            " + $global:INISettings.Kerberos
     "LSA                 " + $global:INISettings.LSA
     ""
+    "FlushTickets        " + $global:INISettings.FlushTickets
     "EventViewer         " + $global:INISettings.EventViewer
     "SQLErrorLog         " + $global:INISettings.SQLErrorLog
     "SQLXEventLog        " + $global:INISettings.SQLXEventLog
     "DeleteOldFiles      " + $global:INISettings.DeleteOldFiles
+    "MinFiles            " + $global:INISettings.MinFiles
+    "MinMinutes          " + $global:INISettings.MinMinutes
+}
+
+function RegisterEventLog
+{
+    $ErrorActionPreference = "SilentlyContinue"
+    if(!(Get-Eventlog -LogName "Application" -Source $global:EventSourceName -Newest 1))
+    {
+        New-Eventlog -LogName "Application" -Source $global:EventSourceName | Out-Null
+    }
+    $ErrorActionPreference = "Continue"
 }
 
 Function PreReqsOkay
@@ -364,6 +391,7 @@ Function SetBIDRegistry
 
 Function StartTraces
 {
+    Write-EventLog -LogName Application -Source $global:EventSourceName -EventID 3001 -Message "SQLTrace is starting."
     LogInfo "Starting traces ..."
     LogRaw ""
     LogInfo "Log folder name: $($global:LogFolderName)"
@@ -380,7 +408,16 @@ Function StartTraces
 	StartNetworkTraces
     StartAuthenticationTraces
 
+    if ($global:INISettings.DeleteOldFiles -eq "Yes")
+    {
+        if ($PathsToClean.Count -gt 0)
+        {
+            StartDeleteOldFiles $PathsToClean
+        }
+    }
+
     LogInfo "Traces have started..."
+    Write-EventLog -LogName Application -Source $global:EventSourceName -EventID 3002 -Message "SQLTrace has started."
 }
 
 Function FlushExistingTraces
@@ -418,11 +455,16 @@ Function FlushCaches
 {
     LogInfo (IPCONFIG /flushdns)
     LogInfo (NBTSTAT -R)
-    Get-WmiObject Win32_LogonSession | Where-Object {$_.AuthenticationPackage -ne 'NTLM'} | ForEach-Object { LogInfo(c:\windows\system32\klist.exe purge -li ([Convert]::ToString($_.LogonId, 16))) }
 
-    ## ToDO: Cleanup any orphan jobs from last run.
-    StopCleanupETLTraceFiles -jobname  "BIDTRACECLEANUP"
-    StopCleanupETLTraceFiles -jobname  "NETWORKTRACECLEANUP"
+    if ($global:INISettings.FlushTickets -eq "Yes")
+    {
+        Get-WmiObject Win32_LogonSession | Where-Object {$_.AuthenticationPackage -ne 'NTLM'} | ForEach-Object { LogInfo(c:\windows\system32\klist.exe purge -li ([Convert]::ToString($_.LogonId, 16))) }
+    }
+
+    StopDeleteOldFiles
+
+#    StopCleanupETLTraceFiles -jobname  "BIDTRACECLEANUP"
+#    StopCleanupETLTraceFiles -jobname  "NETWORKTRACECLEANUP"
 }
 
 Function GETBIDTraceGuid($bidProvider)
@@ -513,10 +555,14 @@ Function StartBIDTraces
         $result = logman start SQLTraceBID -pf "$($global:LogFolderName)\BIDTraces\ctrl.guid" -o "$($global:LogFolderName)\BIDTraces\bidtrace%d.etl" -bs 1024 -nb 1024 1024 -mode NewFile -max 200 -ets
         LogInfo "LOGMAN: $result"
 
-        if(((Test-Path "$($global:LogFolderName)\BIDTraces" -PathType Container) -eq $True) -and ($global:INISettings.DeleteOldFiles -eq "Yes"))
-		{          
-          StartCleanupETLTraceFiles -jobname "BIDTRACECLEANUP" -folder "$($global:LogFolderName)\BIDTraces" -numofFilesToKeep 30 -jobrunintervalMin 30
-        }
+        # Values for DeleteOldFiles
+        $CleanupValues = "$($global:LogFolderName)\BIDTraces\bidtrace*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
+        $PathsToClean.Add("BID", $CleanupValues)
+
+#        if(((Test-Path "$($global:LogFolderName)\BIDTraces" -PathType Container) -eq $True) -and ($global:INISettings.DeleteOldFiles -eq "Yes"))
+#        {          
+#            StartCleanupETLTraceFiles -jobname "BIDTRACECLEANUP" -folder "$($global:LogFolderName)\BIDTraces" -numofFilesToKeep 30 -jobrunintervalMin 30
+#        }
     }
 }
 
@@ -526,12 +572,20 @@ Function StartWireshark
     $WiresharkPath = Get-ItemPropertyValue -Path 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\Wireshark.exe\' -Name Path
     $WiresharkCmd = $WiresharkPath + "\dumpcap.exe"
     $DeviceList = invoke-expression '& $WiresharkCmd -D'
+    $truncatePackets = ""
+    if ($global:INISettings.TruncatePackets -eq "Yes") { $truncatePackets = "-s 180"; }
     $ArgumentList = ""
     For($cDevices=0;$cDevices -lt $DeviceList.Count;$cDevices++) { $ArgumentList = $ArgumentList + " -i " + ($cDevices+1) }
     ##Prepare command arguments 
-    $ArgumentList = $ArgumentList + " -w $($global:LogFolderName)\NetworkTraces\nettrace.pcap -b filesize:200000 -b files:10"
-    [System.Diagnostics.Process] $WiresharkProcess = Start-Process $WiresharkCmd -PassThru -NoNewWindow -ArgumentList $ArgumentList
+    $ArgumentList = " $truncatePackets " + $ArgumentList + " -w `"$($global:LogFolderName)\NetworkTraces\nettrace.pcap`" -b filesize:200000 $($global:INISettings.FilterString)"
+    LogInfo "Dumpcap Args: $ArgumentList"
+#   [System.Diagnostics.Process] $WiresharkProcess = Start-Process $WiresharkCmd -PassThru -NoNewWindow -ArgumentList $ArgumentList
+    [System.Diagnostics.Process] $WiresharkProcess = Start-Process $WiresharkCmd -PassThru -NoNewWindow -RedirectStandardOutput "$($global:LogFolderName)\NetworkTraces\Console.txt" -ArgumentList $ArgumentList
     LogInfo "Wireshark is running with PID: " + $WiresharkProcess.ID
+
+    # Values for DeleteOldFiles
+    $CleanupValues = "$($global:LogFolderName)\NetworkTraces\*.pcap", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
+    $PathsToClean.Add("WireShark", $CleanupValues)
 }
 
 
@@ -539,20 +593,26 @@ Function StartNetworkMonitor
 {
 
     $trucatePackets = ""
-    if ($global:INISettings.TruncatePackets -eq "Yes") { $trucatePackets = "/maxframelength 180"; }
+    if ($global:INISettings.TruncatePackets -eq "Yes") { $truncatePackets = "/maxframelength 180"; }
 
     #Look for the path where Wireshark is installed
     $NMCap = Get-ItemPropertyValue -Path 'HKLM:\HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Netmon3\' -Name InstallDir
 
     $NMCap = '"' + $NMCap + "nmcap.exe" + '" '
-    $ArgumentList = "/network * /capture /file $($global:LogFolderName)\NetworkTraces\nettrace.chn:200M /StopWhen /Frame dns.qrecord.questionname.Contains('stopsqltrace') $truncatePackets"
-    
+    $ArgumentList = "/network * /capture $($global:INISettings.FilterString) /file `"$($global:LogFolderName)\NetworkTraces\nettrace.chn:200M`" /StopWhen /Frame dns.qrecord.questionname.Contains('stopsqltrace') $truncatePackets"
+    LogInfo "NMCAP Args: $ArgumentList"
+
     #Start the capture
-    [System.Diagnostics.Process] $NetmonProcess = Start-Process $NMCap -PassThru -NoNewWindow -ArgumentList $ArgumentList
+#   [System.Diagnostics.Process] $NetmonProcess = Start-Process $NMCap -PassThru -NoNewWindow -ArgumentList $ArgumentList
+    [System.Diagnostics.Process] $NetmonProcess = Start-Process $NMCap -PassThru -NoNewWindow -RedirectStandardOutput "$($global:LogFolderName)\NetworkTraces\Console.txt" -ArgumentList $ArgumentList
     LogInfo "Network Monitor is running with PID: " + $NetmonProcess.ID
     LogWarning "Killing this process will corrupt the most recent capture file."
     LogWarning "Run SQLTrace.ps1 with the -stop option to terminate safely."
     LogRaw ""
+
+    # Values for DeleteOldFiles
+    $CleanupValues = "$($global:LogFolderName)\NetworkTraces\*.cap", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
+    $PathsToClean.Add("NMCAP", $CleanupValues)
 }
 
 
@@ -579,6 +639,39 @@ Function StartCleanupETLTraceFiles
     Add-JobTrigger -Trigger $cleanupjob -Name $jobname    
 }
 
+Function StartDeleteOldFiles
+{
+    param ($FilesToDelete)
+
+    "DeleteOldFiles job starting ..."
+    "Files being monitored:"
+    foreach ($Name in $FilesToDelete.Keys)
+    {
+        $PathToClean = $FilesToDelete[$Name]
+        $FileSpec = $PathToClean[0]
+        $MinMinutes = $PathToClean[1] -as [int]
+        $MinFiles = $PathToClean[2] -as  [int]
+        "$Name=$fileSpec, Min Minutes=$MinMinutes, Min Files=$MinFiles"
+    }
+
+    $jobname = "DeleteOldFiles"
+  
+    $job=Register-ScheduledJob  -Name "DeleteOldFiles" -scriptblock {  
+        Param($FilesToDelete)
+        foreach ($Name in $FilesToDelete.Keys)
+        {
+            $PathToClean = $FilesToDelete[$Name]
+            $FileSpec = $PathToClean[0]
+            $MinMinutes = $PathToClean[1] -as [int]
+            $MinFiles = $PathToClean[2] -as [int]
+            get-item $FileSpec | sort-object -property LastWriteTime -descending | select -skip $MinFiles | where-object {$_.LastWriteTime -lt ((get-date).AddMinutes($MinMinutes * -1))}  | remove-item -force
+        }
+    } -ArgumentList $FilesToDelete 
+    $job.Options.RunElevated=$True
+    $cleanupJob=New-JobTrigger -Once -At (get-date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Minutes 5) -RepeatIndefinitely   # runs once every 5 minutes
+    Add-JobTrigger -Trigger $cleanupjob -Name $jobname    
+}
+
 
 Function StopCleanupETLTraceFiles
 {
@@ -595,6 +688,19 @@ Function StopCleanupETLTraceFiles
         UnRegister-ScheduledJob -Name $jobname -Force -ErrorAction SilentlyContinue
     }
     catch { "Error stopping the Cleanup Job $jobname." }
+}
+
+Function StopDeleteOldFiles
+{
+	$jobname = "DeleteOldFiles"
+    try
+    {
+        Stop-Job $jobname -ErrorAction SilentlyContinue
+        Remove-Job $jobname -Force -ErrorAction SilentlyContinue
+        Remove-JobTrigger $jobname -ErrorAction SilentlyContinue
+        UnRegister-ScheduledJob -Name $jobname -Force -ErrorAction SilentlyContinue
+    }
+    catch { "Error stopping the DeleteOldFiles job." }
 }
 
 
@@ -616,20 +722,39 @@ Function StartNetworkTraces
             # $commandLine = "netsh trace start capture=yes overwrite=yes tracefile=$($global:LogFolderName)\NetworkTraces\" + $env:computername +".etl filemode=circular maxSize=200MB"
             # Invoke-Expression $commandLine
 
-            $trucatePackets = ""
-            if ($global:INISettings.TruncatePackets -eq "Yes") { $trucatePackets = "PACKETTRUNCATEBYTES=250"; }
+            $truncatePackets = ""
+            if ($global:INISettings.TruncatePackets -eq "Yes") { $truncatePackets = "PACKETTRUNCATEBYTES=250"; }
+            
+            $cmd = "netsh trace start capture=yes $($global:INISettings.FilterString) maxsize=1 report=disabled TRACEFILE=`"$($global:LogFolderName)\NetworkTraces\deleteme.etl`" $truncatePackets" # Faster netsh shutdown clintonw #53
+            LogInfo "NETSH: $cmd"
 
-            $result = netsh trace start capture=yes maxsize=1 report=disabled TRACEFILE="$($global:LogFolderName)\NetworkTraces\deleteme.etl" $truncatePackets # Faster netsh shutdown clintonw #53
+            $result = invoke-expression $cmd
             LogInfo "NETSH: $result"
 			
             $result = logman start SQLTraceNDIS -p Microsoft-Windows-NDIS-PacketCapture -mode newfile -max 200 -o "$($global:LogFolderName)\NetworkTraces\nettrace%d.etl" -ets
             LogInfo "LOGMAN: $result"
 
-            if ($global:INISettings.DeleteOldFiles -eq "Yes")
+            if ($global:INISettings.TCPEvents -eq "Yes")
             {
-                # StartCleanupNetworkTraces  -folder "$($global:LogFolderName)\NetworkTraces"  # Clintonw
-                StartCleanupETLTraceFiles -jobname "NETWORKTRACECLEANUP" -folder "$($global:LogFolderName)\NetworkTraces" -numofFilesToKeep 30 -jobrunintervalMin 30  
-            }         
+                $result = logman update trace ndiscap -p Microsoft-Windows-Winsock-AFD -ets
+                LogInfo "LOGMAN Winsock AFD Events: $result"
+                $result = logman update trace ndiscap -p Microsoft-Windows-TCPIP -ets
+                LogInfo "LOGMAN TCPIP Events: $result"
+                $result = logman update trace ndiscap -p Microsoft-Windows-WFP -ets
+                LogInfo "LOGMAN TCPIP Events: $result"
+                $result = logman update trace ndiscap -p Microsoft-Windows-Winsock-NameResolution -ets
+                LogInfo "LOGMAN TCPIP Events: $result"
+            }
+
+            # Values for DeleteOldFiles
+            $CleanupValues = "$($global:LogFolderName)\NetworkTraces\nettrace*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
+            $PathsToClean.Add("NETSH", $CleanupValues)
+
+#            if ($global:INISettings.DeleteOldFiles -eq "Yes")
+#            {
+#                # StartCleanupNetworkTraces  -folder "$($global:LogFolderName)\NetworkTraces"  # Clintonw
+#                StartCleanupETLTraceFiles -jobname "NETWORKTRACECLEANUP" -folder "$($global:LogFolderName)\NetworkTraces" -numofFilesToKeep 30 -jobrunintervalMin 30  
+#            }         
         }
         if($global:INISettings.NETMON -eq "Yes")
         {
@@ -640,6 +765,34 @@ Function StartNetworkTraces
         {
             LogInfo "Starting Wireshark..."
             StartWireshark
+        }
+        if($global:INISettings.PKTMON -eq "Yes")
+        {
+            LogInfo "Starting Pktmon..."
+            $result = pktmon list --all --include-hidden > "$($global:LogFolderName)\NetworkTraces\tracepoints.txt"
+            LogInfo "PKTMON trace points: $result"
+            if ($global:INISettings.FilterString -ne "")
+            {
+                $cmd = "pktmon filter add $($global:INISettings.FilterString)"
+                $result = invoke-expression $cmd
+                LogInfo "PKTMON Filter '$($global:INISettings.FilterString)' added: $result"
+            }
+            $PacketSize = 0   # collect full packet
+            if ($global:INISettings.TruncatePackets -eq "Yes") { $PacketSize = 250; }   # same as netsh
+            if ($global:INISettings.TCPEvents -eq "Yes")
+            {                
+                $result = pktmon start -c -m multi-file --pkt-size $PacketSize -t -p Microsoft-Windows-TCPIP -p Microsoft-Windows-Winsock-AFD -p Microsoft-Windows-Winsock-NameResolution -p Microsoft-Windows-WFP -f "$($global:LogFolderName)\NetworkTraces\pktmon.etl"
+                LogInfo "PKTMON with TCPIP and Winsock events: $result"
+            }
+            else
+            {
+                $result = pktmon start -c -m multi-file --pkt-size $PacketSize -f "$($global:LogFolderName)\NetworkTraces\pktmon.etl"
+                LogInfo "PKTMON: $result"
+            }
+
+            # Values for DeleteOldFiles
+            $CleanupValues = "$($global:LogFolderName)\NetworkTraces\*.pcap", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
+            $PathsToClean.Add("PKTMON", $CleanupValues)
         }
     }
 }
@@ -671,7 +824,7 @@ Function StartAuthenticationTraces
             # Kerberos Logging to SYSTEM event log in case this is a client
             reg add HKLM\SYSTEM\CurrentControlSet\Control\LSA\Kerberos\Parameters /v LogLevel /t REG_DWORD /d 1 /f
     
-            $result = logman start "SQLTraceKerberos" -o "$($global:LogFolderName)\Auth\Kerberos.etl" -ets
+            $result = logman start "SQLTraceKerberos" -o "$($global:LogFolderName)\Auth\Kerberos%d.etl" -mode NewFile -max 300 -ets
             LogInfo "Kerberos: $result"
 
             ForEach($KerberosProvider in $KerberosProviders)
@@ -683,6 +836,10 @@ Function StartAuthenticationTraces
                 $result = logman update trace "SQLTraceKerberos" -p `"$KerberosSingleTraceGUID`" $KerberosSingleTraceFlags 0xff -ets
                 LogInfo "Kerberos: $result"
             }
+
+            # Values for DeleteOldFiles
+            $CleanupValues = "$($global:LogFolderName)\NetworkTraces\Kerberos*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
+            $PathsToClean.Add("Kerberos", $CleanupValues)
         }
         
         if($global:INISettings.Credssp -eq "Yes")
@@ -698,7 +855,7 @@ Function StartAuthenticationTraces
 										  '{DAA6CAF5-6678-43f8-A6FE-B40EE096E06E}!0xffffffffffffffff'
 									  )
 
-            $result = logman create trace "SQLTraceNtlm_CredSSP" -o "$($global:LogFolderName)\Auth\Ntlm_CredSSP.etl" -ets
+            $result = logman start trace "SQLTraceNtlm_CredSSP" -o "$($global:LogFolderName)\Auth\Ntlm_CredSSP%d.etl" -mode NewFile -max 300 -ets
             LogInfo "NTLM_CredSSP: $result"
 
             ForEach($Ntlm_CredSSPProvider in $Ntlm_CredSSPProviders)
@@ -711,6 +868,10 @@ Function StartAuthenticationTraces
                 $result = logman update trace "SQLTraceNtlm_CredSSP" -p `"$Ntlm_CredSSPSingleTraceGUID`" $Ntlm_CredSSPSingleTraceFlags 0xff -ets
                 LogInfo "NTLM_CredSSP: $result"
             }
+
+            # Values for DeleteOldFiles
+            $CleanupValues = "$($global:LogFolderName)\NetworkTraces\Ntlm_CredSSP*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
+            $PathsToClean.Add("NTLM", $CleanupValues)
         }
         
 
@@ -723,7 +884,7 @@ Function StartAuthenticationTraces
 							 )
 
             # Start Logman SSL     
-            $result = logman start "SQLTraceSSL" -o "$($global:LogFolderName)\Auth\SSL.etl" -ets
+            $result = logman start "SQLTraceSSL" -o "$($global:LogFolderName)\Auth\SSL%d.etl" -mode NewFile -max 300 -ets
             LogInfo "SSL: $result"
 
             ForEach($SSLProvider in $SSLProviders)
@@ -736,6 +897,10 @@ Function StartAuthenticationTraces
                 $result = logman update trace "SQLTraceSSL" -p `"$SSLSingleTraceGUID`" $SSLSingleTraceFlags 0xff -ets
                 LogInfo "SSL: $result"
             }
+
+            # Values for DeleteOldFiles
+            $CleanupValues = "$($global:LogFolderName)\NetworkTraces\SSL*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
+            $PathsToClean.Add("SSL", $CleanupValues)
         }
 
         
@@ -783,20 +948,24 @@ Function StartAuthenticationTraces
 
             # Start Logman LSA
             $LSASingleTraceName = "SQLTraceLSA"
-            $result = logman create trace $LSASingleTraceName -o "$($global:LogFolderName)\Auth\LSA.etl" -ets
+            $result = logman start trace $LSASingleTraceName -o "$($global:LogFolderName)\Auth\LSA%d.etl" -mode NewFile -max 300 -ets
             LogInfo "LSA: $result"
 
             ForEach($LSAProvider in $LSAProviders)
-                {
-                    # "Updating: $LSAProvider" # debug statement
-                    # Update Logman LSA
-                    $LSAParams = $LSAProvider.Split('!')
-                    $LSASingleTraceGUID = $LSAParams[0]
-                    $LSASingleTraceFlags = $LSAParams[1]
+            {
+                # "Updating: $LSAProvider" # debug statement
+                # Update Logman LSA
+                $LSAParams = $LSAProvider.Split('!')
+                $LSASingleTraceGUID = $LSAParams[0]
+                $LSASingleTraceFlags = $LSAParams[1]
         
-                    $result = logman update trace $LSASingleTraceName -p `"$LSASingleTraceGUID`" $LSASingleTraceFlags 0xff -ets
-                    LogInfo "LSA: $result"
-                }
+                $result = logman update trace $LSASingleTraceName -p `"$LSASingleTraceGUID`" $LSASingleTraceFlags 0xff -ets
+                LogInfo "LSA: $result"
+            }
+
+            # Values for DeleteOldFiles
+            $CleanupValues = "$($global:LogFolderName)\NetworkTraces\LSA*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
+            $PathsToClean.Add("LSA", $CleanupValues)
         }
 
     }
@@ -818,17 +987,20 @@ Function StartAuthenticationTraces
 
 Function StopTraces
 {
+    Write-EventLog -LogName Application -Source $global:EventSourceName -EventID 3003 -Message "SQLTrace is stopping."
     LogInfo "Stopping Traces ..."
     netstat -abon > "$($global:LogFolderName)\NetStatAtEnd.txt"
     tasklist > "$($global:LogFolderName)\TasklistAtEnd.txt"
     StopBIDTraces
-    StopAuthenticationTraces
     StopNetworkTraces
+    StopAuthenticationTraces
+    StopDeleteOldFiles
     CopySqlErrorLog
     LogInfo "Traces have stopped ..."
     LogRaw ""
     LogRaw "Please ZIP the contents of ""$($global:LogFolderName)"" and upload to Microsoft for analysis."
     LogRaw "Please see our GitHub site for more information: https://github.com/microsoft/CSS_SQL_Networking_Tools"
+    Write-EventLog -LogName Application -Source $global:EventSourceName -EventID 3004 -Message "SQLTrace has stopped."
 }
 
 Function StopBIDTraces
@@ -836,7 +1008,7 @@ Function StopBIDTraces
     if($global:INISettings.BidTrace -eq "Yes")
     {
         ## StopCleanupBIDTraces   # Clintonw
-        StopCleanupETLTraceFiles -jobname "BIDTRACECLEANUP"
+        #StopCleanupETLTraceFiles -jobname "BIDTRACECLEANUP"
 
         LogInfo "Stopping BID Traces ..."
 		# Do not clear the registry keys in case we run a second trace; use the -cleanup switch explicitly
@@ -870,7 +1042,7 @@ Function StopNetworkTraces
             }
 
             ## StopCleanupNetworkTraces    # clintonw
-            StopCleanupETLTraceFiles -jobname "NETWORKTRACECLEANUP"
+            #StopCleanupETLTraceFiles -jobname "NETWORKTRACECLEANUP"
         }
         if($global:INISettings.NETMON -eq "Yes")
         {
@@ -883,6 +1055,12 @@ Function StopNetworkTraces
             $WiresharkPID = Get-Process -Name "dumpcap"
             LogInfo "Stopping Wireshark with PID: " + $WiresharkPID.ID
             Stop-Process -Name "dumpcap" -Force
+        }
+        if($global:INISettings.PKTMON -eq "Yes")
+        {
+            LogInfo "Stopping Pktmon..."
+            pktmon stop
+            pktmon filter remove
         }
     }
 }
