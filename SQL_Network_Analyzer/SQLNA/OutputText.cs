@@ -3555,7 +3555,7 @@ namespace SQLNA
                                 (c.hasLogin7 ? "Y" : "") + "," +
                                 (c.isEncrypted ? (c.isEncRequired ? "R" : "Y") : "") + "," +
                                 (c.isSQL && (c.isMARSEnabled || (c.smpAckCount + c.smpSynCount + c.smpFinCount + c.smpDataCount) > 0) ? "Y" : "") + "," +
-                                (c.isUDP ? "" : c.frames.Count <= 40 ? c.GetPacketList(0, c.frames.Count -1) : c.GetFirstPacketList(20) + " ... " + c.GetLastPacketList(20)) + "," +
+                                (c.isUDP ? "" : c.frames.Count <= 40 ? c.GetPacketList(0, c.frames.Count) : c.GetFirstPacketList(20) + " ... " + c.GetLastPacketList(20)) + "," +
                                 // Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason
                                 (Trace.hasPktmonRecords ? "Y" : "") + "," +
                                 (Trace.hasPktmonRecords ? $"{(c.pktmonMaxDelay / utility.TICKS_PER_SECOND).ToString("0.000000")}" : "") + "," +

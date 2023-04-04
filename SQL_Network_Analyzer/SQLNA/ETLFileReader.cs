@@ -312,7 +312,7 @@ namespace SQLNA
                     {
                         Frame f = FrameBuffer[0];
                         FrameBuffer.RemoveAt(0);
-                        Program.logDiagnostic($"***** Frame # {f.frameNumber}, Len: {f.frameLength}, isPktmon: {f.isPKTMON}, isWFP: {f.isWFP} Event Type: {f.EventType}");
+                        // Program.logDiagnostic($"***** Frame # {f.frameNumber}, Len: {f.frameLength}, isPktmon: {f.isPKTMON}, isWFP: {f.isWFP} Event Type: {f.EventType}");
                         return f;
                     }
                 }
