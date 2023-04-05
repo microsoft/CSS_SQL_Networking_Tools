@@ -14,6 +14,7 @@ using System.DirectoryServices;
 using System.Diagnostics;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography;
+using System.Linq;
 
 namespace SQLCheck
 {
@@ -580,7 +581,7 @@ namespace SQLCheck
                         if (supportedEncryptionTypes == 0) supportedEncryptionTypes = 4; // RC4
                         string encryptNames = Utility.KerbEncryptNames(supportedEncryptionTypes);
                         RelatedDomain["SupportedEncryptionTypes"] = $"{supportedEncryptionTypes.ToString("X8")} ({encryptNames})";
-                        if (supportedEncryptionTypes != 0 && supportedEncryptionTypes != 4) RelatedDomain["Message"] = "RC4 disabled.";
+                        if (supportedEncryptionTypes != 0 && (supportedEncryptionTypes & 0x00000004) == 0) RelatedDomain["Message"] = "RC4 disabled.";
                         // RelatedDomain["ForestTransitive"] = ((trustAttributes & 0x00000008) != 0) ? "Y" : "";
                         string attributeFlagNames = Utility.DomainTrustAttributeNames(trustAttributes);
                         RelatedDomain["TrustAttributes"] = $"{trustAttributes.ToString("X8")} ({attributeFlagNames})";
@@ -920,6 +921,16 @@ namespace SQLCheck
             // From HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Cryptography\Configuration\SSL\00010002 ! Functions REG_SZ, comma-delimited
 
             ProtocolOrder["PolicyList"] = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Cryptography\Configuration\SSL\00010002", "Functions", null);
+
+            // Warn if the Protocol List has entries that arent in the ReistryList
+            if (ProtocolOrder.GetString("PolicyList").Trim().Length > 0)
+            {
+                string[] RegStrings = ProtocolOrder.GetString("RegistryList").Trim().Split(',');
+                string[] PolStrings = ProtocolOrder.GetString("PolicyList").Trim().Split(',');
+                var comp = new StringIgnoreCaseComparer();
+                var ExtraStrings = PolStrings.Except(RegStrings, comp);
+                ExtraStrings.ToList().ForEach(s => ProtocolOrder.LogWarning($"Cipher Suite '{s}' appears in the Protocol List but not in the Registry List."));
+            }
         }
 
         public static void CollectNetwork(DataSet ds)
@@ -1149,6 +1160,7 @@ namespace SQLCheck
                                     {
                                         NetworkAdapter["Name"] = adapterKey.GetValue("DriverDesc").ToString();
                                         NetworkAdapter["AdapterType"] = mo["AdapterType"].ToString();
+                                        NetworkAdapter["MACAddress"] = mo["MACAddress"].ToString();
                                         NetworkAdapter["DriverDate"] = adapterKey.GetValue("DriverDate").ToString();
                                         NetworkAdapter["Speed"] = mo["speed"] == null ? "" : Utility.TranslateSpeed(mo["Speed"].ToString());
                                         NetworkAdapter["SpeedDuplex"] = GetEnumInfo(adapterKey, "*SpeedDuplex", "Speed/Duplex", NetworkAdapter).ToValueString();
@@ -1829,6 +1841,10 @@ namespace SQLCheck
             int propertyValue = 0;
             int flagCount = 0;
             object prot = null;
+            bool fBadPort = false;
+            bool fModifiedKeepAlive = false;
+            bool fEncryption = false;
+            bool fTrustCertificate = false;
 
             for (int i = 0; i < loopCount; i++)
             {
@@ -1855,8 +1871,16 @@ namespace SQLCheck
                             {
                                 propertyName = Registry.GetValue($@"{regPath[i]}\Client\{SNIName}\GeneralFlags\Flag{k + 1}", "Label", "").ToString();
                                 propertyValue = Registry.GetValue($@"{regPath[i]}\Client\{SNIName}\GeneralFlags\Flag{k + 1}", "Value", 0).ToInt();
-                                if (propertyName.Equals("Force protocol encryption", StringComparison.CurrentCultureIgnoreCase)) ClientSNI["ForceEncryption"] = propertyValue > 0;
-                                if (propertyName.Equals("Trust Server Certificate", StringComparison.CurrentCultureIgnoreCase)) ClientSNI["TrustServerCertificate"] = propertyValue > 0;
+                                if (propertyName.Equals("Force protocol encryption", StringComparison.CurrentCultureIgnoreCase))
+                                {
+                                    if (propertyValue > 0) fEncryption = true;
+                                    ClientSNI["ForceEncryption"] = propertyValue > 0;
+                                }
+                                if (propertyName.Equals("Trust Server Certificate", StringComparison.CurrentCultureIgnoreCase))
+                                {
+                                    if (propertyValue > 0) fTrustCertificate = true;
+                                    ClientSNI["TrustServerCertificate"] = propertyValue > 0;
+                                }
                             }
 
                             // Tcp Settings
@@ -1865,9 +1889,21 @@ namespace SQLCheck
                             {
                                 propertyName = Registry.GetValue($@"{regPath[i]}\Client\{SNIName}\tcp\Property{k + 1}", "Name", "").ToString();
                                 propertyValue = Registry.GetValue($@"{regPath[i]}\Client\{SNIName}\tcp\Property{k + 1}", "Value", 0).ToInt();
-                                if (propertyName.Equals("Default Port", StringComparison.CurrentCultureIgnoreCase)) ClientSNI["TcpDefaultPort"] = propertyValue;
-                                if (propertyName.Equals("KEEPALIVE (in milliseconds)", StringComparison.CurrentCultureIgnoreCase)) ClientSNI["TcpKeepAliveInterval"] = propertyValue;
-                                if (propertyName.Equals("KEEPALIVEINTERVAL (in milliseconds)", StringComparison.CurrentCultureIgnoreCase)) ClientSNI["TcpKeepAliveRetryInterval"] = propertyValue;
+                                if (propertyName.Equals("Default Port", StringComparison.CurrentCultureIgnoreCase))
+                                {
+                                    if (propertyValue != 1433) fBadPort = true;
+                                    ClientSNI["TcpDefaultPort"] = propertyValue;
+                                }
+                                if (propertyName.Equals("KEEPALIVE (in milliseconds)", StringComparison.CurrentCultureIgnoreCase))
+                                {
+                                    if (propertyValue != 30000) fModifiedKeepAlive = true;
+                                    ClientSNI["TcpKeepAliveInterval"] = propertyValue;
+                                }
+                                if (propertyName.Equals("KEEPALIVEINTERVAL (in milliseconds)", StringComparison.CurrentCultureIgnoreCase))
+                                {
+                                    if (propertyValue != 1000) fModifiedKeepAlive = true;
+                                    ClientSNI["TcpKeepAliveRetryInterval"] = propertyValue;
+                                }
                             }
                         }
                     }
@@ -1906,6 +1942,11 @@ namespace SQLCheck
                     if (ClientSNI == null) Computer.LogException($"There was a problem reading client driver {ClientSNI.GetString("Name")} properties.", ex);
                 }
             }
+
+            if (fBadPort) dtClientSNI.LogMessage("SNI default port numbers are not 1433.", Storage.SeverityLevel.Warning);
+            if (fModifiedKeepAlive) dtClientSNI.LogMessage("SNI Keep-Alive settings have been modified.", Storage.SeverityLevel.Warning);
+            if (fEncryption) dtClientSNI.LogMessage("Encryption is turned on in the registry.", Storage.SeverityLevel.Warning);
+            if (fTrustCertificate) dtClientSNI.LogMessage("TrustServerCertificate is turned on in the registry.", Storage.SeverityLevel.Warning);
         }
 
         public static void CollectCertificate(DataSet ds)
@@ -2163,8 +2204,8 @@ namespace SQLCheck
             DataTable Service = ds.Tables["Service"];
             foreach (DataRow dr in Service.Rows)
             {
-                acct = dr["DomainAccount"].ToString();
-                if (serviceAccounts.Contains(acct) == false) serviceAccounts.Add(acct);
+                acct = dr["DomainAccount"].ToString().Trim();
+                serviceAccounts.AddUnique(acct);
             }
 
             //

@@ -308,11 +308,11 @@ namespace SQLCheck
         // ArrayList string helper
         //
 
-        public static void AddUnique(this ArrayList a, string value)
+        public static void AddUnique(this ArrayList a, string value)   // case inseinsitive comparison
         {
             if (a == null || value == null || value.Trim() == "") return;
-            foreach (string s in a) if (s == value) return;
-            a.Add(value);
+            foreach (string s in a) if (s.ToLower() == value.ToLower().Trim()) return;
+            a.Add(value.Trim());
         }
 
         public static string Concatenate(this ArrayList a)
@@ -583,5 +583,18 @@ namespace SQLCheck
             return $"{ts.Days} Days, {ts.Hours} Hours, {ts.Minutes} Minutes";
         }
 
+    }
+
+    public class StringIgnoreCaseComparer : System.Collections.Generic.IEqualityComparer<String>
+    {
+        public bool Equals(string a, string b)
+        {
+            return a.Equals(b, StringComparison.CurrentCultureIgnoreCase);
+        }
+
+        public int GetHashCode(string a)
+        {
+            return a.GetHashCode();
+        }
     }
 }

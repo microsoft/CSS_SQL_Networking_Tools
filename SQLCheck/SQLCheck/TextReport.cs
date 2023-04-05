@@ -418,6 +418,7 @@ namespace SQLCheck
             {
                 s.WriteLine($"Name:                       {NetworkAdapter.GetString("Name")}");
                 s.WriteLine($"Adapter Type:               {NetworkAdapter.GetString("AdapterType")}");
+                s.WriteLine($"MAC Address:                {NetworkAdapter.GetString("MACAddress")}");
                 s.WriteLine($"Driver Date:                {NetworkAdapter.GetString("DriverDate")}");
                 s.WriteLine($"Speed:                      {NetworkAdapter.GetString("Speed")}");
                 s.WriteLine($"Speed/Duplex:               {NetworkAdapter.GetString("SpeedDuplex")}");
@@ -511,6 +512,8 @@ namespace SQLCheck
                     s.WriteLine("Diffie-Hellman cipher suites are not enabled. This avoids the risk of certain intermittent TLS failures.");
                 }
                 s.WriteLine();
+                // list all items in the Protocol list that aren't in the registry list
+                ReportMessages(ds, s, "ProtocolOrder", -1);  // returns a blank line at the end ... -1 = messages for all rows
             }
         }
 

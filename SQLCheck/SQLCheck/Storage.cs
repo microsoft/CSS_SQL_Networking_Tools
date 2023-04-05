@@ -252,6 +252,7 @@ namespace SQLCheck
             dt.AddColumn("RSS", "String", "Receive Side Scaling");
             dt.AddColumn("JumboPacket", "String", "Jumbo Frames");
             dt.AddColumn("NICTeaming", "Boolean");
+            dt.AddColumn("MACAddress", "String", "MAC Address");
             ds.Tables.Add(dt);
 
             //
@@ -700,6 +701,29 @@ namespace SQLCheck
             {
                 drMessage["TableName"] = dr.Table.TableName;
                 drMessage["TableRow"] = dr["ID"];
+            }
+
+            drMessage["Severity"] = severity;
+            drMessage["Message"] = message;
+
+            if (exRecord != null)
+            {
+                drMessage["Severity"] = SeverityLevel.Exception;
+                drMessage["ExMessage"] = exRecord.Message;
+                drMessage["ExceptionTypeName"] = exRecord.GetType().Name;
+                drMessage["ExSource"] = exRecord.Source;
+                drMessage["ExStacktrace"] = exRecord.StackTrace;
+            }
+            dtMessage.Rows.Add(drMessage);
+        }
+
+        public static void LogMessage(this DataTable dt, string message, SeverityLevel severity = SeverityLevel.Info, Exception exRecord = null)
+        {
+            DataTable dtMessage = dt.DataSet.Tables["Message"];
+            DataRow drMessage = dtMessage.NewRow();
+            if (dt != null)
+            {
+                drMessage["TableName"] = dt.TableName;
             }
 
             drMessage["Severity"] = severity;
