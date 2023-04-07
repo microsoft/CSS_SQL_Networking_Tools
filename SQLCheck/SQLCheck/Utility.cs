@@ -367,6 +367,16 @@ namespace SQLCheck
         }
 
         //
+        // Trim a string after a certain place - case insensitve
+        //
+
+        public static string KeepBeforeIncluding(this string value, string delim)
+        {
+            int pos = value.IndexOf(delim, StringComparison.InvariantCultureIgnoreCase);
+            return pos == -1 ? value.Trim() : value.Substring(0, pos + delim.Length).Trim();
+        }
+
+        //
         // Indexes a string with range checking - int index or numeric string index
         //
 

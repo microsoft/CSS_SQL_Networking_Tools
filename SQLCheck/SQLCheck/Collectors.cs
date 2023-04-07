@@ -42,6 +42,7 @@ namespace SQLCheck
             CollectIPAddress(ds);
             CollectFLTMC(ds);
             CollectDatabaseDriver(ds);
+            CollectADAL(ds);
             CollectProcessDrivers(ds);
             CollectSQLAlias(ds);
             CollectClientSNI(ds);
@@ -1160,7 +1161,14 @@ namespace SQLCheck
                                     {
                                         NetworkAdapter["Name"] = adapterKey.GetValue("DriverDesc").ToString();
                                         NetworkAdapter["AdapterType"] = mo["AdapterType"].ToString();
-                                        NetworkAdapter["MACAddress"] = mo["MACAddress"].ToString();
+                                        try
+                                        {
+                                            NetworkAdapter["MACAddress"] = mo["MACAddress"].ToString();
+                                        }
+                                        catch (Exception)
+                                        {
+                                            // do nothing - some adapters do not have a MAC address
+                                        }
                                         NetworkAdapter["DriverDate"] = adapterKey.GetValue("DriverDate").ToString();
                                         NetworkAdapter["Speed"] = mo["speed"] == null ? "" : Utility.TranslateSpeed(mo["Speed"].ToString());
                                         NetworkAdapter["SpeedDuplex"] = GetEnumInfo(adapterKey, "*SpeedDuplex", "Speed/Duplex", NetworkAdapter).ToValueString();
@@ -1427,6 +1435,7 @@ namespace SQLCheck
             FileVersionInfo versionInfo = null;
             string windowsVersion = Computer.GetString("WindowsVersion");
             string windowsReleaseID = Computer.GetString("WindowsReleaseID");
+            string badPath = "";
 
             foreach (string Provider in OLEDBProviders)
             {
@@ -1436,13 +1445,18 @@ namespace SQLCheck
                 if (guid != "")
                 {
                     object ip = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{guid}\InProcServer32", "", "");
-                    string inprocServer32 = ip == null ? "" : ip.ToString();
+                    string inprocServer32 = (ip == null ? "" : ip.ToString());
                     if (inprocServer32 != "")
                     {
                         try
                         {
                             DatabaseDriver = ds.Tables["DatabaseDriver"].NewRow();
                             ds.Tables["DatabaseDriver"].Rows.Add(DatabaseDriver);
+
+                            badPath = "";
+                            string originalPath = inprocServer32.Trim();
+                            inprocServer32 = Utility.KeepBeforeIncluding(originalPath, ".dll");
+                            if (inprocServer32 != originalPath) badPath = "InProcServer32 has extra characters; ";
 
                             DatabaseDriver["DriverName"] = Provider;
                             DatabaseDriver["DriverType"] = "OLE DB";
@@ -1455,7 +1469,7 @@ namespace SQLCheck
                             catch (FileNotFoundException)
                             {
                                 versionInfo = null;
-                                DatabaseDriver["Message"] = "File not found";
+                                DatabaseDriver["Message"] = badPath + "File not found";
                             }
                             info = DriverInfo.GetDriverInfo(Provider, versionInfo, windowsVersion, windowsReleaseID);
                             DatabaseDriver["Version"] = versionInfo == null ? "Unknown" : versionInfo.ProductVersion;
@@ -1488,6 +1502,11 @@ namespace SQLCheck
                                 DatabaseDriver = ds.Tables["DatabaseDriver"].NewRow();
                                 ds.Tables["DatabaseDriver"].Rows.Add(DatabaseDriver);
 
+                                badPath = "";
+                                string originalPath = inprocServer32.Trim();
+                                inprocServer32 = Utility.KeepBeforeIncluding(originalPath, ".dll");
+                                if (inprocServer32 != originalPath) badPath = "InProcServer32 has extra characters; ";
+
                                 DatabaseDriver["DriverName"] = Provider;
                                 DatabaseDriver["DriverType"] = "OLE DB";
                                 DatabaseDriver["Path"] = inprocServer32;
@@ -1499,7 +1518,7 @@ namespace SQLCheck
                                 catch (FileNotFoundException)
                                 {
                                     versionInfo = null;
-                                    DatabaseDriver["Message"] = "File not found";
+                                    DatabaseDriver["Message"] = badPath + "File not found";
                                 }
                                 info = DriverInfo.GetDriverInfo(Provider, versionInfo, windowsVersion, windowsReleaseID);
                                 DatabaseDriver["Version"] = versionInfo == null ? "Unknown" : versionInfo.ProductVersion;
@@ -1562,6 +1581,11 @@ namespace SQLCheck
 
                                 try
                                 {
+                                    badPath = "";
+                                    string originalPath = path.Trim();
+                                    path = Utility.KeepBeforeIncluding(originalPath, ".dll");
+                                    if (path != originalPath) badPath = "Driver path has extra characters; ";
+
                                     DatabaseDriver["DriverName"] = valueName;
                                     DatabaseDriver["DriverType"] = "ODBC";
                                     DatabaseDriver["Path"] = path;
@@ -1573,7 +1597,7 @@ namespace SQLCheck
                                     catch (FileNotFoundException)
                                     {
                                         versionInfo = null;
-                                        DatabaseDriver["Message"] = "File not found";
+                                        DatabaseDriver["Message"] = badPath + "File not found";
                                     }
                                     info = DriverInfo.GetDriverInfo(valueName, versionInfo, windowsVersion, windowsReleaseID);
                                     DatabaseDriver["Version"] = versionInfo == null ? "Unknown" : versionInfo.ProductVersion;
@@ -1648,6 +1672,11 @@ namespace SQLCheck
 
                                 try
                                 {
+                                    badPath = "";
+                                    string originalPath = path.Trim();
+                                    path = Utility.KeepBeforeIncluding(originalPath, ".dll");
+                                    if (path != originalPath) badPath = "Driver path has extra characters; ";
+
                                     DatabaseDriver["DriverName"] = valueName;
                                     DatabaseDriver["DriverType"] = "ODBC";
                                     DatabaseDriver["Path"] = path;
@@ -1659,7 +1688,7 @@ namespace SQLCheck
                                     catch (FileNotFoundException)
                                     {
                                         versionInfo = null;
-                                        DatabaseDriver["Message"] = "File not found";
+                                        DatabaseDriver["Message"] = badPath + "File not found";
                                     }
                                     info = DriverInfo.GetDriverInfo(valueName, versionInfo, windowsVersion, windowsReleaseID);
                                     DatabaseDriver["Version"] = versionInfo == null ? "Unknown" : versionInfo.ProductVersion;
@@ -1752,6 +1781,62 @@ namespace SQLCheck
                 }
 
                 line = sr.ReadLine();
+            }
+        }
+
+        public static void CollectADAL(DataSet ds)
+        {
+
+            DataRow Computer = ds.Tables["Computer"].Rows[0];
+            DataTable dtADALFile = ds.Tables["ADALFile"];
+            DataTable dtADALRegistry = ds.Tables["ADALRegistry"];
+            DataRow ADALFile = null;
+            DataRow ADALRegistry = null;
+            FileVersionInfo versionInfo = null;
+
+            string WindowsFolder = Environment.GetEnvironmentVariable("SystemRoot");
+            string[] dllNames = new string[] { "adal.dll", "msal.dll", "sqladal.dll"};
+            string[] folderNames = new string[] { "system32", "syswow64" };
+
+            // enumerate DLLs
+
+            foreach (string folderName in folderNames)
+            {
+                foreach (string dllName in dllNames)
+                {
+                    ADALFile = dtADALFile.NewRow();
+                    dtADALFile.Rows.Add(ADALFile);
+                    string filePath = $@"{WindowsFolder}\{folderName}\{dllName}";
+                    ADALFile["FilePath"] = filePath;
+                    versionInfo = null;
+                    try
+                    {
+                        versionInfo = FileVersionInfo.GetVersionInfo(filePath);
+                    }
+                    catch (FileNotFoundException)
+                    {
+                        ADALFile["Message"] = "File not found";
+                    }
+                    ADALFile["Version"] = versionInfo == null ? "" : versionInfo.ProductVersion;
+                }
+            }
+
+            // enumerate registry keys
+
+            string[] keyNames = new string[] { @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\MSADALSQL", @"HKEY_LOCAL_MACHINE\SOFTWARE\WOW6432Node\Microsoft\MSADALSQL" };
+            string TargetValue = "";
+
+            foreach (string keyName in keyNames)
+            {
+                TargetValue = Utility.GetRegistryValueAsString(keyName, "TargetDir", RegistryValueKind.String, "");
+                ADALRegistry = dtADALRegistry.NewRow();
+                dtADALRegistry.Rows.Add(ADALRegistry);
+                ADALRegistry["RegPath"] = $@"{keyName}!TargetDir";
+                ADALRegistry["FilePath"] = TargetValue;
+                if (TargetValue == "")
+                {
+                    ADALRegistry["Message"] = "No redirection";
+                }
             }
         }
 

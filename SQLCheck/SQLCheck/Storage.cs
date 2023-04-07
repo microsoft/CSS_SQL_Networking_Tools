@@ -352,6 +352,32 @@ namespace SQLCheck
             ds.Tables.Add(dt);
 
             //
+            // ADAL DLLs
+            //
+
+            dt = new DataTable("ADALFile");
+            dt.AddColumn("ID", "Integer");
+            dt.Columns["ID"].AutoIncrement = true;
+            dt.AddColumn("ParentID", "Integer");
+            dt.AddColumn("FilePath", "String");
+            dt.AddColumn("Version", "String");
+            dt.AddColumn("Message", "String");
+            ds.Tables.Add(dt);
+
+            //
+            // ADAL Regsitry Keys
+            //
+
+            dt = new DataTable("ADALRegistry");
+            dt.AddColumn("ID", "Integer");
+            dt.Columns["ID"].AutoIncrement = true;
+            dt.AddColumn("ParentID", "Integer");
+            dt.AddColumn("RegPath", "String");
+            dt.AddColumn("FilePath", "String");
+            dt.AddColumn("Message", "String");
+            ds.Tables.Add(dt);
+
+            //
             // Process with our drivers in them (and maybe some other drivers and DLLs)
             //
 

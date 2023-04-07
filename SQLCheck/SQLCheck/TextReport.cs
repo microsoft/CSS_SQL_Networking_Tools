@@ -754,6 +754,56 @@ namespace SQLCheck
             s.WriteLine();
 
             //
+            // List ADAL files
+            //
+
+            DataTable dtADALFile = ds.Tables["ADALFile"];
+            rf = new ReportFormatter();
+
+            s.WriteLine("ADAL files present on this machine:");
+            s.WriteLine();
+
+            rf.SetColumnNames("Path:L", "Version:L", "Message:L");
+            foreach (DataRow ADALFile in dtADALFile.Rows)
+            {
+                rf.SetcolumnData(ADALFile.GetString("FilePath"),
+                                 ADALFile.GetString("Version"),
+                                 ADALFile.GetString("Message"));
+            }
+            s.WriteLine(rf.GetHeaderText());
+            s.WriteLine(rf.GetSeparatorText());
+            for (int i = 0; i < rf.GetRowCount(); i++)
+            {
+                s.WriteLine(rf.GetDataText(i));
+            }
+            s.WriteLine();
+
+            //
+            // List ADAL registry keys
+            //
+
+            DataTable dtADALRegistry = ds.Tables["ADALRegistry"];
+            rf = new ReportFormatter();
+
+            s.WriteLine("ADAL registry entries present on this machine:");
+            s.WriteLine();
+
+            rf.SetColumnNames("Registry Path:L", "ADAL DLL:L", "Message:L");
+            foreach (DataRow ADALRegistry in dtADALRegistry.Rows)
+            {
+                rf.SetcolumnData(ADALRegistry.GetString("RegPath"),
+                                 ADALRegistry.GetString("FilePath"),
+                                 ADALRegistry.GetString("Message"));
+            }
+            s.WriteLine(rf.GetHeaderText());
+            s.WriteLine(rf.GetSeparatorText());
+            for (int i = 0; i < rf.GetRowCount(); i++)
+            {
+                s.WriteLine(rf.GetDataText(i));
+            }
+            s.WriteLine();
+
+            //
             // Process Drivers
             //
             // A list of all the database drivers in each process that has them loaded
