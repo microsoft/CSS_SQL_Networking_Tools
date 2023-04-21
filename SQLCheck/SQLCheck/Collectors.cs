@@ -2349,7 +2349,7 @@ namespace SQLCheck
                             ds.Tables["SPNAccount"].Rows.Add(SPNAccount);
                             entry = result.GetDirectoryEntry();
                             SPNAccount["Account"] = tempAccount;
-                            SPNAccount["Domain"] = Domain["DomainShortName"].ToString(); ;
+                            SPNAccount["Domain"] = Domain["DomainShortName"].ToString();
                             SPNAccount["DistinguishedName"] = entry.Path;
                             UAC = entry.Properties["UserAccountControl"][0].ToInt();
                             SPNAccount["UserAccountControl"] = $"{UAC} (0x{UAC.ToString("X")})";
