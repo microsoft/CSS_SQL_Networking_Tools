@@ -95,7 +95,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0150.0
+                  SQLTrace.ps1 version 1.0.0152.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -731,7 +731,7 @@ Function StartNetworkTraces
             $result = invoke-expression $cmd
             LogInfo "NETSH: $result"
 			
-            $result = logman start SQLTraceNDIS -p Microsoft-Windows-NDIS-PacketCapture -mode newfile -max 200 -o "$($global:LogFolderName)\NetworkTraces\nettrace%d.etl" -ets
+            $result = logman start SQLTraceNDIS -p Microsoft-Windows-NDIS-PacketCapture -mode newfile -max 300 -o "$($global:LogFolderName)\NetworkTraces\nettrace%d.etl" -ets
             LogInfo "LOGMAN: $result"
 
             if ($global:INISettings.TCPEvents -eq "Yes")
@@ -781,12 +781,12 @@ Function StartNetworkTraces
             if ($global:INISettings.TruncatePackets -eq "Yes") { $PacketSize = 250; }   # same as netsh
             if ($global:INISettings.TCPEvents -eq "Yes")
             {                
-                $result = pktmon start -c -m multi-file --pkt-size $PacketSize -t -p Microsoft-Windows-TCPIP -p Microsoft-Windows-Winsock-AFD -p Microsoft-Windows-Winsock-NameResolution -p Microsoft-Windows-WFP -f "$($global:LogFolderName)\NetworkTraces\pktmon.etl"
+                $result = pktmon start -c -m multi-file --file-size 300 --pkt-size $PacketSize -t -p Microsoft-Windows-TCPIP -p Microsoft-Windows-Winsock-AFD -p Microsoft-Windows-Winsock-NameResolution -p Microsoft-Windows-WFP -f "$($global:LogFolderName)\NetworkTraces\pktmon.etl"
                 LogInfo "PKTMON with TCPIP and Winsock events: $result"
             }
             else
             {
-                $result = pktmon start -c -m multi-file --pkt-size $PacketSize -f "$($global:LogFolderName)\NetworkTraces\pktmon.etl"
+                $result = pktmon start -c -m multi-file --file-size 300 --pkt-size $PacketSize -f "$($global:LogFolderName)\NetworkTraces\pktmon.etl"
                 LogInfo "PKTMON: $result"
             }
 
@@ -976,7 +976,7 @@ Function StartAuthenticationTraces
 
         LogInfo "Enabling/Collecting Event Viewer Logs..."
         # Enable Eventvwr logging
-        $result = wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /ms:102400000 2>&1
+        $result = wevtutil.exe set-log "Microsoft-Windows-CAPI2/Operational" /enabled:true /ms:102400000 2>&1
         LogInfo "CAPI2 events: $result"
         $result = wevtutil.exe set-log "Microsoft-Windows-Kerberos/Operational" /enabled:true /rt:false /q:true 2>&1
         LogInfo "Kerberos events: $result"
