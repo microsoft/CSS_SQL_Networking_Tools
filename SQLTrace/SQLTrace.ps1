@@ -30,8 +30,8 @@ param
     [Parameter(ParameterSetName = 'Start', Mandatory=$true)]
     [switch] $Start,
 
-#    [Parameter(ParameterSetName = 'Start', Mandatory=$false)]
-#    [int] $StopAfter = [int]::Parse("0"),
+    [Parameter(ParameterSetName = 'Start', Mandatory=$false)]
+    [int] $StopAfter = [int]::Parse("0"),
 
     [Parameter(ParameterSetName = 'Stop', Mandatory=$true)]
     [switch] $Stop,
@@ -61,6 +61,7 @@ param
 
 $global:EventSourceName = "MSSQL-SQLTrace"   # For logging to the Application Event log
 $global:INISettings = $null                  # set in ReadINIFile
+$global:StopAfterMinutes = 0                 # set in StartTraces
 
 $PathsToClean = @{}                          # for DeleteOldFiles
 
@@ -95,7 +96,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0152.0
+                  SQLTrace.ps1 version 1.0.0167.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -140,7 +141,7 @@ Usage:
 
    .\SQLTrace.ps1 -Help
    .\SQLTrace.ps1 -Setup [-INIFile SQLTrace.ini]
-   .\SQLTrace.ps1 -Start [-INIFile SQLTrace.ini] [-LogFolder folderpath]
+   .\SQLTrace.ps1 -Start [-INIFile SQLTrace.ini] [-LogFolder folderpath] [-StopAfter minutes]
    .\SQLTrace.ps1 -Stop [-INIFile SQLTrace.ini]
    .\SQLTrace.ps1 -Cleanup [-INIFile SQLTrace.ini]
 "
@@ -418,6 +419,24 @@ Function StartTraces
 
     LogInfo "Traces have started..."
     Write-EventLog -LogName Application -Source $global:EventSourceName -EventID 3002 -Message "SQLTrace has started."
+
+    # StopAfter logic
+
+    if ($global:StopAfter -gt 0)
+    {
+        $global:StopAfterMinutes = $global:StopAfter
+        while ($global:StopAfterMinutes -gt 0)
+        {
+            LogInfo "The trace will stop after $($global:StopAfterMinutes) minutes."
+            Start-Sleep -Seconds 60
+            $global:StopAfterMinutes--
+        }
+        StopTraces
+    }
+    else
+    {
+        LogInfo "The trace will run until manually terminated with: .\SqlTrace.ps1 -stop"
+    }
 }
 
 Function FlushExistingTraces
