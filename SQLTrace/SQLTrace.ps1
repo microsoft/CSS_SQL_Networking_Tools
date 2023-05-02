@@ -96,7 +96,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0167.0
+                  SQLTrace.ps1 version 1.0.0171.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -422,12 +422,12 @@ Function StartTraces
 
     # StopAfter logic
 
-    if ($global:StopAfter -gt 0)
+    if ($StopAfter -gt 0)
     {
-        $global:StopAfterMinutes = $global:StopAfter
+        $global:StopAfterMinutes = $StopAfter
         while ($global:StopAfterMinutes -gt 0)
         {
-            LogInfo "The trace will stop after $($global:StopAfterMinutes) minutes."
+            LogInfo "The trace will automatically stop in $($global:StopAfterMinutes) minutes."
             Start-Sleep -Seconds 60
             $global:StopAfterMinutes--
         }
