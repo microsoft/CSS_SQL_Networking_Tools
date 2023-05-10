@@ -290,6 +290,7 @@ namespace SQLCheck
 
             // global network settings
 
+            DataTable dtComputer = ds.Tables["Computer"];
             DataTable dtNetwork = ds.Tables["Network"];
             DataTable dtNetworkAdapter = ds.Tables["NetworkAdapter"];
             DataTable dtHostAlias = ds.Tables["HostAlias"];
@@ -377,6 +378,20 @@ namespace SQLCheck
             }
             filterNames = filterNames == "" ? "<none>" : filterNames.Substring(FltMCDelimiter.Length);   // trim the initial ' | ' ... 3 characters
             s.WriteLine($"FLTMC Filters: {filterNames}");
+            s.WriteLine();
+
+            // vmnetflt.sys
+
+            DataRow drComputer = dtComputer.Rows[0];
+            if (drComputer.GetBoolean("VNetFltExists"))
+            {
+                s.WriteLine("Warning: The vnetflt.sys driver is installed on this machine. This could cause delayed packets or other issues.");
+                s.WriteLine("See https://kb.vmware.com/s/article/2148218 for symptoms and how to disable.");
+            }
+            else
+            {
+                s.WriteLine("Info: The vmnetflt.sys driver is not installed on this machine.");
+            }
             s.WriteLine();
 
             // network mini drivers

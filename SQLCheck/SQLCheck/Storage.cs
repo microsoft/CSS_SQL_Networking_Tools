@@ -153,6 +153,7 @@ namespace SQLCheck
             dt.AddColumn("RebootNeeded", "Boolean");
             dt.AddColumn("LastSystemReboot", "DateTime");    // added to display last system reboot  clintonw 9/8/2022
             dt.AddColumn("CredentialGuard", "Boolean");
+            dt.AddColumn("VNetFltExists", "Boolean");  // VMWare driver that may cause packet delays
             ds.Tables.Add(dt);
 
             //

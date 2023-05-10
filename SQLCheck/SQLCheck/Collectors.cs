@@ -391,7 +391,17 @@ namespace SQLCheck
             {
                 if (SystemEventLog != null) SystemEventLog.Close();
             }
-            
+
+            //
+            // Check for existance of VMWARE's vnetflt.sys driver
+            // May cause network delays or other instability. See: https://kb.vmware.com/s/article/2148218 for symptoms and how to disable.
+            //
+            // HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\services\vnetflt\
+            //
+
+            string vNetFltExists = Utility.CheckRegistryKeyExists(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\services\vnetflt");
+            Computer["VNetFltExists"] = vNetFltExists == "1" ? true : false;
+
         }
 
         public static void CollectDomain(DataSet ds)
