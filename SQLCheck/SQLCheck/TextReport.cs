@@ -390,7 +390,7 @@ namespace SQLCheck
             }
             else
             {
-                s.WriteLine("Info: The vmnetflt.sys driver is not installed on this machine.");
+                s.WriteLine("Info: The vnetflt.sys driver is not installed on this machine.");
             }
             s.WriteLine();
 
