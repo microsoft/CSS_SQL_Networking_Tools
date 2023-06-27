@@ -67,7 +67,7 @@ namespace SQLNA
                 rf.SetcolumnData(Trace.files.IndexOf(f).ToString(),
                                  f.filePath,
                                  (new DateTime(f.startTick)).ToString(utility.DATE_FORMAT),
-                                 (new DateTime(f.endTick)).ToString(utility.TIME_FORMAT),
+                                 (new DateTime(f.endTick)).ToString(utility.DATE_FORMAT),
                                  f.frameCount.ToString("#,##0"),
                                  f.fileSize.ToString("#,##0"));
             }

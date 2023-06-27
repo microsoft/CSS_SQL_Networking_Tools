@@ -96,7 +96,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0171.0
+                  SQLTrace.ps1 version 1.0.0183.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -668,24 +668,25 @@ Function StartDeleteOldFiles
     {
         $PathToClean = $FilesToDelete[$Name]
         $FileSpec = $PathToClean[0]
-        $MinMinutes = $PathToClean[1] -as [int]
-        $MinFiles = $PathToClean[2] -as  [int]
+        $MinMinutes = $PathToClean[1]
+        $MinFiles = $PathToClean[2]
         "$Name=$fileSpec, Min Minutes=$MinMinutes, Min Files=$MinFiles"
     }
 
     $jobname = "DeleteOldFiles"
   
     $job=Register-ScheduledJob  -Name "DeleteOldFiles" -scriptblock {  
-        Param($FilesToDelete)
+        Param ( $FilesToDelete )
         foreach ($Name in $FilesToDelete.Keys)
         {
             $PathToClean = $FilesToDelete[$Name]
             $FileSpec = $PathToClean[0]
             $MinMinutes = $PathToClean[1] -as [int]
-            $MinFiles = $PathToClean[2] -as [int]
+            $MinFiles = $PathToClean[2] -as  [int]
             get-item $FileSpec | sort-object -property LastWriteTime -descending | select -skip $MinFiles | where-object {$_.LastWriteTime -lt ((get-date).AddMinutes($MinMinutes * -1))}  | remove-item -force
+#           get-item $FileSpec | sort-object -property LastWriteTime -descending | select -skip 5 | where-object {$_.LastWriteTime -lt ((get-date).AddMinutes(5 * -1))}  | remove-item -force
         }
-    } -ArgumentList $FilesToDelete 
+    } -ArgumentList $FilesToDelete
     $job.Options.RunElevated=$True
     $cleanupJob=New-JobTrigger -Once -At (get-date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Minutes 5) -RepeatIndefinitely   # runs once every 5 minutes
     Add-JobTrigger -Trigger $cleanupjob -Name $jobname    
@@ -857,7 +858,7 @@ Function StartAuthenticationTraces
             }
 
             # Values for DeleteOldFiles
-            $CleanupValues = "$($global:LogFolderName)\NetworkTraces\Kerberos*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
+            $CleanupValues = "$($global:LogFolderName)\Auth\Kerberos*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
             $PathsToClean.Add("Kerberos", $CleanupValues)
         }
         
@@ -889,7 +890,7 @@ Function StartAuthenticationTraces
             }
 
             # Values for DeleteOldFiles
-            $CleanupValues = "$($global:LogFolderName)\NetworkTraces\Ntlm_CredSSP*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
+            $CleanupValues = "$($global:LogFolderName)\Auth\Ntlm_CredSSP*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
             $PathsToClean.Add("NTLM", $CleanupValues)
         }
         
@@ -918,7 +919,7 @@ Function StartAuthenticationTraces
             }
 
             # Values for DeleteOldFiles
-            $CleanupValues = "$($global:LogFolderName)\NetworkTraces\SSL*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
+            $CleanupValues = "$($global:LogFolderName)\Auth\SSL*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
             $PathsToClean.Add("SSL", $CleanupValues)
         }
 
@@ -983,7 +984,7 @@ Function StartAuthenticationTraces
             }
 
             # Values for DeleteOldFiles
-            $CleanupValues = "$($global:LogFolderName)\NetworkTraces\LSA*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
+            $CleanupValues = "$($global:LogFolderName)\Auth\LSA*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
             $PathsToClean.Add("LSA", $CleanupValues)
         }
 
