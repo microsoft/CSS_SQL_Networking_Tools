@@ -972,8 +972,13 @@ namespace SQLCheck
                     s.WriteLine($"Authentication Mode:        {SQLServer.GetString("AuthenticationMode")}");
                     s.WriteLine($"Certificate:                {SQLServer.GetString("Certificate")}");
                     s.WriteLine($"ForceEncryption:            {SQLServer.GetBoolean("ForceEncryption")}");
-                    s.WriteLine($"Hidden Instance:            {SQLServer.GetBoolean("Hidden")}");
 
+                    // Force Strict is not supported if SQL Version is 2019 (15.xxx) or less
+                    string ForceStrict = Utility.CompareVersion(SQLServer.GetString("Version"), "15") == ">" ? $"{SQLServer.GetBoolean("ForceStrict")}" : "Not supported";
+                    s.WriteLine($"ForceStrict:                {ForceStrict}");
+
+                    s.WriteLine($"Hidden Instance:            {SQLServer.GetBoolean("Hidden")}");
+                    
                     string exp = SQLServer.GetString("ExtendedProtection");
                     string extProt = exp == "Off" ? "Off" : $"On ({SQLServer.GetString("ExtProtSPNs")})";
                     s.WriteLine($"Extended Protection:        {extProt}");

@@ -2896,6 +2896,7 @@ namespace SQLCheck
                         SQLServer["Certificate"] = line + msg + ")";  // thumbprint + problems, if any
                     }
                     SQLServer["ForceEncryption"] = (SSNetLib.GetValue("Encrypt", 0).ToInt() != 0 || SSNetLib.GetValue("ForceEncryption", 0).ToInt() != 0);
+                    SQLServer["ForceStrict"] = SSNetLib.GetValue("ForceStrict", 0).ToInt() != 0;
                     bool hidden = SSNetLib.GetValue("HideInstance", 0).ToInt() != 0;
                     SQLServer["Hidden"] = hidden;
                     if (hidden == true) SQLServer.LogWarning("This instance is hidden from showing in the SQL Browser.");

@@ -532,6 +532,7 @@ namespace SQLCheck
             dt.AddColumn("ExtendedProtection", "String");
             dt.AddColumn("ExtProtSPNs", "String");
             dt.AddColumn("ForceEncryption", "Boolean");
+            dt.AddColumn("ForceStrict", "Boolean");
             dt.AddColumn("SharedMemoryEnabled", "Boolean");
             dt.AddColumn("PipesEnabled", "Boolean");
             dt.AddColumn("PipeName", "String");
