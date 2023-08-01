@@ -933,31 +933,13 @@ namespace SQLCheck
             if (prot != null)
             {
                 string[] po = (string[])prot;
-                // RegStrings is before the annotation
                 ProtocolOrder["RegistryList"] = string.Join(",", po);
             }
 
             // From HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Cryptography\Configuration\SSL\00010002 ! Functions REG_SZ, comma-delimited
 
-            prot = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Cryptography\Configuration\SSL\00010002", "Functions", null);
+            ProtocolOrder["PolicyList"] = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Cryptography\Configuration\SSL\00010002", "Functions", "");
 
-            if (prot != null)
-            {
-                string[] po = (string[])prot;
-                // RegStrings is before the annotation
-                ProtocolOrder["PolicyList"] = string.Join(",", po);
-
-                // Warn if the Protocol List has entries that arent in the ReistryList
-                if (po.Length > 0)
-                {
-                    string[] RegStrings = ProtocolOrder.GetString("RegistryList").Trim().Split(',');
-                    string[] PolStrings = ProtocolOrder.GetString("PolicyList").Trim().Split(',');
-                    var comp = new StringIgnoreCaseComparer();
-                    var ExtraStrings = PolStrings.Except(RegStrings, comp);
-                    ExtraStrings.ToList().ForEach(s => ProtocolOrder.LogWarning($"Cipher Suite '{s}' appears in the Protocol List but not in the Registry List."));
-                }
-            }
-            
             // Warn if the Protocol List has entries that arent in the ReistryList
             if (ProtocolOrder.GetString("PolicyList").Trim().Length > 0)
             {
@@ -2098,7 +2080,14 @@ namespace SQLCheck
                     if (cert.NotBefore > DateTime.Now) msg += ", Future cert";
                     Certificate["NotAfter"] = cert.NotAfter.ToString();
                     if (cert.NotAfter < DateTime.Now) msg += ", Expired cert";
-                    Certificate["KeySize"] = cert.PublicKey.Key.KeySize.ToString();
+                    try
+                    {
+                        Certificate["KeySize"] = cert.PublicKey.Key.KeySize.ToString();
+                    }
+                    catch (NotSupportedException)
+                    {
+                        msg += ", Unsupported key type";
+                    }
                     Certificate["SignatureAlgorithm"] = cert.SignatureAlgorithm.FriendlyName;
 
                     if (cert.PublicKey.Key.GetType().ToString() == "System.Security.Cryptography.RSACryptoServiceProvider")
@@ -3116,6 +3105,20 @@ namespace SQLCheck
 
             searchText = "was successfully loaded for encryption.";
             SQLServer["Certificate"] = SmartString.GetStringLine(el, searchText, true);  // temporary holding place
+
+            line = SmartString.GetStringLine(el, "user connections has already been reached.");
+            if (line != "")
+            {
+                string userConnectionLimit = SmartString.GetBetween(line, "number of '", "'");
+                if (userConnectionLimit == "32767")
+                {
+                    SQLServer.LogWarning("SQL Server has recently reached the connection limit of 32767 connections.");
+                }
+                else
+                {
+                    SQLServer.LogWarning($"SQL Server has recently reached the connection limit of {userConnectionLimit} connections. This is lower than the 32767 upper limit.");
+                }
+            }
 
             bool alwaysOn = SmartString.GetStringLine(el, "Always On Availability Groups:") != "";
             SQLServer["AlwaysOn"] = alwaysOn;
