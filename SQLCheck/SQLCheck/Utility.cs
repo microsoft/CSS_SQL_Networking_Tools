@@ -496,6 +496,112 @@ namespace SQLCheck
         }
 
         //
+        // Takes a cipher suite name and annotes it with a suffix to indicate what versions of TLS it supports.
+        // Adds the word 'weak' if not supported by the strong crypto flag.
+        //
+        // Ref: https://learn.microsoft.com/en-us/windows/win32/secauthn/tls-cipher-suites-in-windows-11-v22h2
+        // and related pages
+        public static string AnnotateCipherSuite(string name)
+        {
+            switch (name.ToUpper())
+            {
+                // TLS 1.3
+                case "TLS_AES_256_GCM_SHA384": return $"{name} (TLS 1.3)";
+                case "TLS_AES_128_GCM_SHA256": return $"{name} (TLS 1.3)";
+                case "TLS_CHACHA20_POLY1305_SHA256": return $"{name} (TLS 1.3)";
+                // TLS 1.2
+                case "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_RSA_WITH_AES_128_GCM_SHA256": return $"{name} (TLS 1.2)";
+                case "TLS_DHE_RSA_WITH_AES_256_GCM_SHA384": return $"{name} (TLS 1.2)";
+                case "TLS_DHE_RSA_WITH_AES_128_GCM_SHA256": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256": return $"{name} (TLS 1.2)";
+                case "TLS_RSA_WITH_AES_256_GCM_SHA384": return $"{name} (TLS 1.2)";
+                case "TLS_RSA_WITH_AES_128_GCM_SHA256": return $"{name} (TLS 1.2)";
+                case "TLS_RSA_WITH_AES_256_CBC_SHA256": return $"{name} (TLS 1.2)";
+                case "TLS_RSA_WITH_AES_128_CBC_SHA256": return $"{name} (TLS 1.2)";
+                case "TLS_DHE_DSS_WITH_AES_256_CBC_SHA256": return $"{name} (TLS 1.2)";
+                case "TLS_DHE_DSS_WITH_AES_128_CBC_SHA256": return $"{name} (TLS 1.2)";
+                // TLS 1.2 - Pre Windows 10 cipher suites - same as the ones above without the _Pxxx suffix
+                case "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_P256": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA384_P384": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256_P256": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256_P384": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384_P384": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256_P256": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256_P384": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384_P384": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256_P256": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256_P384": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA256_P521": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_256_GCM_SHA384_P521": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_128_GCM_SHA256_P521": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA384_P521": return $"{name} (TLS 1.2)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA256_P521": return $"{name} (TLS 1.2)";
+                // TLS 1.2, weak
+                case "TLS_RSA_WITH_NULL_SHA256": return $"{name} (TLS 1.2, weak)";
+                // TLS 1.2, 1.1, 1.0
+                case "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_RSA_WITH_AES_256_CBC_SHA": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_RSA_WITH_AES_128_CBC_SHA": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_DHE_RSA_WITH_AES_256_CBC_SHA": return $"{ name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_DHE_RSA_WITH_AES_128_CBC_SHA": return $"{ name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_DHE_DSS_WITH_AES_256_CBC_SHA": return $"{ name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_DHE_DSS_WITH_AES_128_CBC_SHA": return $"{ name} (TLS 1.2, 1.1, 1.0)";
+                // TLS 1.2, 1.1, 1.0 - Pre Windows 10 cipher suites - same as the ones above without the _Pxxx suffix
+                case "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA_P256": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA_P384": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA_P256": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA_P384": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA_P256": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA_P384": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA_P256": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA_P384": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_ECDHE_RSA_WITH_AES_256_CBC_SHA_P521": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_ECDHE_RSA_WITH_AES_128_CBC_SHA_P521": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_256_CBC_SHA_P521": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                case "TLS_ECDHE_ECDSA_WITH_AES_128_CBC_SHA_P521": return $"{name} (TLS 1.2, 1.1, 1.0)";
+                // TLS 1.2, 1.1, 1.0, weak
+                case "TLS_RSA_WITH_3DES_EDE_CBC_SHA": return $"{name} (TLS 1.2, 1.1, 1.0, weak)";
+                // TLS 1.2, 1.1, 1.0, SSL 3.0, weak
+                case "TLS_RSA_WITH_NULL_SHA": return $"{name} (TLS 1.2, 1.1, 1.0, SSL 3.0, weak)";
+                case "TLS_DHE_DSS_WITH_3DES_EDE_CBC_SHA": return $"{name} (TLS 1.2, 1.1, 1.0, SSL 3.0, weak)";
+                case "TLS_RSA_WITH_RC4_128_SHA": return $"{name} (TLS 1.2, 1.1, 1.0, SSL 3.0, weak)";
+                case "TLS_RSA_WITH_RC4_128_MD5": return $"{name} (TLS 1.2, 1.1, 1.0, SSL 3.0, weak)";
+                case "TLS_RSA_WITH_DES_CBC_SHA": return $"{name} (TLS 1.2, 1.1, 1.0, SSL 3.0, weak)";
+                case "TLS_DHE_DSS_WITH_DES_CBC_SHA": return $"{name} (TLS 1.2, 1.1, 1.0, SSL 3.0, weak)";
+                case "TLS_DHE_DSS_EXPORT1024_WITH_DES_CBC_SHA": return $"{name} (TLS 1.2, 1.1, 1.0, SSL 3.0, weak)";
+                case "TLS_RSA_WITH_NULL_MD5": return $"{name} (TLS 1.2, 1.1, 1.0, SSL 3.0, weak)";
+                case "TLS_RSA_EXPORT1024_WITH_RC4_56_SHA": return $"{name} (TLS 1.2, 1.1, 1.0, SSL 3.0, weak)";
+                case "TLS_RSA_EXPORT_WITH_RC4_40_MD5": return $"{name} (TLS 1.2, 1.1, 1.0, SSL 3.0, weak)";
+                case "TLS_RSA_EXPORT1024_WITH_DES_CBC_SHA": return $"{name} (TLS 1.2, 1.1, 1.0, SSL 3.0, weak)";
+                // SSL 2.0
+                case "SSL_CK_DES_192_EDE3_CBC_WITH_MD5": return $"{name} (SSL 2.0)";
+                case "SSL_CK_DES_64_CBC_WITH_MD5": return $"{name} (SSL 2.0)";
+                // SSL 2.0, weak
+                case "SSL_CK_RC4_128_WITH_MD5": return $"{name} (SSL 2.0, weak)";
+                case "SSL_CK_RC4_128_EXPORT40_WITH_MD5": return $"{name} (SSL 2.0, weak)";
+                // PSK TLS 1.2
+                case "TLS_PSK_WITH_AES_256_GCM_SHA384": return $"{name} (TLS 1.2)";
+                case "TLS_PSK_WITH_AES_128_GCM_SHA256": return $"{name} (TLS 1.2)";
+                case "TLS_PSK_WITH_AES_256_CBC_SHA384": return $"{name} (TLS 1.2)";
+                case "TLS_PSK_WITH_AES_128_CBC_SHA256": return $"{name} (TLS 1.2)";
+                // PSK TLS 1.2, weak
+                case "TLS_PSK_WITH_NULL_SHA384": return $"{name} (TLS 1.2, weak)";
+                case "TLS_PSK_WITH_NULL_SHA256": return $"{name} (TLS 1.2, weak)";
+                // anything else - return undecorated
+                default: return name;
+            }
+        }
+
+        //
         // Version Number Helper Methods
         //
 

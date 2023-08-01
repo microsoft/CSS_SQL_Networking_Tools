@@ -699,11 +699,18 @@ namespace SQLCheck
             // Lanman compatibility Level - affects NTLM connections but not Kerberos connections
             //
 
-            string lanmanCompatibilityLevel = Utility.GetRegistryValueAsString(@"HKLM\SYSTEM\CurrentControlSet\Control\Lsa", "LMCompatibilityLevel", RegistryValueKind.DWord, 0);
-            string lanmanDesc = Utility.LanmanNames(lanmanCompatibilityLevel);
-            Security["LanmanCompatibilityLevel"] = lanmanDesc == "" ? lanmanCompatibilityLevel : $"{lanmanCompatibilityLevel} ({lanmanDesc})";
-            Security.CheckRange("LanmanCompatibilityLevel", lanmanCompatibilityLevel, 0, 7);
-            if (lanmanCompatibilityLevel.CompareTo("3") < 0) Security.LogWarning("LanmanCompatibilityLevel: The setting may be too low.");
+            string lanmanCompatibilityLevel = Utility.GetRegistryValueAsString(@"HKLM\SYSTEM\CurrentControlSet\Control\Lsa", "LMCompatibilityLevel", RegistryValueKind.DWord, "");
+            if (lanmanCompatibilityLevel == "")
+            {
+                Security["LanmanCompatibilityLevel"] = $"Not specified - default: 5 ({Utility.LanmanNames("5")})";
+            }
+            else
+            {
+                string lanmanDesc = Utility.LanmanNames(lanmanCompatibilityLevel);
+                Security["LanmanCompatibilityLevel"] = lanmanDesc == "" ? lanmanCompatibilityLevel : $"{lanmanCompatibilityLevel} ({lanmanDesc})";
+                Security.CheckRange("LanmanCompatibilityLevel", lanmanCompatibilityLevel, 0, 7);
+                if (lanmanCompatibilityLevel.CompareTo("3") < 0) Security.LogWarning("LanmanCompatibilityLevel: The setting may be too low.");
+            }
 
 
             //
@@ -926,13 +933,31 @@ namespace SQLCheck
             if (prot != null)
             {
                 string[] po = (string[])prot;
+                // RegStrings is before the annotation
                 ProtocolOrder["RegistryList"] = string.Join(",", po);
             }
 
             // From HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Cryptography\Configuration\SSL\00010002 ! Functions REG_SZ, comma-delimited
 
-            ProtocolOrder["PolicyList"] = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Cryptography\Configuration\SSL\00010002", "Functions", null);
+            prot = Registry.GetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Policies\Microsoft\Cryptography\Configuration\SSL\00010002", "Functions", null);
 
+            if (prot != null)
+            {
+                string[] po = (string[])prot;
+                // RegStrings is before the annotation
+                ProtocolOrder["PolicyList"] = string.Join(",", po);
+
+                // Warn if the Protocol List has entries that arent in the ReistryList
+                if (po.Length > 0)
+                {
+                    string[] RegStrings = ProtocolOrder.GetString("RegistryList").Trim().Split(',');
+                    string[] PolStrings = ProtocolOrder.GetString("PolicyList").Trim().Split(',');
+                    var comp = new StringIgnoreCaseComparer();
+                    var ExtraStrings = PolStrings.Except(RegStrings, comp);
+                    ExtraStrings.ToList().ForEach(s => ProtocolOrder.LogWarning($"Cipher Suite '{s}' appears in the Protocol List but not in the Registry List."));
+                }
+            }
+            
             // Warn if the Protocol List has entries that arent in the ReistryList
             if (ProtocolOrder.GetString("PolicyList").Trim().Length > 0)
             {
@@ -1750,7 +1775,8 @@ namespace SQLCheck
                                                "msodbcsql11.dll",  "msodbcsql13.dll", "msodbcsql17.dll", "msoledbsql.dll",         "sqlnclirda11.dll",
                                                // some non SQL driver DLLs
                                                "aceodbc.dll",      "aceoledb.dll",    "msolap.dll",      "activeds.dll",           "odbcjt32.dll",
-                                               "msjetoledb40.dll", "ibmdadb2.dll",    "ibmdadb264.dll",  "system.data.entity.dll", "system.data.oracleclient.dll"
+                                               "msjetoledb40.dll", "ibmdadb2.dll",    "ibmdadb264.dll",  "system.data.entity.dll", "system.data.oracleclient.dll",
+                                               "microsoft.data.sqlclient.dll",        "java.exe",        "jvm.dll",                "javaw.exe"
                                                };
 
             // get command results - output the data in CSV format, 3 columns; the last has sub-columns in it
@@ -1859,7 +1885,7 @@ namespace SQLCheck
             RegistryKey aliasKey = null;
             string[] aliases = null, parts = null;
             bool is64bit = Computer["CPU64Bit"].ToBoolean();
-            string[] regPath = new string[] { @"SOFTWARE\Microsoft\MSSQLServer\Client\ConnectTo", @"SOFTWARE\WOW6432Node\MSSQLServer\Client\ConnectTo" };
+            string[] regPath = new string[] { @"SOFTWARE\Microsoft\MSSQLServer\Client\ConnectTo", @"SOFTWARE\WOW6432Node\Microsoft\MSSQLServer\Client\ConnectTo" };
             int loopCount = is64bit ? 2 : 1; // only look to Wow64 registry path if on a 64-bit system
             string redirectsTo = "";
 
@@ -2271,7 +2297,7 @@ namespace SQLCheck
             int NOT_DELEGATED = 1048576;                     //  0x00100000
             int USE_DES_KEY_ONLY = 2097152;                  //  0x00200000
             int PASSWORD_EXPIRED = 8388608;                  //  0x00800000
-            int TRUSTED_TO_AUTH_FOR_DELEGATION = 16777216;   //  0x01000000   
+            int TRUSTED_TO_AUTH_FOR_DELEGATION = 16777216;   //  0x01000000   allow protocol transition - we aren't distinguishing this right now
 
             DataRow Computer = ds.Tables["Computer"].Rows[0];
             DataRow SPNAccount = null;
@@ -2401,7 +2427,7 @@ namespace SQLCheck
                             CollectSPN(ds, SPNAccount, entry.Path);
 
                             // Get constrained delegation SPNs for this account
-                            bool constrained = entry.Properties["msDS-AllowedToDelegateTo"].Count > 0;
+                            bool constrained = (entry.Properties["msDS-AllowedToDelegateTo"].Count > 0);
                             SPNAccount["ConstrainedDelegationEnabled"] = constrained;
                             if (constrained) // get SPNs for constrained delegation
                             {
@@ -3191,14 +3217,14 @@ namespace SQLCheck
                                     SuggestedSPN = dtSuggestedSPN.NewRow();
                                     dtSuggestedSPN.Rows.Add(SuggestedSPN);
                                     SuggestedSPN["ParentID"] = SQLServer["ID"];
-                                    suggestedSPN = $@"{spnPrefixF}:{portNumber}";  // FQDN
+                                    suggestedSPN = $@"{spnPrefixF}:{portNumber.Trim()}";  // FQDN
                                     SuggestedSPN["SPNNAme"] = suggestedSPN;
                                     CheckSPN(ds, SQLServer, SuggestedSPN, suggestedSPN, SPNServiceAccount);
 
                                     SuggestedSPN = dtSuggestedSPN.NewRow();
                                     dtSuggestedSPN.Rows.Add(SuggestedSPN);
                                     SuggestedSPN["ParentID"] = SQLServer["ID"];
-                                    suggestedSPN = $@"{spnPrefixN}:{portNumber}";  // NETBIOS name
+                                    suggestedSPN = $@"{spnPrefixN}:{portNumber}.Trim()";  // NETBIOS name
                                     SuggestedSPN["SPNNAme"] = suggestedSPN;
                                     CheckSPN(ds, SQLServer, SuggestedSPN, suggestedSPN, SPNServiceAccount);
                                 }

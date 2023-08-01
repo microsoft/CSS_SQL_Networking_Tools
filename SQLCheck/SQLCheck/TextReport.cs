@@ -508,10 +508,11 @@ namespace SQLCheck
                 }
                 rf = new ReportFormatter();
                 rf.SetColumnNames("Registry List:L", "Policy List:L");
+                
                 for (int i = 0; i < Math.Max(registryList.Length, policyList.Length); i++)  // loop for the longest array
                 {
-                    rf.SetcolumnData(i < registryList.Length ? registryList[i] : "",
-                                     i < policyList.Length ? policyList[i] : "");
+                    rf.SetcolumnData(i < registryList.Length ? Utility.AnnotateCipherSuite(registryList[i]) : "",
+                                     i < policyList.Length ? Utility.AnnotateCipherSuite(policyList[i]) : "");
                 }
                 s.WriteLine(rf.GetHeaderText());
                 s.WriteLine(rf.GetSeparatorText());

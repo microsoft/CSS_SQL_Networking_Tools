@@ -43,6 +43,10 @@ namespace SQLCheck
             //
             // https://docs.microsoft.com/en-us/windows/win32/secauthn/protocols-in-tls-ssl--schannel-ssp-
             //
+            // Confirmed with the SCHANNEL team that TLS 1.3 is not supported by any version of Windows 10 or 2019.
+            // Some TLS 1.3 cipher suites may appear in the list on Windows 10 and 2019, but that was for TLS 1.3 proofing before releasing Windows 11 and 2022.
+            // There is no actual support for TLS 1.3 before Windows 11 or 2022.
+            //
             // Windows Version                                 Version #   Build #  SSL 2 Client  SSL 2 Server  SSL3        TLS 1.0     TLS 1.1     TLS 1.2     TLS 1.3
             // ----------------------------------------------  ----------  -------  ------------  ------------  ----------  ----------  ----------  ----------  ----------
             // Windows Vista / Windows Server 2008             NT 6.0        older  Disabled      Enabled       Enabled     Enabled     Not Supp    Not Supp    Not SUpp
@@ -57,10 +61,10 @@ namespace SQLCheck
             //
             // Windows 10, version 1607 / Windows Server 2016  10.0          14393  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Not Supp      Change
             // Windows 10, version 1809 / Windows Server 2019  10.0          17763  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Not Supp
-            // Windows 10, version 20H2 / Windows Server 2019  10.0          19042  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Enabled       Change
-            // Windows 10, version 21H1 / Windows Server 2019  10.0          19043  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Enabled
+            // Windows 10, version 20H2 / Windows Server 2019  10.0          19042  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Not Supp
+            // Windows 10, version 21H1 / Windows Server 2019  10.0          19043  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Not Supp
             //
-            // Windows 11, version 21H2                        10.0          22000  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Enabled
+            // Windows 11, version 21H2                        10.0          22000  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Enabled       Change
             // Windows Server 2022, wersion 21H2               10.0          20348  Not Supp      Not Supp      Disabled    Enabled     Enabled     Enabled     Enabled
 
 
@@ -69,12 +73,12 @@ namespace SQLCheck
             string WindowsBuild = Computer.GetString("WindowsBuild");
             string WindowsName = Computer.GetString("WindowsName");
 
-            // Windows 11, Windows 2022, Windows 10 versions 19042 and greater - Windows 2019 is in there somewhere, as well
-            if (Utility.CompareVersion(WindowsVersion, "10.0.19041") == ">") // Windows 11, Windows 2022, Windows 10/2019 versions 19042 and greater
+            // Windows 11, Windows 2022 and above
+            if (Utility.CompareVersion(WindowsVersion, "10.0.20000") == ">") // Windows 11, Windows 2022, Windows 10/2019 versions 19042 and greater
             {
                 return new TLSInfo("Not Supported", "Not Supported", "Disabled", "Enabled", "Enabled", "Enabled", "Enabled");
             }
-            // Windows 2016 / Windows 10 Build 1607
+            // Windows 2016, 2019 / Windows 10 Build 1607 and above
             else if (Utility.CompareVersion(WindowsVersion, "10.0.14392") == ">")  // starts with 10.0.14393
             {
                 return new TLSInfo("Not Supported", "Not Supported", "Disabled", "Enabled", "Enabled", "Enabled", "Not Supported");
