@@ -3227,7 +3227,7 @@ namespace SQLCheck
                                     SuggestedSPN = dtSuggestedSPN.NewRow();
                                     dtSuggestedSPN.Rows.Add(SuggestedSPN);
                                     SuggestedSPN["ParentID"] = SQLServer["ID"];
-                                    suggestedSPN = $@"{spnPrefixN}:{portNumber}.Trim()";  // NETBIOS name
+                                    suggestedSPN = $@"{spnPrefixN}:{portNumber.Trim()}";  // NETBIOS name
                                     SuggestedSPN["SPNNAme"] = suggestedSPN;
                                     CheckSPN(ds, SQLServer, SuggestedSPN, suggestedSPN, SPNServiceAccount);
                                 }
@@ -3241,7 +3241,7 @@ namespace SQLCheck
                     // SPNs for Named Pipes
                     if (SQLServer.GetBoolean("PipesEnabled") || SQLServer.GetBoolean("SharedMemoryEnabled"))
                     {
-                        instanceName = SQLInstance.GetString("InstanceName");
+                        instanceName = SQLInstance.GetString("InstanceName").Trim();
                         if (instanceName.Equals("MSSqlServer", StringComparison.CurrentCultureIgnoreCase))
                         {
                             SuggestedSPN = dtSuggestedSPN.NewRow();
