@@ -96,7 +96,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0183.0
+                  SQLTrace.ps1 version 1.0.0184.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -761,9 +761,9 @@ Function StartNetworkTraces
                 $result = logman update trace ndiscap -p Microsoft-Windows-TCPIP -ets
                 LogInfo "LOGMAN TCPIP Events: $result"
                 $result = logman update trace ndiscap -p Microsoft-Windows-WFP -ets
-                LogInfo "LOGMAN TCPIP Events: $result"
+                LogInfo "LOGMAN Windows Firewall Events: $result"
                 $result = logman update trace ndiscap -p Microsoft-Windows-Winsock-NameResolution -ets
-                LogInfo "LOGMAN TCPIP Events: $result"
+                LogInfo "LOGMAN DNS Events: $result"
             }
 
             # Values for DeleteOldFiles
