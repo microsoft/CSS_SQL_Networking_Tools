@@ -21,6 +21,7 @@ namespace SQLNA
         public long ticks;				   // Absolute ticks of frame (calculated)
         public byte[] data;		   	       // Byte data for frame.
         public long length = 0;		       // Length of data in bytes.
+        public bool isNDIS = false;        // ETLFileReader sets this - if false, use the linkType to determine the parser
         public bool isPKTMON = false;      // ETLFileReader sets this - if false, use the linkType to determine the parser
         public bool isWFP = false;         // ETLFileReader sets this - if false, use the linkType to determine the parser
         public ushort EventType = 0;       // ETLFileReader sets this

@@ -274,7 +274,7 @@ namespace SQLNA
                                     }
                                 case 6:  // WiFi
                                     {
-                                        ParseWifiFrame(frame.data, 0, t, f); // TODO flesh this out
+                                        ParseWifiFrame(frame.data, 0, t, f, frame.isNDIS); // TODO flesh this out
                                                                              // Test file: \Documents\Interesting Network Traces\WifiTrace\
                                         break;
                                     }
@@ -388,6 +388,8 @@ namespace SQLNA
                 case 0x0800:   // IPV4
                     ParseIPV4Frame(b, offset, t, f);
                     break;
+                case 0x0806:   // ARP - ignore and do not log
+                    break;
                 case 0x8100:   // 802.1Q
                     Parse8021QFrame(b, offset, t, f);
                     break;
@@ -397,6 +399,8 @@ namespace SQLNA
                 case 0x88BE:   // ERSPAN Type II
                 case 0x22EB:   // ERSPAN Type III
                     ParseERSPANFrame(b, offset, t, f);
+                    break;
+                case 0x88CC:   // LLDP - 802.1 Link Layer Discovery Protocol - ignore and do not log
                     break;
                 case 0x8926:   // VNETTag
                     ParseVNTagFrame(b, offset, t, f);
@@ -499,6 +503,7 @@ namespace SQLNA
             Boolean isWifi = false;
             Boolean isFragment = false;
             Boolean isPktmon = false;
+            Boolean isNDIS = false;
             ushort userDataLength = 0;
             uint ETLFragmentSize = 0;
 
@@ -515,8 +520,9 @@ namespace SQLNA
             byte[] GuidBytes = new byte[16];
             Array.Copy(b, offset, GuidBytes, 0, 16);
             Guid ProviderID = new Guid(GuidBytes); // 0x6E00D62E29470946B4233EE7BCD678EF yields GUID {2ed6006e-4729-4609-b423-3ee7bcd678ef}
+            isNDIS = ProviderID.Equals(NDIS);
             isPktmon = ProviderID.Equals(PKTMON);
-            if (!ProviderID.Equals(NDIS) && !isPktmon) return;  // not the provider we want
+            if (!isNDIS && !isPktmon) return;  // not the provider we want
             offset += 16;
 
             // Read Descriptor - Event ID
@@ -568,7 +574,7 @@ namespace SQLNA
             }
             else if (isWifi)
             {
-                ParseWifiFrame(b, offset, t, f);
+                ParseWifiFrame(b, offset, t, f, isNDIS);
             }
         }
 
@@ -937,7 +943,7 @@ namespace SQLNA
             }
         }
 
-        public static void ParseWifiFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
+        public static void ParseWifiFrame(byte[] b, int offset, NetworkTrace t, FrameData f, bool isNDIS)
         {
             byte version = 0;
             ushort metadataLength = 0;
@@ -951,16 +957,19 @@ namespace SQLNA
             ulong destMAC = 0;
             ushort NextProtocol = 0;    // IPV4 = 0x0800 (2048)    IPV6 = 0x86DD (34525)
 
-            // Read Wifi Metadata
-            version = b[offset];
-            if (version != 2)
+            if (isNDIS == false)  // skip the metadata for NDIS captures; they start with the Frame Control
             {
-                Program.logDiagnostic($"ParseWifiFrame. Frame {f.frameNo}. Unknown Wifi version: {version}");
-                return;
-            }
+                // Read Wifi Metadata
+                version = b[offset];
+                if (version != 2)
+                {
+                    Program.logDiagnostic($"ParseWifiFrame. Frame {f.frameNo}. Unknown Wifi version: {version}");
+                    return;
+                }
 
-            metadataLength = utility.ReadUInt16(b, offset + 1);
-            offset += metadataLength;
+                metadataLength = utility.ReadUInt16(b, offset + 1);
+                offset += metadataLength;
+            }
 
             // Read Frame Control
 

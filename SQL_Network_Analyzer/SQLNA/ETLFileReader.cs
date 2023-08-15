@@ -94,7 +94,7 @@ namespace SQLNA
             bool f_start = ((rawData->EventHeader.Keyword) & 0x40000000) != 0;
             bool f_end = ((rawData->EventHeader.Keyword) & 0x80000000) != 0;
             bool f_Ethernet8023 = ((rawData->EventHeader.Keyword) & 0x1) != 0;  // process Ethernet events
-            bool f_Wifi = ((rawData->EventHeader.Keyword) & 0x100) != 0;        // process Wi-Fi events - not yet implemented
+            bool f_Wifi = ((rawData->EventHeader.Keyword) & 0x10000) != 0;        // process Wi-Fi events -  Native802.11, not Wireless WAN
             Guid gu = (&rawData->EventHeader)->ProviderId;
             ushort eventID = rawData->EventHeader.Id;
             ushort WFPFragmentEventType = 0;              // WFP fragments need to remove the fragment header in event type 2000
@@ -104,6 +104,14 @@ namespace SQLNA
             Frame f = null;
             PartialFrame pf = null;
             byte[] userData = null;
+
+            // debug code
+            //if (ProcessID == xxxx && ThreadID == xxxx)
+            //{
+            //    Console.WriteLine(ThreadID.ToString());    // break on this line
+            //    // look at m_eventCount for the prior frame number
+            //}
+            // end debug code
 
             short arrayOffset = gu == PKTMON || gu == WFP ? (short)0 : NDIS_HEADER_LENGTH;  // we want the pktmon header to be part of the data, not so with the NDIS/wfp header
 
@@ -166,7 +174,22 @@ namespace SQLNA
                 }
                 f = new Frame();
                 f.frameNumber = m_eventCount;
-                f.ticks = m_sessionStartTime.Ticks + ((long)(((rawData->EventHeader).TimeStamp - FirstTimeStamp) * 10000000 / m_QPCFreq));
+
+                // debug code
+                //if (m_eventCount == 368198)
+                //{
+                //    Console.WriteLine();
+                //}
+                // end debug code
+
+                if (m_QPCFreq == 10000000)
+                {
+                    f.ticks = m_sessionStartTime.Ticks + ((long)(((rawData->EventHeader).TimeStamp - FirstTimeStamp))); // reduce math errors if the stopwatch frequency is 1 tick
+                }
+                else
+                {
+                    f.ticks = m_sessionStartTime.Ticks + ((long)(((rawData->EventHeader).TimeStamp - FirstTimeStamp) * (double)(100000000 / m_QPCFreq)));
+                }
                 userData = new byte[rawData->UserDataLength - arrayOffset];
                 var x = ((byte*)rawData->UserData);
                 for (int i = 0; i < userData.Length; i++) userData[i] = x[i + arrayOffset];  // move bytes over
@@ -186,6 +209,10 @@ namespace SQLNA
                 f.data = userData;
                 f.linkType = (ushort)(f_Ethernet8023 ? 1 : f_Wifi ? 6 : 0);  // Ethernet -> 1, Wifi -> 6, else 0
 
+                if (gu == NDIS)
+                {
+                    f.isNDIS = true;
+                }
                 if (gu == PKTMON)
                 {
                     f.isPKTMON = true;

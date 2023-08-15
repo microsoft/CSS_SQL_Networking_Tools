@@ -32,7 +32,7 @@ namespace SQLNA
                                                              // filterFormat A = AUTO, will perform NETMON or WirreShark filters based on the capture type ... ETL -> Netmon format
 
         public static string VERSION_NUMBER = Assembly.GetExecutingAssembly().GetName().Version.ToString();
-        public const string UPDATE_DATE = "2022/04/01";
+        public const string UPDATE_DATE = "2024/01/01";
         public const string GITHUB_PROJECT_URL = "https://github.com/microsoft/CSS_SQL_Networking_Tools";
 
         static void Main(string[] args)
