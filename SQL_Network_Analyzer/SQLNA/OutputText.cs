@@ -614,6 +614,12 @@ namespace SQLNA
                             rd.startOffset = ((FrameData)c.frames[0]).ticks - firstTick;
                             rd.endTicks = ((FrameData)c.frames[c.frames.Count - 1]).ticks;
                             rd.endOffset = rd.endTicks - firstTick;
+                            // debug code
+                            //if (rd.startOffset < 0 || rd.endOffset < 0)
+                            //{
+                            //    Console.WriteLine($"First Tick: {firstTick}, Conv Start Tick: {((FrameData)c.frames[0]).ticks}, Conv End Tick: {rd.endTicks}");
+                            //}
+                            // end debug code
                             rd.duration = rd.endOffset - rd.startOffset;
                             rd.isClientReset = false;
                             rd.rawRetransmits = c.rawRetransmits;
