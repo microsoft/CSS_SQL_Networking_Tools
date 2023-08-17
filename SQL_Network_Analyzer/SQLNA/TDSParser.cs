@@ -827,6 +827,14 @@ namespace SQLNA
         // post processing 
         public static void FindStraySQLConversations(NetworkTrace trace)
         {
+            // collect all unique ports used by SQL Servers in this trace
+            ArrayList SQLPorts = new ArrayList();
+            SQLPorts.Add((ushort)1433);
+            foreach (SQLServer s in trace.sqlServers)
+            {
+                if (SQLPorts.Contains(s.sqlPort) == false) SQLPorts.Add(s.sqlPort);
+            }
+
             // go through all non-SQL conversations and see if they are on a port that SQL is using and set the flag, reverse source and dest if necessary, and add to SQLServers.conversations
             foreach (ConversationData c in trace.conversations)
             {
@@ -842,12 +850,14 @@ namespace SQLNA
                         }
                         server.AddConversation(c);
                     }
-                    else if (c.sourcePort == 1433 || c.destPort == 1433)
+                    else if (SQLPorts.Contains(c.sourcePort))
                     {
-                        if (c.destPort != 1433)
-                        {
-                            reverseSourceDest(c);
-                        }
+                        reverseSourceDest(c);
+                        server = trace.GetPossibleSQLServer(c.destIP, c.destIPHi, c.destIPLo, c.destPort, c.isIPV6);
+                        server.AddConversation(c);
+                    }
+                    else if (SQLPorts.Contains(c.destPort))
+                    {
                         server = trace.GetPossibleSQLServer(c.destIP, c.destIPHi, c.destIPLo, c.destPort, c.isIPV6);
                         server.AddConversation(c);
                     }
