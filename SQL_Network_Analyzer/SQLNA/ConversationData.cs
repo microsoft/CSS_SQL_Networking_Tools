@@ -110,8 +110,10 @@ namespace SQLNA
         public bool hasLowTLSVersion = false;       //   - set in ProcessTDS
         public string databaseName = null;          //   - set in ProcessTDS
         public string serverName = null;            //   - set in ProcessTDS
+        public string serverInstance = null;        //   - set in GetClientPreloginInfo
         public uint processID = 0;
         public uint threadID = 0;                   //   - set in GetClientPreloginInfo
+        public Guid connectionID = Guid.Empty;      //   - set in GetClientPreloginInfo
         // Login Error and Delay Stats
         public long synTime = 0;                    //
         public long ackSynTime = 0;                 //

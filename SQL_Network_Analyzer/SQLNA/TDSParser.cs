@@ -89,8 +89,9 @@ namespace SQLNA
                         case 1: // encyption options. 
                             if (tdsPayLoad[8 + offset] == 1) conv.isEncrypted = true;
                             break;
-                        case 2: // Client requested Instance
-                            clientInstance = utility.CleanString(utility.ReadAnsiString(tdsPayLoad, 8 + offset, length));
+                        case 2: // Client requested Instance - this is an ASCIIZ string - but fotunately, we are given the length of the token, which ends in a null (0x00) string terminator byte
+                            clientInstance = utility.CleanString(utility.ReadAnsiString(tdsPayLoad, 8 + offset, length));  // cleans trailing nulls
+                            conv.serverInstance = clientInstance; // the instance that the client is requesting
                             break;
                         case 3: //Client TID.
                             if (4 == length)
@@ -98,6 +99,14 @@ namespace SQLNA
                             break;
                         case 4: // MARS options. 
                             if (tdsPayLoad[8 + offset] == 1) conv.isMARSEnabled = true;
+                            break;
+                        case 5: // ConnectionID (16 byte GUID) and ActivityID (20 bytes) - ignoring ActivityID as we don't need it
+                            if (length == 36)
+                            {
+                                byte[] guidBytes = new byte[16];
+                                Array.Copy(tdsPayLoad, 8 + offset, guidBytes, 0, 16);
+                                conv.connectionID = new Guid(guidBytes);
+                            }
                             break;
                         default:
                             break;
