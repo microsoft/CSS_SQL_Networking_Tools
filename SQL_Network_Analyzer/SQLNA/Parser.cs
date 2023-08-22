@@ -1492,6 +1492,18 @@ namespace SQLNA
             f.ackNo = utility.B2UInt32(b, offset + 8);
             f.flags = b[offset + 13];
             f.windowSize = utility.B2UInt16(b, offset + 14);
+            if (f.isZeroWindowPacket)
+            {
+                f.conversation.zeroWindowCount++;
+                if (f.isFromClient)
+                {
+                    f.conversation.hasClientZeroWindow = true;
+                }
+                else
+                {
+                    f.conversation.hasServerZeroWindow = true;
+                }
+            }
             CheckSum = utility.B2UInt16(b, offset + 16);
             if (utility.B2UInt16(b, offset + 18) != 0) canTestChecksum = false;   // we only want to test if the Urgent flag is 0
             if (f.hasSYNFlag)

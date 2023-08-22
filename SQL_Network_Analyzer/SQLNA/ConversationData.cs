@@ -77,9 +77,9 @@ namespace SQLNA
         public bool hasTDS = false;                 //   - set in ProcessTDS
         public bool hasTDS8 = false;                //   - set in ProcessTDS
         public bool isSQL = false;                  //   - set in ProcessTDS
-        public bool isEncrypted = false;            //   - set in GetServerPreloginInfo
-        public bool isEncRequired = false;          //   - set in 
-        public bool isMARSEnabled = false;          //   - set in ProcessTDS - in PreLogin packet
+        public bool isEncrypted = false;            //   - set in GetServerPreloginInfo and GetClientPreloginInfo
+        public bool isEncRequired = false;          //   - set in GetServerPreloginInfo
+        public bool isMARSEnabled = false;          //   - set in GetClientPreloginInfo
         public bool hasPrelogin = false;            //   - set in ProcessTDS
         public bool hasPreloginResponse = false;    //   - set in ProcessTDS
         public bool hasClientSSL = false;           //   - set in ProcessTDS
@@ -95,6 +95,9 @@ namespace SQLNA
         public bool hasIntegratedSecurity = false;  //   - set in ProcessTDS
         public bool hasPostLoginResponse = false;   //   - set in ProcessTDS   - this contains the ENVCHANGE token - login was a success
         public bool hasDiffieHellman = false;       //   - set in ProcessTDS
+        public bool hasClientZeroWindow = false;    //   - set in ParseTCPFrame
+        public bool hasServerZeroWindow = false;    //   - set in ParseTCPFrame
+        public int zeroWindowCount = 0;             //   - set in ParseTCPFrame
         public int smpSynCount = 0;                 //   - accumulated in ParseTCPFrame
         public int smpAckCount = 0;                 //   - accumulated in ParseTCPFrame
         public int smpFinCount = 0;                 //   - accumulated in ParseTCPFrame
@@ -417,7 +420,39 @@ namespace SQLNA
         public string GetPacketList(int start, int length)
         {
             string s = "";
-            for (int i = start; i < start + length; i++) s += ((FrameData)frames[i]).PacketTypeAndDirection + " ";
+            FrameData f = null;
+            string frameType = "";
+
+            // Are we dealing with a Zero Window packet of not
+            bool fzwMode = false;
+            bool fzwFromClient = false;
+            for (int i = start; i < start + length; i++)
+            {
+                f = (FrameData)frames[i];
+                frameType = f.PacketTypeAndDirection + " ";
+
+                if (f.isZeroWindowPacket)  // could flip from client to server - not very likely
+                {
+                    fzwMode = true;
+                    fzwFromClient = f.isFromClient;
+                }
+                else if (fzwMode)
+                {
+                    if (fzwFromClient == f.isFromClient)
+                    {
+                        if (f.windowSize > 0) fzwMode = false;  // exit Zero Window Mode
+                    }
+                    else
+                    {
+                        if (f.isKeepAlive)
+                        {
+                            frameType = (f.isFromClient ? ">" : "<") + "ZWP ";         // Zero Window Probe - looks like a Keep-Alive packet but occurs after a Zero Packet
+                        }
+                    }
+                }
+
+                s += frameType;
+            }
             return s.TrimEnd();
         }
 

@@ -95,6 +95,7 @@ namespace SQLNA
         public bool hasPostLogInResponse = false;
         public bool hasRedirectedConnections = false;
         public bool hasPktmonDroppedEvent = false;             //
+        public bool hasZeroWindow = false;
         public string serverVersion = "";
         public string instanceName = "";
         public string sqlHostName = "";
@@ -184,6 +185,26 @@ namespace SQLNA
         public long endTicks = 0;
         public long duration = 0;
         public string flags = null;
+        public string endFrames = null;
+    }
+
+    public class ZeroWindowData
+    {
+        public string clientIP = null;
+        public ushort sourcePort = 0;
+        public bool isIPV6 = false;
+        public int frames = 0;
+        public int firstFile = 0;
+        public int lastFile = 0;
+        public int zwFile = 0;
+        public uint zwFrame = 0;
+        public bool zwFromClient = false;
+        public bool zwFromServer = false;
+        public int zwCount = 0;
+        public long startOffset = 0;
+        public long endOffset = 0;
+        public long endTicks = 0;
+        public long duration = 0;
         public string endFrames = null;
     }
 

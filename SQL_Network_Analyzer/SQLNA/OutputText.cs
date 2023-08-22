@@ -29,6 +29,7 @@ namespace SQLNA
             if (Program.outputConversationList) DisplaySucessfulLoginReport(Trace);  // optional section; must be explicitly requested
             DisplayResetConnections(Trace);
             DisplayServerClosedConnections(Trace);
+            DisplayZeroWindowConnections(Trace);
             DisplayPktmonDrops(Trace);
             DisplayBadConnections(Trace);
             DisplayLoginErrors(Trace);
@@ -983,6 +984,196 @@ namespace SQLNA
             if (hasError == false)
             {
                 Program.logMessage("No server-closed connections were found.");
+                Program.logMessage();
+            }
+        }
+
+        private static void DisplayZeroWindowConnections(NetworkTrace Trace)
+        {
+            bool hasError = false;
+
+            long firstTick = 0;
+            long lastTick = 0;
+
+            if (Trace.frames != null && Trace.frames.Count > 0)
+            {
+                firstTick = ((FrameData)Trace.frames[0]).ticks;
+                lastTick = ((FrameData)Trace.frames[Trace.frames.Count - 1]).ticks;
+            }
+
+            foreach (SQLServer s in Trace.sqlServers)
+            {
+                if (s.hasZeroWindow)
+                {
+                    hasError = true;
+                    List<ZeroWindowData> ZeroWindowRecords = new List<ZeroWindowData>();
+
+                    // initialize graph object
+                    TextGraph g = new TextGraph();
+                    g.startTime = new DateTime(firstTick);
+                    g.endTime = new DateTime(lastTick);
+                    g.SetGraphWidth(150);
+                    g.fAbsoluteScale = true;
+                    g.SetCutoffValues(1, 3, 9, 27, 81);
+
+                    string sqlIP = (s.isIPV6) ? utility.FormatIPV6Address(s.sqlIPHi, s.sqlIPLo) : utility.FormatIPV4Address(s.sqlIP);
+
+                    foreach (ConversationData c in s.conversations)
+                    {
+                        if (c.hasClientZeroWindow || c.hasServerZeroWindow)
+                        {
+                            ZeroWindowData zwd = new ZeroWindowData();
+
+                            zwd.clientIP = (c.isIPV6) ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP);
+                            zwd.sourcePort = c.sourcePort;
+                            zwd.isIPV6 = c.isIPV6;
+                            zwd.frames = c.frames.Count;
+                            zwd.zwFrame = 0;
+                            zwd.zwFile = 0;
+                            zwd.zwFromClient = c.hasClientZeroWindow;
+                            zwd.zwFromServer = c.hasServerZeroWindow;
+                            zwd.zwCount = c.zeroWindowCount;
+                            zwd.firstFile = Trace.files.IndexOf(((FrameData)(c.frames[0])).file);
+                            zwd.lastFile = Trace.files.IndexOf(((FrameData)(c.frames[c.frames.Count - 1])).file);
+                            zwd.startOffset = ((FrameData)c.frames[0]).ticks - firstTick;
+                            zwd.endTicks = ((FrameData)c.frames[c.frames.Count - 1]).ticks;
+                            zwd.endOffset = zwd.endTicks - firstTick;
+                            zwd.duration = zwd.endOffset - zwd.startOffset;
+                            zwd.endFrames = c.GetLastPacketList(20);
+
+                            for (int i = c.frames.Count - 1; i >= 0; i--)  // search for the last Zero Window frame
+                            {
+                                FrameData f = (FrameData)c.frames[i];
+
+                                if (f.isZeroWindowPacket)
+                                {
+                                    zwd.zwFrame = f.frameNo;
+                                    zwd.zwFile = Trace.files.IndexOf(f.file);
+                                    g.AddData(new DateTime(f.ticks), 1.0); // for graphing
+                                    break;
+                                }
+                            }
+
+                            ZeroWindowRecords.Add(zwd);
+                        }
+                    }
+
+                    if (ZeroWindowRecords.Count > 0)
+                    {
+                        Program.logMessage("The following conversations with SQL Server " + sqlIP + " on port " + s.sqlPort + " had conversations with a Zero Window record:\r\n");
+                        ReportFormatter rf = new ReportFormatter();
+                        switch (Program.filterFormat)
+                        {
+                            case "N":
+                                {
+                                    rf.SetColumnNames("NETMON Filter (Client conv.):L", "Files:R", "ZW File:R", "ZW Frame:R", "ZW Count:R", "ZW Client:R", "ZW Server:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "End Frames:L");
+                                    break;
+                                }
+                            case "W":
+                                {
+                                    rf.SetColumnNames("WireShark Filter (Client conv.):L", "Files:R", "ZW File:R", "ZW Frame:R", "ZW Count:R", "ZW Client:R", "ZW Server:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "End Frames:L");
+                                    break;
+                                }
+                            default:
+                                {
+                                    rf.SetColumnNames("Client Address:L", "Port:R", "Files:R", "ZW File:R", "ZW Frame:R", "ZW Count:R", "ZW Client:R", "ZW Server:R", "Start Offset:R", "End Offset:R", "End Time:R", "Frames:R", "Duration:R", "End Frames:L");
+                                    break;
+                                }
+                        }
+
+                        var OrderedRows = from row in ZeroWindowRecords orderby row.endOffset ascending select row;
+
+                        foreach (var row in OrderedRows)
+                        {
+                            switch (Program.filterFormat)
+                            {
+                                case "N":  // list client IP and port as a NETMON filter string
+                                    {
+                                        rf.SetcolumnData((row.isIPV6 ? "IPV6" : "IPV4") + ".Address==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
+                                                         (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                         row.zwFile.ToString(),
+                                                         row.zwFrame.ToString(),
+                                                         row.zwCount.ToString(),
+                                                         (row.zwFromClient ? "Y" : ""),
+                                                         (row.zwFromServer ? "Y" : ""),
+                                                         (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                         row.frames.ToString(),
+                                                         (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         row.endFrames);
+                                        break;
+                                    }
+                                case "W":  // list client IP and port as a WireShark filter string
+                                    {
+                                        rf.SetcolumnData((row.isIPV6 ? "ipv6" : "ip") + ".addr==" + row.clientIP + " and tcp.port==" + row.sourcePort.ToString(),
+                                                         (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                         row.zwFile.ToString(),
+                                                         row.zwFrame.ToString(),
+                                                         row.zwCount.ToString(),
+                                                         (row.zwFromClient ? "Y" : ""),
+                                                         (row.zwFromServer ? "Y" : ""),
+                                                         (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                         row.frames.ToString(),
+                                                         (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         row.endFrames);
+                                        break;
+                                    }
+                                default:  // list client IP and port as separate columns
+                                    {
+                                        rf.SetcolumnData(row.clientIP,
+                                                         row.sourcePort.ToString(),
+                                                         (row.firstFile == row.lastFile) ? row.firstFile.ToString() : row.firstFile + "-" + row.lastFile,
+                                                         row.zwFile.ToString(),
+                                                         row.zwFrame.ToString(),
+                                                         row.zwCount.ToString(),
+                                                         (row.zwFromClient ? "Y" : ""),
+                                                         (row.zwFromServer ? "Y" : ""),
+                                                         (row.startOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         (row.endOffset / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         new DateTime(row.endTicks).ToString(utility.TIME_FORMAT),
+                                                         row.frames.ToString(),
+                                                         (row.duration / utility.TICKS_PER_SECOND).ToString("0.000000"),
+                                                         row.endFrames);
+                                        break;
+                                    }
+                            }
+                        }
+
+                        Program.logMessage(rf.GetHeaderText());
+                        Program.logMessage(rf.GetSeparatorText());
+
+                        for (int i = 0; i < rf.GetRowCount(); i++)
+                        {
+                            Program.logMessage(rf.GetDataText(i));
+                        }
+
+                        Program.logMessage();
+
+                        //
+                        // Display graph
+                        //
+
+                        Program.logMessage("    Distribution of Zero-Window conversations.");
+                        Program.logMessage();
+                        g.ProcessData();
+                        Program.logMessage("    " + g.GetLine(0));
+                        Program.logMessage("    " + g.GetLine(1));
+                        Program.logMessage("    " + g.GetLine(2));
+                        Program.logMessage("    " + g.GetLine(3));
+                        Program.logMessage("    " + g.GetLine(4));
+                        Program.logMessage("    " + g.GetLine(5));
+
+                        Program.logMessage();
+                    }
+                }
+            }
+
+            if (hasError == false)
+            {
+                Program.logMessage("No Zero-Window SQL conversations found.");
                 Program.logMessage();
             }
         }
@@ -3517,7 +3708,7 @@ namespace SQLNA
 
         private static void OutputStats(NetworkTrace Trace)
         {
-            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,AckSynDelayms,Retransmit,ClientDup,ServerDup,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,PacketVisualization,Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason,MaxPayloadSize,PayloadSizeLimit,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ClientTTL,ClientLowHops,ServerTTL,ServerLowHops,ConnectionID,ServerName,InstOpt,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
+            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,ZeroWindow,AckSynDelayms,Retransmit,ClientDup,ServerDup,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,PacketVisualization,Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason,MaxPayloadSize,PayloadSizeLimit,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ClientTTL,ClientLowHops,ServerTTL,ServerLowHops,ConnectionID,ServerName,InstOpt,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
 
             long traceFirstTick = 0;
             if (Trace.frames != null && Trace.frames.Count > 0)
@@ -3551,6 +3742,7 @@ namespace SQLNA
                                 c.synCount + "," +
                                 c.finCount + "," +
                                 c.resetCount + "," +
+                                (c.hasClientZeroWindow || c.hasServerZeroWindow ? "Y" : "") + "," +
                                 (c.isUDP || c.ackSynTime == 0 ? "" : ((int)(c.LoginDelay("AS", firstTick) / utility.TICKS_PER_MILLISECOND)).ToString()) + "," +
                                 c.rawRetransmits + "," +
                                 c.duplicateClientPackets + "," +

@@ -829,6 +829,7 @@ namespace SQLNA
                 {
                     SQLServer Server = trace.GetSQLServer(c.destIP, c.destIPHi, c.destIPLo, c.destPort, c.isIPV6);
                     Server.AddConversation(c);
+                    if (c.hasServerZeroWindow || c.hasClientZeroWindow) Server.hasZeroWindow = true;
                 }
             } // for each conversation
         }
@@ -1024,6 +1025,10 @@ namespace SQLNA
             if (c.hasClientFin && c.hasServerFin) c.hasServerFinFirst = !c.hasServerFinFirst; // only if both flags are set can we reverse this
             if (c.hasServerFin && !c.hasClientFin) c.hasServerFinFirst = true;
             if (!c.hasServerFin) c.hasServerFinFirst = false;
+
+            fTemp = c.hasClientZeroWindow;
+            c.hasClientZeroWindow = c.hasServerZeroWindow;
+            c.hasServerZeroWindow = fTemp;
         }
 
         //Parse User name and domain name

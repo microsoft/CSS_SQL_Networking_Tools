@@ -103,7 +103,7 @@ namespace SQLNA
             get
             {
                 return ((payloadLength == 1) &&
-                        (payload[0] == 0) &&
+                    //    (payload[0] == 0) &&    // not true in 100% of cases
                         ((flags & (byte)TCPFlag.ACK) != 0) &&
                         ((flags & (byte)(TCPFlag.FIN | TCPFlag.FIN | TCPFlag.SYN | TCPFlag.RESET | TCPFlag.PUSH)) == 0));
             }
@@ -134,10 +134,16 @@ namespace SQLNA
             get { return (flags & (byte)TCPFlag.RESET) != 0; }
         }
 
+        public bool isZeroWindowPacket
+        {
+            get { return hasACKFlag && !hasSYNFlag && !hasFINFlag && !hasRESETFlag && windowSize == 0; }
+        }
+
         public string PacketType
         {
             get
             {
+                if (isZeroWindowPacket) return "ZW";
                 if (isKeepAlive) return "KA";
                 if (isRetransmit && payloadLength > 1) return "RET";
 
@@ -165,7 +171,7 @@ namespace SQLNA
                     case FrameType.SSPI:                 return "SS";
                     case FrameType.TabularResponse:      return "DATA";
                     case FrameType.XactMgrRequest:       return "TX";
-                    default:                             return FormatFlags("");
+                    default:                             return FormatFlags("");   // "" means no dots between flag letters
                 }
             }
         }
