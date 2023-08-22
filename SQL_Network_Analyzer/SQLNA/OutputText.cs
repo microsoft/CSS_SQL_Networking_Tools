@@ -1060,7 +1060,7 @@ namespace SQLNA
 
                     if (ZeroWindowRecords.Count > 0)
                     {
-                        Program.logMessage("The following conversations with SQL Server " + sqlIP + " on port " + s.sqlPort + " had conversations with a Zero Window record:\r\n");
+                        Program.logMessage("The following conversations with SQL Server " + sqlIP + " on port " + s.sqlPort + " had one or more Zero Window records:\r\n");
                         ReportFormatter rf = new ReportFormatter();
                         switch (Program.filterFormat)
                         {
