@@ -266,7 +266,19 @@ namespace SQLNA
                         {
                             switch (frame.linkType)
                             {
-                                case 0:  // unknown - default to ethernet
+                                case 0:  // NULL/Loopback frame in WireShark, Ethernet in NETMON
+                                         // Unanswered question: if WireShark is saved as .cap, does it change the link value? NETMON won't read the NULL link layer when reading PCAP
+                                    {
+                                        if (rb is PcapNGReader || rb is SimplePCAPReader)
+                                        {
+                                            ParseNullLoopbackFrame(frame.data, 0, t, f);
+                                        }
+                                        else // ETLReader or NetMonReader
+                                        {
+                                            ParseEthernetFrame(frame.data, 0, t, f);
+                                        }
+                                        break;
+                                    }
                                 case 1:  // Ethernet
                                     {
                                         ParseEthernetFrame(frame.data, 0, t, f);
@@ -356,6 +368,7 @@ namespace SQLNA
         //
         // .ETL NDIS Net Event                 -> Ethernet/Wifi
         // Link Type: NDIS Net Event (.CAP)    -> Ethernet/Wifi
+        // Link Type: Null/Loopback            -> IPV4/IPV6
         // Link Type: Ethernet                 -> IPV4/IPV6/VNETTag
         // Link Type: Wifi/LLC/SNAP            -> IPV4/IPV6/VNETTag
         // Link Type: Linux Cooked Capture     -> IPV4/IPV6/VNETTag
@@ -420,6 +433,26 @@ namespace SQLNA
                         Program.logDiagnostic($"Unrecognized protocol {ProtocolNumber} (0x{ProtocolNumber.ToString("X4")}).");
                         break;
                     }
+            }
+        }
+
+        public static void ParseNullLoopbackFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
+        {
+            // NULL/Loopback - first 4 bytes could be big endian or little endian depending on computer recording the trace (BSD UNIX, mainly)
+            // 0x00000002 or 0x02000000 means IPV4 is the next protocol
+            // 24, 28, or 30 means IPV6 is the next protocol
+            // 0x00000018, 0x18000000, 0x0000001C, 0x1C000000, 0x0000001E, 0x1E000000 -> IPV6
+            // ignore all others
+
+            UInt32 NextProtocol = utility.ReadUInt32(b, offset);
+            offset += 4;
+            if (NextProtocol == 0x02000000 || NextProtocol == 0x00000002)
+            {
+                ParseIPV4Frame(b, offset, t, f);
+            }
+            else if (NextProtocol == 0x00000018 || NextProtocol == 0x18000000 || NextProtocol == 0x0000001C || NextProtocol == 0x1C000000 || NextProtocol == 0x0000001E || NextProtocol == 0x1E000000)
+            {
+                ParseIPV6Frame(b, offset, t, f);
             }
         }
 

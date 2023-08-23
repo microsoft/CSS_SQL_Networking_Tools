@@ -176,7 +176,7 @@ namespace SQLNA
                 f.frameNumber = m_eventCount;
 
                 // debug code
-                //if (m_eventCount == 368198)
+                //if (m_eventCount > 94)
                 //{
                 //    Console.WriteLine();
                 //}
