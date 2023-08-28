@@ -157,7 +157,11 @@ namespace SQLBench
         }
         public void  WriteBlobTest(out double myBlobWrite)
         {
-            byte[] numArray1 = new byte[16384]; //crate byte array
+            const int size = 100 * 1024;       // 100k was 16k
+            byte[] numArray1 = new byte[size]; //create byte array
+            var random = new Random();
+            random.NextBytes(numArray1);  // randomize the array so compression doesn't come into play.
+
             Stopwatch BlobWrite = new Stopwatch(); //Create Timer
             //open connection
             SqlConnection connection = new SqlConnection(connstr); //create SQL Connection
