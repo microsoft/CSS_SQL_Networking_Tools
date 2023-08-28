@@ -23,3 +23,7 @@ SQLCheck/.vs/SQLCheck/v15/Server/sqlite3/storage.ide-wal
 SQLCheck/.vs/SQLCheck/v15/Server/sqlite3/storage.ide-shm
 *.ide-wal
 *.ide-shm
+SQL_Network_Analyzer/.vs/SQLNetworkAnalyzer/v15/.suo
+*.ide
+*.ide-shm
+*.ide-wal
