@@ -3708,7 +3708,7 @@ namespace SQLNA
 
         private static void OutputStats(NetworkTrace Trace)
         {
-            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,ZeroWindow,AckSynDelayms,Retransmit,ClientDup,ServerDup,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,PacketVisualization,Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason,MaxPayloadSize,PayloadSizeLimit,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ClientTTL,ClientLowHops,ServerTTL,ServerLowHops,ConnectionID,ServerName,InstOpt,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
+            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,ZeroWindow,AckSynDelayms,Retransmit,ClientDup,ServerDup,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,PacketVisualization,Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason,MaxPayloadSize,PayloadSizeLimit,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ClientTTL,ClientLowHops,ServerTTL,ServerLowHops,Connection_peer_id,ServerName,InstOpt,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
 
             long traceFirstTick = 0;
             if (Trace.frames != null && Trace.frames.Count > 0)
@@ -3775,7 +3775,7 @@ namespace SQLNA
                                 (c.TTLCountOut == 0 ? "" : c.minTTLHopsOut.ToString()) + "," +
                                 (c.TTLCountIn == 0 ? "" : (c.TTLSumIn / c.TTLCountIn).ToString()) + "," +
                                 (c.TTLCountIn == 0 ? "" : c.minTTLHopsIn.ToString()) + "," +
-                                (c.connectionID == Guid.Empty ? "" : c.connectionID.ToString())  + "," +
+                                (c.connectionPeerID == Guid.Empty ? "" : c.connectionPeerID.ToString().ToUpper())  + "," +
                                 ServerName + "," +
                                 (c.serverInstance == null ? "" : c.serverInstance) + "," +
                                 ServerVersion + "," +

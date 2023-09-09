@@ -105,7 +105,7 @@ namespace SQLNA
                             {
                                 byte[] guidBytes = new byte[16];
                                 Array.Copy(tdsPayLoad, 8 + offset, guidBytes, 0, 16);
-                                conv.connectionID = new Guid(guidBytes);
+                                conv.connectionPeerID = new Guid(guidBytes);
                             }
                             break;
                         default:
