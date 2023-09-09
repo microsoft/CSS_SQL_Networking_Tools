@@ -96,7 +96,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0184.0
+                  SQLTrace.ps1 version 1.0.0197.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -156,6 +156,7 @@ Function ReadINIFile
                                 BidProviderList  = ""              # Empty default
 
                                 NetTrace         = "No"
+                                PSNetCapture     = "No"
                                 Netsh            = "No"
                                 Netmon           = "No"
                                 Wireshark        = "No"
@@ -213,6 +214,7 @@ Function ReadINIFile
             "BIDProviderList"   { $global:INISettings.BIDProviderList    = $value ; while ( $global:INISettings.BIDProviderList.IndexOf("  ") -ge 0) { $global:INISettings.BIDProviderList = $global:INISettings.BIDProviderList.Replace("  ", " ") } } # remove extra spaces between provider names
             "NETTrace"          { $global:INISettings.NetTrace           = $value }
             "NETSH"             { $global:INISettings.NETSH              = $value }
+            "PSNETCAPTURE"      { $global:INISettings.PSNETCAPTURE       = $value }
             "NETMON"            { $global:INISettings.NETMON             = $value }
             "WireShark"         { $global:INISettings.WireShark          = $value }
             "PktMon"            { $global:INISettings.PktMon             = $value }
@@ -246,6 +248,7 @@ Function DisplayINIValues
     ""
     "NETTrace            " + $global:INISettings.NETTrace
     "NETSH               " + $global:INISettings.NETSH
+    "PSNETCAPTURE        " + $global:INISettings.PSNETCAPTURE
     "NETMON              " + $global:INISettings.NETMON
     "WireShark           " + $global:INISettings.WireShark
     "PktMon              " + $global:INISettings.PktMon
@@ -445,6 +448,17 @@ Function FlushExistingTraces
 
     LogInfo "Stopping previously running traces ..."
 
+    # stop any PowerShell Net Event Session traces
+    $sessions = get-neteventsession
+    foreach ($session in $sessions)
+    {
+        if ($session.name -eq "PSTraceNDIS")
+        {
+            Stop-NetEventSession -Name $session.name
+            Remove-NetEventSession -Name $session.name
+        }
+    }
+
     logman stop SQLTraceBID -ets  2>&1 | Out-Null
 
     logman stop SQLTraceNDIS -ets  2>&1 | Out-Null
@@ -578,10 +592,6 @@ Function StartBIDTraces
         $CleanupValues = "$($global:LogFolderName)\BIDTraces\bidtrace*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
         $PathsToClean.Add("BID", $CleanupValues)
 
-#        if(((Test-Path "$($global:LogFolderName)\BIDTraces" -PathType Container) -eq $True) -and ($global:INISettings.DeleteOldFiles -eq "Yes"))
-#        {          
-#            StartCleanupETLTraceFiles -jobname "BIDTRACECLEANUP" -folder "$($global:LogFolderName)\BIDTraces" -numofFilesToKeep 30 -jobrunintervalMin 30
-#        }
     }
 }
 
@@ -622,7 +632,6 @@ Function StartNetworkMonitor
     LogInfo "NMCAP Args: $ArgumentList"
 
     #Start the capture
-#   [System.Diagnostics.Process] $NetmonProcess = Start-Process $NMCap -PassThru -NoNewWindow -ArgumentList $ArgumentList
     [System.Diagnostics.Process] $NetmonProcess = Start-Process $NMCap -PassThru -NoNewWindow -RedirectStandardOutput "$($global:LogFolderName)\NetworkTraces\Console.txt" -ArgumentList $ArgumentList
     LogInfo "Network Monitor is running with PID: " + $NetmonProcess.ID
     LogWarning "Killing this process will corrupt the most recent capture file."
@@ -684,7 +693,6 @@ Function StartDeleteOldFiles
             $MinMinutes = $PathToClean[1] -as [int]
             $MinFiles = $PathToClean[2] -as  [int]
             get-item $FileSpec | sort-object -property LastWriteTime -descending | select -skip $MinFiles | where-object {$_.LastWriteTime -lt ((get-date).AddMinutes($MinMinutes * -1))}  | remove-item -force
-#           get-item $FileSpec | sort-object -property LastWriteTime -descending | select -skip 5 | where-object {$_.LastWriteTime -lt ((get-date).AddMinutes(5 * -1))}  | remove-item -force
         }
     } -ArgumentList $FilesToDelete
     $job.Options.RunElevated=$True
@@ -739,8 +747,32 @@ Function StartNetworkTraces
         if($global:INISettings.NETSH -eq "Yes")
         {
             LogInfo "Starting NETSH..."
-            # $commandLine = "netsh trace start capture=yes overwrite=yes tracefile=$($global:LogFolderName)\NetworkTraces\" + $env:computername +".etl filemode=circular maxSize=200MB"
-            # Invoke-Expression $commandLine
+
+            # NETSH often won't collect on the first invocation
+            # Dummy NETSH collection so the next one will be reliable
+
+            $cmd = "netsh trace start capture=yes maxsize=1 report=disabled TRACEFILE=`"$($global:LogFolderName)\NetworkTraces\deletemeD.etl`""
+            LogInfo "NETSH dummy start: $cmd"
+
+            $result = invoke-expression $cmd
+            LogInfo "NETSH: $result"
+            
+            $result = netsh trace stop
+            LogInfo "NETSH dummy stop: $result"
+            
+            # remove files generated by the dummy run
+
+            if (Test-Path "$($global:LogFolderName)\NetworkTraces\deletemeD.etl")
+            {
+               del "$($global:LogFolderName)\NetworkTraces\deletemeD.etl"
+            }
+             
+            if (Test-Path "$($global:LogFolderName)\NetworkTraces\deleteme.cab")
+            {
+               del "$($global:LogFolderName)\NetworkTraces\deletemeD.cab"
+            }
+
+            # NETSH second invocation and real data capture to be logged by LOGMAN in a chained set of files
 
             $truncatePackets = ""
             if ($global:INISettings.TruncatePackets -eq "Yes") { $truncatePackets = "PACKETTRUNCATEBYTES=250"; }
@@ -756,13 +788,13 @@ Function StartNetworkTraces
 
             if ($global:INISettings.TCPEvents -eq "Yes")
             {
-                $result = logman update trace ndiscap -p Microsoft-Windows-Winsock-AFD -ets
+                $result = logman update trace SQLTraceNDIS -p Microsoft-Windows-Winsock-AFD -ets
                 LogInfo "LOGMAN Winsock AFD Events: $result"
-                $result = logman update trace ndiscap -p Microsoft-Windows-TCPIP -ets
+                $result = logman update trace SQLTraceNDIS -p Microsoft-Windows-TCPIP -ets
                 LogInfo "LOGMAN TCPIP Events: $result"
-                $result = logman update trace ndiscap -p Microsoft-Windows-WFP -ets
+                $result = logman update trace SQLTraceNDIS -p Microsoft-Windows-WFP -ets
                 LogInfo "LOGMAN Windows Firewall Events: $result"
-                $result = logman update trace ndiscap -p Microsoft-Windows-Winsock-NameResolution -ets
+                $result = logman update trace SQLTraceNDIS -p Microsoft-Windows-Winsock-NameResolution -ets
                 LogInfo "LOGMAN DNS Events: $result"
             }
 
@@ -770,11 +802,48 @@ Function StartNetworkTraces
             $CleanupValues = "$($global:LogFolderName)\NetworkTraces\nettrace*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
             $PathsToClean.Add("NETSH", $CleanupValues)
 
-#            if ($global:INISettings.DeleteOldFiles -eq "Yes")
-#            {
-#                # StartCleanupNetworkTraces  -folder "$($global:LogFolderName)\NetworkTraces"  # Clintonw
-#                StartCleanupETLTraceFiles -jobname "NETWORKTRACECLEANUP" -folder "$($global:LogFolderName)\NetworkTraces" -numofFilesToKeep 30 -jobrunintervalMin 30  
-#            }         
+        }
+        if($global:INISettings.PSNETCAPTURE -eq "Yes")
+        {
+            LogInfo "Starting PowerShell NetEvent NDIS packet capture ..."
+
+            New-NetEventSession -Name "PSTraceNDIS" -CaptureMode SaveToFile -LocalFilePath "$($global:LogFolderName)\NetworkTraces\deleteme.etl" -TraceBufferSize 1024 -MaxFileSize 1
+
+            $PacketSize = 0   # collect full packet
+            if ($global:INISettings.TruncatePackets -eq "Yes") { $PacketSize = 250; }   # same as netsh
+
+            Add-NetEventPacketCaptureProvider -SessionName "PSTraceNDIS" -TruncationLength $PacketSize
+
+            if ($global:INISettings.FilterString -ne "")
+            {
+                $cmd = "Set-NetEventPacketCaptureProvider -SessionName PSTraceNDIS $($global:INISettings.FilterString)"
+                LogInfo "Adding filter: $cmd"
+
+                $result = invoke-expression $cmd
+                LogInfo "Filter: $result"
+            }
+            
+            Start-NetEventSession -Name "PSTraceNDIS"
+
+            $result = logman start SQLTraceNDIS -p Microsoft-Windows-NDIS-PacketCapture -mode newfile -max 300 -o "$($global:LogFolderName)\NetworkTraces\nettrace%d.etl" -ets
+            LogInfo "LOGMAN: $result"
+
+            if ($global:INISettings.TCPEvents -eq "Yes")
+            {
+                $result = logman update trace SQLTraceNDIS -p Microsoft-Windows-Winsock-AFD -ets
+                LogInfo "LOGMAN Winsock AFD Events: $result"
+                $result = logman update trace SQLTraceNDIS -p Microsoft-Windows-TCPIP -ets
+                LogInfo "LOGMAN TCPIP Events: $result"
+                $result = logman update trace SQLTraceNDIS -p Microsoft-Windows-WFP -ets
+                LogInfo "LOGMAN Windows Firewall Events: $result"
+                $result = logman update trace SQLTraceNDIS -p Microsoft-Windows-Winsock-NameResolution -ets
+                LogInfo "LOGMAN DNS Events: $result"
+            }
+
+            # Values for DeleteOldFiles
+            $CleanupValues = "$($global:LogFolderName)\NetworkTraces\nettrace*.etl", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
+            $PathsToClean.Add("PSTrace", $CleanupValues)
+
         }
         if($global:INISettings.NETMON -eq "Yes")
         {
@@ -1060,9 +1129,17 @@ Function StopNetworkTraces
             {
              Rename-Item "$($global:LogFolderName)\NetworkTraces\deleteme.cab" "network_settings.cab"
             }
+        }
+        if($global:INISettings.PSNETCAPTURE -eq "Yes")
+        {
+            logman stop SQLTraceNDIS -ets
+            Stop-NetEventSession -Name "PSTraceNDIS"
+            Remove-NetEventSession -Name "PSTraceNDIS"
 
-            ## StopCleanupNetworkTraces    # clintonw
-            #StopCleanupETLTraceFiles -jobname "NETWORKTRACECLEANUP"
+            if (Test-Path "$($global:LogFolderName)\NetworkTraces\deleteme.etl")
+            {
+               del "$($global:LogFolderName)\NetworkTraces\deleteme.etl"
+            }
         }
         if($global:INISettings.NETMON -eq "Yes")
         {
