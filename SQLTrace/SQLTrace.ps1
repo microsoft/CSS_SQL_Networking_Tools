@@ -96,7 +96,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0197.0
+                  SQLTrace.ps1 version 1.0.0198.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -543,7 +543,7 @@ Function GETBIDTraceGuid($bidProvider)
        "System.Data.OracleClient"         { return "{DCD90923-4953-20C2-8708-01976FB15287} 0x630ff  0   System.Data.OracleClient.1 "}
        "System.Data.SNI"                  { return "{C9996FA5-C06F-F20C-8A20-69B3BA392315} 0x630ff  0   System.Data.SNI.1 "}
        "System.Data.Entity"               { return "{A68D8BB7-4F92-9A7A-D50B-CEC0F44C4808} 0x630ff  0   System.Data.Entity.1 "}
-       "SQLJDBC,XA"                       { return "{172E580D-9BEF-D154-EABB-83429A6F3718} 0x630ff  0   SQLJDBC,XA.1 "}
+       "SQLJDBC_XA"                       { return "{172E580D-9BEF-D154-EABB-83429A6F3718} 0x630ff  0   SQLJDBC,XA.1 "}
        "MSOLEDBSQL"                       { return "{EE7FB59C-D3E8-9684-AEAC-B214EFD91B31} 0x630ff  0   MSOLEDBSQL.1 "}
        "MSOLEDBSQL19"                     { return "{699773CA-18E7-57DF-5718-C244760A9F44} 0x630ff  0   MSOLEDBSQL19.1 "}
 
