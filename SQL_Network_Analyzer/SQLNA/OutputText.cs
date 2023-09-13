@@ -3708,7 +3708,7 @@ namespace SQLNA
 
         private static void OutputStats(NetworkTrace Trace)
         {
-            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,ZeroWindow,AckSynDelayms,Retransmit,ClientDup,ServerDup,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,PacketVisualization,Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason,MaxPayloadSize,PayloadSizeLimit,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ClientTTL,ClientLowHops,ServerTTL,ServerLowHops,Connection_peer_id,ServerName,InstOpt,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
+            Program.logStat(@"SourceIP,SourcePort,DestIP,DestPort,IPVersion,Protocol,Syn,Fin,Reset,ZeroWindow,AckSynDelayms,Retransmit,ClientDup,ServerDup,KeepAlive,Integrated Login,NTLM,Login7,Encrypted,Mars,PacketVisualization,Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason,MaxPayloadSize,PayloadSizeLimit,Frames,Bytes,SentBytes,ReceivedBytes,Bytes/Sec,StartFile,EndFile,StartTime,EndTime,Duration,ClientTTL,ClientLowHops,ServerTTL,ServerLowHops, PreLoginFrameNumber,ConnectionID,ActivityId,ActivitySequence,ServerName,InstOpt,ServerVersion,DatabaseName,ServerTDSVersion,ClientTDSVersion,ServerTLSVersion,ClientTLSVersion,RedirSrv,RedirPort,Error,ErrorState,ErrorMessage,");
 
             long traceFirstTick = 0;
             if (Trace.frames != null && Trace.frames.Count > 0)
@@ -3734,61 +3734,64 @@ namespace SQLNA
                 }
 
                 Program.logStat(((c.isIPV6) ? utility.FormatIPV6Address(c.sourceIPHi, c.sourceIPLo) : utility.FormatIPV4Address(c.sourceIP)) + "," +
-                                c.sourcePort + "," +
-                                ((c.isIPV6) ? utility.FormatIPV6Address(c.destIPHi, c.destIPLo) : utility.FormatIPV4Address(c.destIP)) + "," +
-                                c.destPort + "," +
-                                ((c.isIPV6) ? "IPV6" : "IPV4") + "," +
-                                GetProtocolName(c) + "," +
-                                c.synCount + "," +
-                                c.finCount + "," +
-                                c.resetCount + "," +
-                                (c.hasClientZeroWindow || c.hasServerZeroWindow ? "Y" : "") + "," +
-                                (c.isUDP || c.ackSynTime == 0 ? "" : ((int)(c.LoginDelay("AS", firstTick) / utility.TICKS_PER_MILLISECOND)).ToString()) + "," +
-                                c.rawRetransmits + "," +
-                                c.duplicateClientPackets + "," +
-                                c.duplicateServerPackets + "," +
-                                c.keepAliveCount + "," +
-                                (c.hasIntegratedSecurity ? "Y" : "") + "," +
-                                (c.hasNTLMChallenge || c.hasNTLMResponse ? "Y" : "") + "," +
-                                (c.hasLogin7 ? "Y" : "") + "," +
-                                (c.isEncrypted ? (c.isEncRequired ? "R" : "Y") : "") + "," +
-                                (c.isSQL && (c.isMARSEnabled || (c.smpAckCount + c.smpSynCount + c.smpFinCount + c.smpDataCount) > 0) ? "Y" : "") + "," +
-                                (c.isUDP ? "" : c.frames.Count <= 40 ? c.GetPacketList(0, c.frames.Count) : c.GetFirstPacketList(20) + " ... " + c.GetLastPacketList(20)) + "," +
-                                // Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason
-                                (Trace.hasPktmonRecords ? "Y" : "") + "," +
-                                (Trace.hasPktmonRecords ? $"{(c.pktmonMaxDelay / utility.TICKS_PER_SECOND).ToString("0.000000")}" : "") + "," +
-                                (Trace.hasPktmonRecords && c.hasPktmonDroppedEvent ? $"Y" : "") + "," +
-                                (Trace.hasPktmonRecords && c.hasPktmonDroppedEvent ? GetPktmonDropReasonText(c.pktmonDropReason) : "") + "," +
-                                c.maxPayloadSize + "," +
-                                (c.maxPayloadLimit ? "Y": "") + "," +
-                                c.frames.Count + "," +
-                                c.totalBytes + "," +
-                                "," +   // do not have a separate counter for sent bytes      TODO ? do we really need it?
-                                "," +   // do not have a separate counter for received bytes  TODO ? do we really need it?
-                                (c.frames.Count > 1 ? (c.totalBytes * 1.0 / duration * utility.TICKS_PER_SECOND).ToString("0") : "") + "," +
-                                firstFile + "," +
-                                lastFile + "," +
-                                new DateTime(firstTick).ToString(utility.TIME_FORMAT) + "," +
-                                new DateTime(endTicks).ToString(utility.TIME_FORMAT) + "," +
-                                (duration / utility.TICKS_PER_SECOND).ToString("0.000000") + "," +
-                                (c.TTLCountOut == 0 ? "" : (c.TTLSumOut / c.TTLCountOut).ToString()) + "," +
-                                (c.TTLCountOut == 0 ? "" : c.minTTLHopsOut.ToString()) + "," +
-                                (c.TTLCountIn == 0 ? "" : (c.TTLSumIn / c.TTLCountIn).ToString()) + "," +
-                                (c.TTLCountIn == 0 ? "" : c.minTTLHopsIn.ToString()) + "," +
-                                (c.connectionPeerID == Guid.Empty ? "" : c.connectionPeerID.ToString().ToUpper())  + "," +
-                                ServerName + "," +
-                                (c.serverInstance == null ? "" : c.serverInstance) + "," +
-                                ServerVersion + "," +
-                                ((c.databaseName == null) ? "" : c.databaseName) + "," +
-                                c.FriendlyTDSVersionServer + "," +
-                                c.FriendlyTDSVersionClient + "," + 
-                                ((c.tlsVersionServer == null) ? "" : c.tlsVersionServer) + "," +
-                                ((c.tlsVersionClient == null) ? "" : c.tlsVersionClient) + "," +
-                                c.RedirectServer.Replace(",", "<") + "," +
-                                (c.RedirectPort == 0 ? "" : c.RedirectPort.ToString()) + "," +
-                                (c.Error == 0 ? "" : c.Error.ToString()) + "," +
-                                (c.ErrorState == 0 ? "" : c.ErrorState.ToString()) + "," +
-                                c.ErrorMsg.Replace(",", "."));  // replace comma with period, otherwise this MUST be the last column
+                c.sourcePort + "," +
+                ((c.isIPV6) ? utility.FormatIPV6Address(c.destIPHi, c.destIPLo) : utility.FormatIPV4Address(c.destIP)) + "," +
+                c.destPort + "," +
+                ((c.isIPV6) ? "IPV6" : "IPV4") + "," +
+                GetProtocolName(c) + "," +
+                c.synCount + "," +
+                c.finCount + "," +
+                c.resetCount + "," +
+                (c.hasClientZeroWindow || c.hasServerZeroWindow ? "Y" : "") + "," +
+                (c.isUDP || c.ackSynTime == 0 ? "" : ((int)(c.LoginDelay("AS", firstTick) / utility.TICKS_PER_MILLISECOND)).ToString()) + "," +
+                c.rawRetransmits + "," +
+                c.duplicateClientPackets + "," +
+                c.duplicateServerPackets + "," +
+                c.keepAliveCount + "," +
+                (c.hasIntegratedSecurity ? "Y" : "") + "," +
+                (c.hasNTLMChallenge || c.hasNTLMResponse ? "Y" : "") + "," +
+                (c.hasLogin7 ? "Y" : "") + "," +
+                (c.isEncrypted ? (c.isEncRequired ? "R" : "Y") : "") + "," +
+                (c.isSQL && (c.isMARSEnabled || (c.smpAckCount + c.smpSynCount + c.smpFinCount + c.smpDataCount) > 0) ? "Y" : "") + "," +
+                (c.isUDP ? "" : c.frames.Count <= 40 ? c.GetPacketList(0, c.frames.Count) : c.GetFirstPacketList(20) + " ... " + c.GetLastPacketList(20)) + "," +
+                // Pktmon,MaxPktmonDelay,PktmonDrop,PktmonDropReason
+                (Trace.hasPktmonRecords ? "Y" : "") + "," +
+                (Trace.hasPktmonRecords ? $"{(c.pktmonMaxDelay / utility.TICKS_PER_SECOND).ToString("0.000000")}" : "") + "," +
+                (Trace.hasPktmonRecords && c.hasPktmonDroppedEvent ? $"Y" : "") + "," +
+                (Trace.hasPktmonRecords && c.hasPktmonDroppedEvent ? GetPktmonDropReasonText(c.pktmonDropReason) : "") + "," +
+                c.maxPayloadSize + "," +
+                (c.maxPayloadLimit ? "Y" : "") + "," +
+                c.frames.Count + "," +
+                c.totalBytes + "," +
+                "," +   // do not have a separate counter for sent bytes      TODO ? do we really need it?
+                "," +   // do not have a separate counter for received bytes  TODO ? do we really need it?
+                (c.frames.Count > 1 ? (c.totalBytes * 1.0 / duration * utility.TICKS_PER_SECOND).ToString("0") : "") + "," +
+                firstFile + "," +
+                lastFile + "," +
+                new DateTime(firstTick).ToString(utility.TIME_FORMAT) + "," +
+                new DateTime(endTicks).ToString(utility.TIME_FORMAT) + "," +
+                (duration / utility.TICKS_PER_SECOND).ToString("0.000000") + "," +
+                (c.TTLCountOut == 0 ? "" : (c.TTLSumOut / c.TTLCountOut).ToString()) + "," +
+                (c.TTLCountOut == 0 ? "" : c.minTTLHopsOut.ToString()) + "," +
+                (c.TTLCountIn == 0 ? "" : (c.TTLSumIn / c.TTLCountIn).ToString()) + "," +
+                (c.TTLCountIn == 0 ? "" : c.minTTLHopsIn.ToString()) + "," +
+                (c.preloginFrameNumber) + "," +
+                (c.connectionPeerID == Guid.Empty ? "" : c.connectionPeerID.ToString().ToUpper()) + "," +
+                (c.peeractivityid == Guid.Empty ? "" : c.peeractivityid.ToString().ToUpper()) + "," +
+                c.peeractivityseq + "," +
+                ServerName + "," +
+                (c.serverInstance == null ? "" : c.serverInstance) + "," +
+                ServerVersion + "," +
+                ((c.databaseName == null) ? "" : c.databaseName) + "," +
+                c.FriendlyTDSVersionServer + "," +
+                c.FriendlyTDSVersionClient + "," +
+                ((c.tlsVersionServer == null) ? "" : c.tlsVersionServer) + "," +
+                ((c.tlsVersionClient == null) ? "" : c.tlsVersionClient) + "," +
+                c.RedirectServer.Replace(",", "<") + "," +
+                (c.RedirectPort == 0 ? "" : c.RedirectPort.ToString()) + "," +
+                (c.Error == 0 ? "" : c.Error.ToString()) + "," +
+                (c.ErrorState == 0 ? "" : c.ErrorState.ToString()) + "," +
+                c.ErrorMsg.Replace(",", "."));  // replace comma with period, otherwise this MUST be the last column
             }
         }
 
