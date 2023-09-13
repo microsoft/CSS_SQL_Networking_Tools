@@ -117,6 +117,10 @@ namespace SQLNA
         public uint processID = 0;
         public uint threadID = 0;                   //   - set in GetClientPreloginInfo
         public Guid connectionPeerID = Guid.Empty;      //   - set in GetClientPreloginInfo
+        public Guid peeractivityid = Guid.Empty;
+        public long peeractivityseq = 0; // ActivitySequence  
+        public uint preloginFrameNumber = 0;
+
         // Login Error and Delay Stats
         public long synTime = 0;                    //
         public long ackSynTime = 0;                 //

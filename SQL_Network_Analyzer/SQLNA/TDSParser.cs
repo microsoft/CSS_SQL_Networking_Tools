@@ -56,7 +56,7 @@ namespace SQLNA
         }
 
         // helper function
-        private static void GetClientPreloginInfo(byte[] tdsPayLoad, ConversationData conv)
+        private static void GetClientPreloginInfo(byte[] tdsPayLoad, ConversationData conv, uint frameNumber = 0)
         {
             UInt16 majorVersion, minorVersion, levelVersion;
             UInt16 offset, length;
@@ -77,6 +77,9 @@ namespace SQLNA
                     // Skip out now if offset is invalid.
                     if (8 + offset >= tdsPayLoad.Length)
                         return;
+
+                    //Prelogin packet frame#
+                    conv.preloginFrameNumber = frameNumber;
 
                     switch (tdsPayLoad[i])
                     {
@@ -100,12 +103,19 @@ namespace SQLNA
                         case 4: // MARS options. 
                             if (tdsPayLoad[8 + offset] == 1) conv.isMARSEnabled = true;
                             break;
-                        case 5: // ConnectionID (16 byte GUID) and ActivityID (20 bytes) - ignoring ActivityID as we don't need it
+                        case 5: // ConnectionID (16 byte GUID) and ActivityID 16 bytes GUID + 4 bytes sequence number (UINT)
                             if (length == 36)
                             {
                                 byte[] guidBytes = new byte[16];
                                 Array.Copy(tdsPayLoad, 8 + offset, guidBytes, 0, 16);
                                 conv.connectionPeerID = new Guid(guidBytes);
+
+                                Array.Copy(tdsPayLoad, (8 + offset + 16), guidBytes, 0, 16);
+                                conv.peeractivityid = new Guid(guidBytes);
+
+                                //peer_activity_seq
+                                conv.peeractivityseq = utility.ReadUInt32(tdsPayLoad, (8 + offset + 32));
+
                             }
                             break;
                         default:
@@ -386,7 +396,7 @@ namespace SQLNA
 
                                     if (preloginType == 0)  // Prelogin packet
                                     {
-                                        GetClientPreloginInfo(fd.payload, fd.conversation);
+                                        GetClientPreloginInfo(fd.payload, fd.conversation, fd.frameNo);
                                         c.hasPrelogin = true;
                                         fd.frameType = FrameType.PreLogin;
                                         if (c.PreLoginTime == 0) c.PreLoginTime = fd.ticks;
