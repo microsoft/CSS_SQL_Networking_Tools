@@ -188,7 +188,7 @@ namespace SQLNA
                 }
                 else
                 {
-                    f.ticks = m_sessionStartTime.Ticks + ((long)(((rawData->EventHeader).TimeStamp - FirstTimeStamp) * (double)(100000000 / m_QPCFreq)));
+                    f.ticks = m_sessionStartTime.Ticks + ((long)(((rawData->EventHeader).TimeStamp - FirstTimeStamp) * ((double)10000000.0 / m_QPCFreq)));  // 10-million (seven 0's)
                 }
                 userData = new byte[rawData->UserDataLength - arrayOffset];
                 var x = ((byte*)rawData->UserData);

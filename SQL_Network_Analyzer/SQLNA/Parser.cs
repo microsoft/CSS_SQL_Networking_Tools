@@ -389,6 +389,8 @@ namespace SQLNA
         {
             switch (ProtocolNumber)
             {
+                case 0x0001:   // ICMP - ignore and do not log
+                    break;
                 case 0x0006:   // TCP
                     ParseTCPFrame(b, offset, t, f);
                     break;
@@ -402,6 +404,7 @@ namespace SQLNA
                     ParseIPV4Frame(b, offset, t, f);
                     break;
                 case 0x0806:   // ARP - ignore and do not log
+                case 0x8035:   // RARP - ignore and do not log - Reverse ARP
                     break;
                 case 0x8100:   // 802.1Q
                     Parse8021QFrame(b, offset, t, f);

@@ -116,9 +116,9 @@ namespace SQLNA
         public string serverInstance = null;        //   - set in GetClientPreloginInfo
         public uint processID = 0;
         public uint threadID = 0;                   //   - set in GetClientPreloginInfo
-        public Guid connectionPeerID = Guid.Empty;      //   - set in GetClientPreloginInfo
-        public Guid peeractivityid = Guid.Empty;
-        public long peeractivityseq = 0; // ActivitySequence  
+        public Guid connectionID = Guid.Empty;      //   - set in GetClientPreloginInfo
+        public Guid activityID = Guid.Empty;        //   - set in GetClientPreloginInfo
+        public long activitySequence = 0;           //   - set in GetClientPreloginInfo  
         public uint preloginFrameNumber = 0;
 
         // Login Error and Delay Stats

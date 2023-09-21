@@ -3776,9 +3776,9 @@ namespace SQLNA
                 (c.TTLCountIn == 0 ? "" : (c.TTLSumIn / c.TTLCountIn).ToString()) + "," +
                 (c.TTLCountIn == 0 ? "" : c.minTTLHopsIn.ToString()) + "," +
                 (c.preloginFrameNumber) + "," +
-                (c.connectionPeerID == Guid.Empty ? "" : c.connectionPeerID.ToString().ToUpper()) + "," +
-                (c.peeractivityid == Guid.Empty ? "" : c.peeractivityid.ToString().ToUpper()) + "," +
-                c.peeractivityseq + "," +
+                (c.connectionID == Guid.Empty ? "" : c.connectionID.ToString().ToUpper()) + "," +
+                (c.activityID == Guid.Empty ? "" : c.activityID.ToString().ToUpper()) + "," +
+                c.activitySequence + "," +
                 ServerName + "," +
                 (c.serverInstance == null ? "" : c.serverInstance) + "," +
                 ServerVersion + "," +

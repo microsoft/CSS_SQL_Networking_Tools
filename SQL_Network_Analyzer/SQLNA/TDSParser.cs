@@ -108,14 +108,13 @@ namespace SQLNA
                             {
                                 byte[] guidBytes = new byte[16];
                                 Array.Copy(tdsPayLoad, 8 + offset, guidBytes, 0, 16);
-                                conv.connectionPeerID = new Guid(guidBytes);
+                                conv.connectionID = new Guid(guidBytes);
 
                                 Array.Copy(tdsPayLoad, (8 + offset + 16), guidBytes, 0, 16);
-                                conv.peeractivityid = new Guid(guidBytes);
+                                conv.activityID = new Guid(guidBytes);
 
                                 //peer_activity_seq
-                                conv.peeractivityseq = utility.ReadUInt32(tdsPayLoad, (8 + offset + 32));
-
+                                conv.activitySequence = utility.ReadUInt32(tdsPayLoad, (8 + offset + 32));
                             }
                             break;
                         default:
