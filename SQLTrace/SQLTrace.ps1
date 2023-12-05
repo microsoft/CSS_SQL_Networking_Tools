@@ -14,7 +14,7 @@
 #
 # .\SQLTrace.ps1 -Help
 # .\SQLTrace.ps1 -Setup [-INIFile SQLTrace.ini]
-# .\SQLTrace.ps1 -Start [-StopAfter 0] [-INIFile SQLTrace.ini]
+# .\SQLTrace.ps1 -Start [-INIFile SQLTrace.ini] [-LogFolder folderpath] [-StopAfter minutes]
 # .\SQLTrace.ps1 -Stop [-INIFile SQLTrace.ini]
 # .\SQLTrace.ps1 -Cleanup [-INIFile SQLTrace.ini]
 #
@@ -70,15 +70,14 @@ $PathsToClean = @{}                          # for DeleteOldFiles
 
 Function Main
 {
-	$OutputEncoding = [console]::OutputEncoding                                           # Prevents mix of UNICODE and ANSI logs in SQLTrace.log
+	$OutputEncoding = [console]::OutputEncoding    # Prevents mix of UNICODE and ANSI logs in SQLTrace.log
     if (PreReqsOkay)
     {
         ReadINIFile
-        DisplayINIValues  # TODO hide
         RegisterEventLog
 
-        if     ($Setup)    { DisplayLicenseAndHeader; SetupTraces }                       # set BID Trace :Path registry if asked for in the INI file
-        elseif ($Start)    { SetLogFolderName; DisplayLicenseAndHeader; StartTraces }     # set BID Trace registry if not already set, then pause and prompt to restart app
+        if     ($Setup)    { DisplayLicenseAndHeader; DisplayINIValues; SetupTraces }                       # set BID Trace :Path registry if asked for in the INI file
+        elseif ($Start)    { SetLogFolderName; DisplayLicenseAndHeader; DisplayINIValues; StartTraces }     # set BID Trace registry if not already set, then pause and prompt to restart app
         elseif ($Stop)     { GetLogFolderName; StopTraces }
         elseif ($Cleanup)  { CleanupTraces }
         else               { DisplayLicenseAndHeader; DisplayHelpMessage }
@@ -96,7 +95,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0200.0
+                  SQLTrace.ps1 version 1.0.0211.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -211,7 +210,7 @@ Function ReadINIFile
         {
             "BIDTrace"          { $global:INISettings.BIDTrace           = $value }
             "BIDWow"            { $global:INISettings.BIDWow             = $value }
-            "BIDProviderList"   { $global:INISettings.BIDProviderList    = $value ; while ( $global:INISettings.BIDProviderList.IndexOf("  ") -ge 0) { $global:INISettings.BIDProviderList = $global:INISettings.BIDProviderList.Replace("  ", " ") } } # remove extra spaces between provider names
+            "BIDProviderList"   { $global:INISettings.BIDProviderList    = $value ; while ( $global:INISettings.BIDProviderList.IndexOf("  ") -gt 0) { $global:INISettings.BIDProviderList = $global:INISettings.BIDProviderList.Replace("  ", " ") } } # remove extra spaces between provider names
             "NETTrace"          { $global:INISettings.NetTrace           = $value }
             "NETSH"             { $global:INISettings.NETSH              = $value }
             "PSNETCAPTURE"      { $global:INISettings.PSNETCAPTURE       = $value }
@@ -240,35 +239,36 @@ Function ReadINIFile
 
 Function DisplayINIValues
 {
-    "Read the ini file: $INIFile"
-    ""
-    "BIDTrace            " + $global:INISettings.BIDTrace
-    "BIDWow              " + $global:INISettings.BIDWow
-    "BIDProviderList     " + $global:INISettings.BIDProviderList
-    ""
-    "NETTrace            " + $global:INISettings.NETTrace
-    "NETSH               " + $global:INISettings.NETSH
-    "PSNETCAPTURE        " + $global:INISettings.PSNETCAPTURE
-    "NETMON              " + $global:INISettings.NETMON
-    "WireShark           " + $global:INISettings.WireShark
-    "PktMon              " + $global:INISettings.PktMon
-    "TruncatePackets     " + $global:INISettings.TruncatePackets
-    "TCPEvents           " + $global:INISettings.TCPEvents
-    "FilterString        " + $global:INISettings.FilterString
-    ""
-    "AuthTrace           " + $global:INISettings.AuthTrace
-    "SSL                 " + $global:INISettings.SSL
-    "CredSSP_NTLM        " + $global:INISettings.CredSSP
-    "Kerberos            " + $global:INISettings.Kerberos
-    "LSA                 " + $global:INISettings.LSA
-    ""
-    "FlushTickets        " + $global:INISettings.FlushTickets
-    "EventViewer         " + $global:INISettings.EventViewer
-    "SQLErrorLog         " + $global:INISettings.SQLErrorLog
-    "SQLXEventLog        " + $global:INISettings.SQLXEventLog
-    "DeleteOldFiles      " + $global:INISettings.DeleteOldFiles
-    "MinFiles            " + $global:INISettings.MinFiles
-    "MinMinutes          " + $global:INISettings.MinMinutes
+    LogInfo ""
+	LogInfo "Read the ini file:  $INIFile"
+    LogInfo ""
+    LogInfo "BIDTrace            $($global:INISettings.BIDTrace)"
+    LogInfo "BIDWow              $($global:INISettings.BIDWow)"
+    LogInfo "BIDProviderList     $($global:INISettings.BIDProviderList)"
+    LogInfo ""
+    LogInfo "NETTrace            $($global:INISettings.NETTrace)"
+    LogInfo "NETSH               $($global:INISettings.NETSH)"
+    LogInfo "PSNETCAPTURE        $($global:INISettings.PSNETCAPTURE)"
+    LogInfo "NETMON              $($global:INISettings.NETMON)"
+    LogInfo "WireShark           $($global:INISettings.WireShark)"
+    LogInfo "PktMon              $($global:INISettings.PktMon)"
+    LogInfo "TruncatePackets     $($global:INISettings.TruncatePackets)"
+    LogInfo "TCPEvents           $($global:INISettings.TCPEvents)"
+    LogInfo "FilterString        $($global:INISettings.FilterString)"
+    LogInfo ""
+    LogInfo "AuthTrace           $($global:INISettings.AuthTrace)"
+    LogInfo "SSL                 $($global:INISettings.SSL)"
+    LogInfo "CredSSP_NTLM        $($global:INISettings.CredSSP)"
+    LogInfo "Kerberos            $($global:INISettings.Kerberos)"
+    LogInfo "LSA                 $($global:INISettings.LSA)"
+    LogInfo ""
+    LogInfo "FlushTickets        $($global:INISettings.FlushTickets)"
+    LogInfo "EventViewer         $($global:INISettings.EventViewer)"
+    LogInfo "SQLErrorLog         $($global:INISettings.SQLErrorLog)"
+    LogInfo "SQLXEventLog        $($global:INISettings.SQLXEventLog)"
+    LogInfo "DeleteOldFiles      $($global:INISettings.DeleteOldFiles)"
+    LogInfo "MinFiles            $($global:INISettings.MinFiles)"
+    LogInfo "MinMinutes          $($global:INISettings.MinMinutes)"
 }
 
 function RegisterEventLog
@@ -495,9 +495,6 @@ Function FlushCaches
     }
 
     StopDeleteOldFiles
-
-#    StopCleanupETLTraceFiles -jobname  "BIDTRACECLEANUP"
-#    StopCleanupETLTraceFiles -jobname  "NETWORKTRACECLEANUP"
 }
 
 Function GETBIDTraceGuid($bidProvider)
@@ -585,7 +582,7 @@ Function StartBIDTraces
             $guid | Out-File -FilePath "$($global:LogFolderName)\BIDTraces\ctrl.guid" -Append -Encoding Ascii
         }
 
-        $result = logman start SQLTraceBID -pf "$($global:LogFolderName)\BIDTraces\ctrl.guid" -o "$($global:LogFolderName)\BIDTraces\bidtrace%d.etl" -bs 1024 -nb 1024 1024 -mode NewFile -max 200 -ets
+        $result = logman start SQLTraceBID -pf "$($global:LogFolderName)\BIDTraces\ctrl.guid" -o "$($global:LogFolderName)\BIDTraces\bidtrace%d.etl" -bs 1024 -nb 1024 1024 -mode NewFile -max 300 -ets
         LogInfo "LOGMAN: $result"
 
         # Values for DeleteOldFiles
@@ -606,9 +603,8 @@ Function StartWireshark
     $ArgumentList = ""
     For($cDevices=0;$cDevices -lt $DeviceList.Count;$cDevices++) { $ArgumentList = $ArgumentList + " -i " + ($cDevices+1) }
     ##Prepare command arguments 
-    $ArgumentList = " $truncatePackets " + $ArgumentList + " -w `"$($global:LogFolderName)\NetworkTraces\nettrace.pcap`" -b filesize:200000 $($global:INISettings.FilterString)"
+    $ArgumentList = " $truncatePackets " + $ArgumentList + " -w `"$($global:LogFolderName)\NetworkTraces\nettrace.pcap`" -b filesize:300000 $($global:INISettings.FilterString)"
     LogInfo "Dumpcap Args: $ArgumentList"
-#   [System.Diagnostics.Process] $WiresharkProcess = Start-Process $WiresharkCmd -PassThru -NoNewWindow -ArgumentList $ArgumentList
     [System.Diagnostics.Process] $WiresharkProcess = Start-Process $WiresharkCmd -PassThru -NoNewWindow -RedirectStandardOutput "$($global:LogFolderName)\NetworkTraces\Console.txt" -ArgumentList $ArgumentList
     LogInfo "Wireshark is running with PID: " + $WiresharkProcess.ID
 
@@ -628,7 +624,7 @@ Function StartNetworkMonitor
     $NMCap = Get-ItemPropertyValue -Path 'HKLM:\HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Netmon3\' -Name InstallDir
 
     $NMCap = '"' + $NMCap + "nmcap.exe" + '" '
-    $ArgumentList = "/network * /capture $($global:INISettings.FilterString) /file `"$($global:LogFolderName)\NetworkTraces\nettrace.chn:200M`" /StopWhen /Frame dns.qrecord.questionname.Contains('stopsqltrace') $truncatePackets"
+    $ArgumentList = "/network * /capture $($global:INISettings.FilterString) /file `"$($global:LogFolderName)\NetworkTraces\nettrace.chn:300M`" /StopWhen /Frame dns.qrecord.questionname.Contains('stopsqltrace') $truncatePackets"
     LogInfo "NMCAP Args: $ArgumentList"
 
     #Start the capture
@@ -642,95 +638,6 @@ Function StartNetworkMonitor
     $CleanupValues = "$($global:LogFolderName)\NetworkTraces\*.cap", $global:INISettings.MinMinutes, $global:INISettings.MinFiles    # Filespec, min_minutes, min_files
     $PathsToClean.Add("NMCAP", $CleanupValues)
 }
-
-
-## Create generic version of Cleanup Traces for BIDS, Network etc.
-Function StartCleanupETLTraceFiles
-{
-    param
-    (
-        [string] $jobname,      
-        [string] $folder,        
-        [int]    $numofFilesToKeep,
-    [int]    $jobrunintervalMin
-    )
-  
-    $job=Register-ScheduledJob  -Name $jobname -scriptblock {  
-    Param($jobname, 
-        [string] $folder, 
-        [int] $numofFilesToKeep, 
-        [int] $jobrunintervalMin)
-    gci -Path $folder -Recurse | where {(-not $_.PsIsContainer) -and ($_.name -notmatch "deleteme.etl") -and ($_.name -match ".etl") } | sort CreationTime -desc | select -skip $numofFilesToKeep | Remove-Item  -Force @args
-                                       } -ArgumentList $jobname, $folder, $numofFilesToKeep, $jobrunintervalMin 
-    $job.Options.RunElevated=$True
-    $cleanupJob=New-JobTrigger -Once -At (get-date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Minutes $jobrunintervalMin) -RepeatIndefinitely  ## -RepetitionDuration (New-TimeSpan -Minutes 20)  
-    Add-JobTrigger -Trigger $cleanupjob -Name $jobname    
-}
-
-Function StartDeleteOldFiles
-{
-    param ($FilesToDelete)
-
-    "DeleteOldFiles job starting ..."
-    "Files being monitored:"
-    foreach ($Name in $FilesToDelete.Keys)
-    {
-        $PathToClean = $FilesToDelete[$Name]
-        $FileSpec = $PathToClean[0]
-        $MinMinutes = $PathToClean[1]
-        $MinFiles = $PathToClean[2]
-        "$Name=$fileSpec, Min Minutes=$MinMinutes, Min Files=$MinFiles"
-    }
-
-    $jobname = "DeleteOldFiles"
-  
-    $job=Register-ScheduledJob  -Name "DeleteOldFiles" -scriptblock {  
-        Param ( $FilesToDelete )
-        foreach ($Name in $FilesToDelete.Keys)
-        {
-            $PathToClean = $FilesToDelete[$Name]
-            $FileSpec = $PathToClean[0]
-            $MinMinutes = $PathToClean[1] -as [int]
-            $MinFiles = $PathToClean[2] -as  [int]
-            get-item $FileSpec | sort-object -property LastWriteTime -descending | select -skip $MinFiles | where-object {$_.LastWriteTime -lt ((get-date).AddMinutes($MinMinutes * -1))}  | remove-item -force
-        }
-    } -ArgumentList $FilesToDelete
-    $job.Options.RunElevated=$True
-    $cleanupJob=New-JobTrigger -Once -At (get-date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Minutes 5) -RepeatIndefinitely   # runs once every 5 minutes
-    Add-JobTrigger -Trigger $cleanupjob -Name $jobname    
-}
-
-
-Function StopCleanupETLTraceFiles
-{
-    param
-	(
-      $jobname    
-    )
-	
-    try
-    {
-        Stop-Job $jobname -ErrorAction SilentlyContinue
-        Remove-Job $jobname -Force -ErrorAction SilentlyContinue
-        Remove-JobTrigger $jobname -ErrorAction SilentlyContinue
-        UnRegister-ScheduledJob -Name $jobname -Force -ErrorAction SilentlyContinue
-    }
-    catch { "Error stopping the Cleanup Job $jobname." }
-}
-
-Function StopDeleteOldFiles
-{
-	$jobname = "DeleteOldFiles"
-    try
-    {
-        Stop-Job $jobname -ErrorAction SilentlyContinue
-        Remove-Job $jobname -Force -ErrorAction SilentlyContinue
-        Remove-JobTrigger $jobname -ErrorAction SilentlyContinue
-        UnRegister-ScheduledJob -Name $jobname -Force -ErrorAction SilentlyContinue
-    }
-    catch { "Error stopping the DeleteOldFiles job." }
-}
-
 
 Function StartNetworkTraces
 {
@@ -1096,9 +1003,6 @@ Function StopBIDTraces
 {
     if($global:INISettings.BidTrace -eq "Yes")
     {
-        ## StopCleanupBIDTraces   # Clintonw
-        #StopCleanupETLTraceFiles -jobname "BIDTRACECLEANUP"
-
         LogInfo "Stopping BID Traces ..."
 		# Do not clear the registry keys in case we run a second trace; use the -cleanup switch explicitly
         logman stop SQLTraceBID -ets
@@ -1223,6 +1127,11 @@ Function StopAuthenticationTraces
     # Not controlled by the Auth Flag
     if($global:INISettings.EventViewer -eq "Yes")
     {
+		
+		if((Test-Path "$($global:LogFolderName)\Auth" -PathType Container) -eq $false)
+		{
+            md "$($global:LogFolderName)\Auth" > $null
+        }
 
         LogInfo "Disabling/Collecting Event Viewer Logs..."
 			
@@ -1346,6 +1255,56 @@ Function ClearBIDRegistry
 		LogInfo "BIDTrace - Unset BIDInterface MSDADIAG.DLL"
 		reg delete HKLM\Software\Microsoft\BidInterface\Loader /v :Path /f
 	}
+}
+
+# ============================= Background Job DeleteOldFiles ===================
+
+Function StartDeleteOldFiles
+{
+    param ($FilesToDelete)
+
+    LogInfo "DeleteOldFiles job starting ..."
+    LogInfo "Files being monitored:"
+    foreach ($Name in $FilesToDelete.Keys)
+    {
+        $PathToClean = $FilesToDelete[$Name]
+        $FileSpec = $PathToClean[0]
+        $MinMinutes = $PathToClean[1]
+        $MinFiles = $PathToClean[2]
+        LogInfo "$Name=$fileSpec, Min Minutes=$MinMinutes, Min Files=$MinFiles"
+    }
+
+    $jobname = "DeleteOldFiles"
+  
+    $job=Register-ScheduledJob  -Name "DeleteOldFiles" -scriptblock {  
+        Param ( $FilesToDelete )
+        foreach ($Name in $FilesToDelete.Keys)
+        {
+            $PathToClean = $FilesToDelete[$Name]
+            $FileSpec = $PathToClean[0]
+            $MinMinutes = $PathToClean[1] -as [int]
+            $MinFiles = $PathToClean[2] -as  [int]
+            get-item $FileSpec | sort-object -property LastWriteTime -descending | select -skip $MinFiles | where-object {$_.LastWriteTime -lt ((get-date).AddMinutes($MinMinutes * -1))}  | remove-item -force
+        }
+    } -ArgumentList $FilesToDelete
+    $job.Options.RunElevated=$True
+    $cleanupJob=New-JobTrigger -Once -At (get-date).AddSeconds(2) -RepetitionInterval (New-TimeSpan -Minutes 5) -RepeatIndefinitely   # runs once every 5 minutes
+    Add-JobTrigger -Trigger $cleanupjob -Name $jobname    
+}
+
+Function StopDeleteOldFiles
+{
+	LogInfo "DeleteOldFiles job stopping ..."
+	$jobname = "DeleteOldFiles"
+    try
+    {
+        Stop-Job $jobname -ErrorAction SilentlyContinue
+        Remove-Job $jobname -Force -ErrorAction SilentlyContinue
+        Remove-JobTrigger $jobname -ErrorAction SilentlyContinue
+        UnRegister-ScheduledJob -Name $jobname -Force -ErrorAction SilentlyContinue
+		LogInfo "Stopped the DeleteOldFiles job."
+    }
+    catch { LogInfo "Error stopping the DeleteOldFiles job." }
 }
 
 # ======================================= Logging ===============================

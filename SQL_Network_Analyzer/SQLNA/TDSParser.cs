@@ -277,7 +277,7 @@ namespace SQLNA
                         {
                             // do nothing - ignore the TDS header that's in the else clause
                         }
-                        else   // (firstByte != (int)TDSPacketType.APPDATA)
+                        else   // (firstByte != a TLS packet type)
                         {
                             // get header values - except for Application Data, and TDS8 packet types
                             status = fd.payload[1];
@@ -302,7 +302,7 @@ namespace SQLNA
                             case (byte)TDSPacketType.TDS8TLS:
                                 {
                                     TLS tls = TLS.Parse(fd.payload, 0);
-                                    if (tls.handshake.hasClientHello)
+                                    if (tls.handshake != null && tls.handshake.hasClientHello)
                                     {
                                         // generic ClientHello stats, even for HTTPs, etc.
                                         ushort sslLevel = tls.handshake.clientHello.sslLevel;
@@ -319,7 +319,7 @@ namespace SQLNA
                                             if (fd.isFromClient) { tdsClientSource++; } else { tdsClientDest++; };
                                         }
                                     }
-                                    else if (tls.handshake.hasServerHello)
+                                    else if (tls.handshake != null && tls.handshake.hasServerHello)
                                     {
                                         // generic ServerHello stats, even for HTTPS, etc.
                                         ushort sslLevel = tls.handshake.serverHello.sslLevel;
@@ -344,7 +344,7 @@ namespace SQLNA
                                             if (fd.isFromClient) { tdsServerSource++; } else { tdsServerDest++; };
                                         }
                                     }
-                                    else if (tls.handshake.hasClientKeyExchange)
+                                    else if (tls.handshake != null && tls.handshake.hasClientKeyExchange)
                                     {
                                         fd.frameType = FrameType.KeyExchange;
                                         if (c.hasTDS8)
