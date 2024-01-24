@@ -95,7 +95,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0211.0
+                  SQLTrace.ps1 version 1.0.0215.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -536,6 +536,7 @@ Function GETBIDTraceGuid($bidProvider)
        "MSODBCSQL11"                      { return "{7C360F7F-7102-250A-A233-F9BEBB9875C2} 0x630ff  0   MSODBCSQL11.1 "}
        "MSODBCSQL13"                      { return "{85DC6E48-9394-F805-45C9-C8B2ACA2E7FE} 0x630ff  0   MSODBCSQL13.1 "}
        "MSODBCSQL17"                      { return "{053A11C4-BC2B-F7CE-4A10-9D2602643DA0} 0x630ff  0   MSODBCSQL17.1 "}
+	   "MSODBCSQL18"                      { return "{1a1283ad-c65d-28ef-d729-39794ffdab32} 0x630ff  0   MSODBCSQL18.1 "}
        "System.Data"                      { return "{914ABDE2-171E-C600-3348-C514171DE148} 0x630ff  0   System.Data.1 "}
        "System.Data.OracleClient"         { return "{DCD90923-4953-20C2-8708-01976FB15287} 0x630ff  0   System.Data.OracleClient.1 "}
        "System.Data.SNI"                  { return "{C9996FA5-C06F-F20C-8A20-69B3BA392315} 0x630ff  0   System.Data.SNI.1 "}
@@ -1186,7 +1187,7 @@ Function CopySQLErrorLog()
            mkdir $ValueName | out-null
            $instanceFolderName = $SQLKey.GetValue($ValueName); #Get Instance Folder Name
            $errorLogPath = (Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Microsoft SQL Server\$instanceFolderName\MSSQLServer\Parameters\").psobject.properties |
-              where {$_.name -like "xls*" -or $_.value -like "*ERRORLOG*"} |
+              where {$_.value -like "*ERRORLOG*"} |
                 select value
 
             #Remove any parameter prior to the path
