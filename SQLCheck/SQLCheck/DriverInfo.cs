@@ -1,7 +1,10 @@
 ﻿// Copyright (c) Microsoft Corporation.
 // Licensed under the MIT license.
+using System;
 using System.Diagnostics;
 using System.Data;
+using System.Data.OleDb;
+using Microsoft.Win32;
 
 namespace SQLCheck
 {
@@ -213,26 +216,180 @@ namespace SQLCheck
                                  "MSOLEDBSQL19"};
         }
 
-        public static string[] GetExtendedOLEDBNames()
+        //public static string[] GetExtendedOLEDBNames()
+        //{
+        //    return new string[] {"SQLOLEDB",
+        //                         "SQLNCLI",
+        //                         "SQLNCLI10",
+        //                         "SQLNCLI11",
+        //                         "MSOLEDBSQL",
+        //                         "MSOLEDBSQL19",
+        //                         "Microsoft.ACE.OLEDB.10.0",   // supported by Office (Access)
+        //                         "Microsoft.ACE.OLEDB.12.0",   // supported by Office (Access)
+        //                         "Microsoft.ACE.OLEDB.16.0",   // supported by Office (Access)
+        //                         "MSOLAP",                     // supported by Analysis Services (SSAS)
+        //                         "ADSDSOObject",               // supported by Active Directory
+        //                         "Sybase.ASEOLEDBProvider",    // supported by Sybase
+        //                         "MySQLProv",                  // supported by MySQL
+        //                         "Ifxoledbc",                  // supported by IBM/Informix
+        //                         "IBMDA400",                   // supported by IBM AS/400 DB/2 database
+        //                         "IBMDADB2",                   // supported by IBM DB/2 database
+        //                         "DB2OLEDB",                   // supported by Microsoft Host Integration Services (HIS)
+        //                         "OraOLEDB.Oracle"};           // supported by Oracle
+        //}
+
+        public static DataTable GetExtendedOLEDBNames(bool is64bit)
         {
-            return new string[] {"SQLOLEDB",
-                                 "SQLNCLI",
-                                 "SQLNCLI10",
-                                 "SQLNCLI11",
-                                 "MSOLEDBSQL",
-                                 "MSOLEDBSQL19",
-                                 "Microsoft.ACE.OLEDB.10.0",   // supported by Office (Access)
-                                 "Microsoft.ACE.OLEDB.12.0",   // supported by Office (Access)
-                                 "Microsoft.ACE.OLEDB.16.0",   // supported by Office (Access)
-                                 "MSOLAP",                     // supported by Analysis Services (SSAS)
-                                 "ADSDSOObject",               // supported by Active Directory
-                                 "Sybase.ASEOLEDBProvider",    // supported by Sybase
-                                 "MySQLProv",                  // supported by MySQL
-                                 "Ifxoledbc",                  // supported by IBM/Informix
-                                 "IBMDA400",                   // supported by IBM AS/400 DB/2 database
-                                 "IBMDADB2",                   // supported by IBM DB/2 database
-                                 "DB2OLEDB",                   // supported by Microsoft Host Integration Services (HIS)
-                                 "OraOLEDB.Oracle"};           // supported by Oracle
+            String[] MSFT_SQL_Providers = GetOLEDBNames();
+
+            // fill the list with unordered provider information
+            DataTable dtProviders = new DataTable("Unordered Providers");
+            dtProviders = GetOLEDBProvidersTable();                                  // 32-bit or 64-bit registry scan depending on OS architecture
+            if (is64bit) dtProviders.Merge(GetOLEDBProvidersTable(true));            // 32-bit registry scan
+
+            DataTable dt = new DataTable("EnumeratedProviders");
+            dt.AddColumn("ProgID", "String");
+            dt.AddColumn("CLSID", "String");
+            dt.AddColumn("Path", "String");
+            dt.AddColumn("Description", "String");
+
+            // Add the data for the Microsoft Providers for SQL Server
+
+            DataView dv = new DataView(dtProviders);
+            foreach (string ProgID in MSFT_SQL_Providers)
+            {
+                dv.RowFilter = $"ProgID='{ProgID}'";
+                dv.Sort = "ProgID,Path";                                               // keep the 64-bit and 32-bit ProgIDs together
+                foreach (DataRowView drv in dv)                                             // the providers in our list have only 1 version each as they are side-by-side with different PROGID names, unlike MSOLAP
+                {
+                    DataRow row = dt.NewRow();
+                    row["ProgID"] = drv["ProgID"];
+                    row["CLSID"] = drv["GUID"];
+                    row["Path"] = drv["Path"];
+                    row["Description"] = drv["Description"];
+                    dt.Rows.Add(row);
+                    dv[0].Row.Delete();                                            // removes the row from future consideration
+                }
+            }
+
+            // add Providers that are not on the list in alphabetical order
+            dv.RowFilter = "";
+            dv.Sort = "ProgID,Path";
+            foreach (DataRowView drv in dv)
+            {
+                DataRow row = dt.NewRow();
+                row["ProgID"] = drv["ProgID"];
+                row["CLSID"] = drv["GUID"];
+                row["Path"] = drv["Path"];
+                row["Description"] = drv["Description"];
+                dt.Rows.Add(row);
+            }
+
+            return dt;
+        }
+
+        // this is based on they way MSDAENUM.GetRootEnumerator works
+        public static DataTable GetOLEDBProvidersTable(bool WowMode = false)
+        {
+            DataTable dt = new DataTable();
+            dt.AddColumn("ProgID", "String");
+            dt.AddColumn("GUID", "String");
+            dt.AddColumn("Path", "String");
+            dt.AddColumn("Description", "String");
+
+            RegistryKey hive = null;
+            RegistryKey key = null;
+            RegistryKey subKey = null;
+            RegistryKey inProc32Key = null;
+            RegistryKey OLEDBProviderKey = null;
+            RegistryKey ProgIDKey = null;
+            string RegistryPath = (WowMode ? @"WOW6432Node\CLSID" : "CLSID");
+
+            try
+            {
+                // open the CLSID registry key for enumeration
+                hive = Registry.ClassesRoot;
+                key = hive.OpenSubKey(RegistryPath, RegistryKeyPermissionCheck.ReadSubTree,
+                                                    System.Security.AccessControl.RegistryRights.ReadPermissions |
+                                                    System.Security.AccessControl.RegistryRights.ReadKey |
+                                                    System.Security.AccessControl.RegistryRights.EnumerateSubKeys |
+                                                    System.Security.AccessControl.RegistryRights.QueryValues);
+                if (key is null) throw new InvalidOperationException($@"Registry key {RegistryPath} could not be opened.");
+
+                // enumerate all the GUID sub keys
+                string[] subKeyNames = key.GetSubKeyNames();
+                foreach (string subKeyName in subKeyNames)
+                {
+                    try
+                    {
+                        subKey = key.OpenSubKey(subKeyName, RegistryKeyPermissionCheck.ReadSubTree,
+                                                            System.Security.AccessControl.RegistryRights.ReadPermissions |
+                                                            System.Security.AccessControl.RegistryRights.ReadKey |
+                                                            System.Security.AccessControl.RegistryRights.EnumerateSubKeys |
+                                                            System.Security.AccessControl.RegistryRights.QueryValues);
+                        if (subKey != null) // ignore keys we cannot open
+                        {
+                            inProc32Key = subKey.OpenSubKey("InprocServer32", RegistryKeyPermissionCheck.ReadSubTree,
+                                                                              System.Security.AccessControl.RegistryRights.ReadPermissions |
+                                                                              System.Security.AccessControl.RegistryRights.ReadKey |
+                                                                              System.Security.AccessControl.RegistryRights.EnumerateSubKeys |
+                                                                              System.Security.AccessControl.RegistryRights.QueryValues);
+                            if (inProc32Key == null) continue;
+
+                            OLEDBProviderKey = subKey.OpenSubKey("OLE DB Provider", RegistryKeyPermissionCheck.ReadSubTree,
+                                                                                    System.Security.AccessControl.RegistryRights.ReadPermissions |
+                                                                                    System.Security.AccessControl.RegistryRights.ReadKey |
+                                                                                    System.Security.AccessControl.RegistryRights.EnumerateSubKeys |
+                                                                                    System.Security.AccessControl.RegistryRights.QueryValues);
+                            if (OLEDBProviderKey == null) continue;
+
+                            ProgIDKey = subKey.OpenSubKey("ProgID", RegistryKeyPermissionCheck.ReadSubTree,
+                                                                    System.Security.AccessControl.RegistryRights.ReadPermissions |
+                                                                    System.Security.AccessControl.RegistryRights.ReadKey |
+                                                                    System.Security.AccessControl.RegistryRights.EnumerateSubKeys |
+                                                                    System.Security.AccessControl.RegistryRights.QueryValues);
+                            if (ProgIDKey == null) continue;
+
+                            // all the subkeys exist - add values to the DataTable
+
+                            string inProc32 = inProc32Key.GetValue(null, "").ToString(); // null -> default value
+                            string description = OLEDBProviderKey.GetValue(null, "").ToString(); // null -> default value
+                            string ProgID = ProgIDKey.GetValue(null, "").ToString(); // null -> default value
+
+                            if (ProgID.EndsWith(".1")) ProgID = ProgID.Substring(0, ProgID.Length - 2);  // trim .1 but not other values; may have multiple drivers with the same ProgID
+
+                            DataRow row = dt.NewRow();
+
+                            row["ProgID"] = ProgID;
+                            row["Description"] = description;
+                            row["GUID"] = SmartString.GetBetween(subKey.Name, "{", "}"); // between { }
+                            row["Path"] = inProc32;
+
+                            dt.Rows.Add(row);
+                        }
+                    }
+                    finally
+                    {
+                        if (inProc32Key != null) inProc32Key.Dispose();
+                        if (OLEDBProviderKey != null) OLEDBProviderKey.Dispose();
+                        if (ProgIDKey != null) ProgIDKey.Dispose();
+                        if (subKey != null) subKey.Dispose();
+                    }
+                }
+
+                key.Dispose();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"An exception happened opening a GUID subkey under {RegistryPath}. {ex.Message}");
+            }
+            finally
+            {
+                if (key != null) key.Dispose();
+                if (hive != null) hive.Dispose();
+            }
+
+            return dt;
         }
 
         public static string[] GetODBCNames()

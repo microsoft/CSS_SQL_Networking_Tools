@@ -699,6 +699,18 @@ namespace SQLCheck
             return $"{ts.Days} Days, {ts.Hours} Hours, {ts.Minutes} Minutes";
         }
 
+        public static string GetTimeZoneOffsetAndName(DateTime theDate)
+        {
+            TimeZoneInfo tz = TimeZoneInfo.Local;
+            if (tz.SupportsDaylightSavingTime)
+            {
+                TimeSpan offset = tz.GetUtcOffset(theDate);
+                string offsetText = "(UTC" + (offset.Hours < 0 ? "-" : "+") + offset.ToString(@"hh\:mm") + ")";
+                return $"{offsetText} {(tz.IsDaylightSavingTime(theDate) ? tz.DaylightName : tz.StandardName)}";
+            }
+            return tz.DisplayName;
+        }
+
     }
 
     public class StringIgnoreCaseComparer : System.Collections.Generic.IEqualityComparer<String>

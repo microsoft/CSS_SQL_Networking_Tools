@@ -340,6 +340,7 @@ namespace SQLCheck
             dt.Columns["ID"].AutoIncrement = true;
             dt.AddColumn("ParentID", "Integer");
             dt.AddColumn("DriverName", "String");
+            dt.AddColumn("Description", "String");
             dt.AddColumn("DriverType", "String");
             dt.AddColumn("Guid", "String");
             dt.AddColumn("Path", "String");

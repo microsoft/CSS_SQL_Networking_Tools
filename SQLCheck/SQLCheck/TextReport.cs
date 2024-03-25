@@ -52,7 +52,7 @@ namespace SQLCheck
         static void ReportHeading(DataSet ds, TextWriter s)
         {
             DataRow Computer = ds.Tables["Computer"].Rows[0];
-            s.WriteLine($"SQL Server Connectivity Check v{Program.version}, run on {DateTime.Now.ToString(@"MM/dd/yyyy hh:mm:ss tt")}");
+            s.WriteLine($"SQL Server Connectivity Check v{Program.version}, run on {DateTime.Now.ToString(@"MM/dd/yyyy hh:mm:ss tt")} {Utility.GetTimeZoneOffsetAndName(DateTime.Now)}");
             s.WriteLine("by the Microsoft CSS SQL Networking Team");
             s.WriteLine();
             s.WriteLine("This report contains the following sections:");
@@ -720,12 +720,13 @@ namespace SQLCheck
             DataTable dtDatabaseDriver = ds.Tables["DatabaseDriver"];
             ReportFormatter rf = new ReportFormatter();
 
-            rf.SetColumnNames("Name:L", "Type:L", "Version:L", "Supported:L", "TLS 1.2:L", "TLS 1.3:L", "MSF:L", "GUID:L", "Path:L", "Message:L");
+            rf.SetColumnNames("Name:L", "Description:L", "Type:L", "Version:L", "Supported:L", "TLS 1.2:L", "TLS 1.3:L", "MSF:L", "CLSID:L", "Path:L", "Message:L");
             foreach (DataRow DatabaseDriver in dtDatabaseDriver.Rows)
             {
                 if (DatabaseDriver.GetString("Supported") != "")  // only SQL drivers and providers have this set
                 {
                     rf.SetcolumnData(DatabaseDriver.GetString("DriverName"),
+                                     DatabaseDriver.GetString("Description"),
                                      DatabaseDriver.GetString("DriverType"),
                                      DatabaseDriver.GetString("Version"),
                                      DatabaseDriver.GetString("Supported"),
@@ -748,12 +749,13 @@ namespace SQLCheck
 
             s.WriteLine("Other OLE DB Providers and ODBC Drivers:");
             s.WriteLine();
-            rf.SetColumnNames("Name:L", "Type:L", "Version:L", "GUID:L", "Path:L", "Message:L");
+            rf.SetColumnNames("Name:L", "Description:L", "Type:L", "Version:L", "CLSID:L", "Path:L", "Message:L");
             foreach (DataRow DatabaseDriver in dtDatabaseDriver.Rows)
             {
                 if (DatabaseDriver.GetString("Supported") == "")  // only SQL drivers and providers have this set
                 {
                     rf.SetcolumnData(DatabaseDriver.GetString("DriverName"),
+                                 DatabaseDriver.GetString("Description"),
                                  DatabaseDriver.GetString("DriverType"),
                                  DatabaseDriver.GetString("Version"),
                                  DatabaseDriver.GetString("Guid"),

@@ -157,7 +157,7 @@ namespace SQLCheck
                 if (Computer.GetString("CommonFilesx86Folder").StartsWith(@"C:\") == false) Computer.LogCritical($"The Common Files (x86) folder must be on the C: drive or installation issues may occur. Currently: {Computer.GetString("CommonFilesx86Folder")}");
             }
             int majorVersion = 0, minorVersion = 0, ubr = 0;
-            string releaseID = "";
+            string releaseID = "", DisplayVersion = "";
             Computer["WindowsVersion"] = Environment.OSVersion.VersionString;  // not really valid past Windows 2012
             majorVersion = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentMajorVersionNumber", 0);
             Computer["MajorVersion"] = majorVersion.ToString();
@@ -166,12 +166,14 @@ namespace SQLCheck
             Computer["WindowsName"] = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ProductName", "");
             Computer["WindowsBuild"] = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "CurrentBuild", "");
             releaseID = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "ReleaseID", "");
+            DisplayVersion = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "DisplayVersion", "");
             Computer["WindowsReleaseID"] = releaseID;
+            if (DisplayVersion == "") DisplayVersion = releaseID; // Windows 2022 uses DisplayVersion, Windows 2019 and earlier do not have this, use ReleaseID instead
             ubr = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "UBR", 0);  // UBR = Update Build Revision
             Computer["WindowsUBR"] = ubr.ToString();
 
             if (majorVersion != 0) Computer["WindowsVersion"] = $"{majorVersion}.{minorVersion}.{Computer["WindowsBuild"].ToString()}.{ubr}";
-            if (releaseID != "") Computer["WindowsName"] = Computer["WindowsName"].ToString() + $" ({releaseID})";
+            if (releaseID != "") Computer["WindowsName"] = Computer["WindowsName"].ToString() + $" ({DisplayVersion})"; // Windows 2022 uses DisplayVersion, Windows 2019 and earlier do not have this, use ReleaseID instead
 
             //
             // CLR 4 version - ADO.NET support for TLS 1.2 is available only in the .NET Framework 4.6
@@ -1446,7 +1448,7 @@ namespace SQLCheck
             DataRow Computer = ds.Tables["Computer"].Rows[0];
             DataRow DatabaseDriver = null;
             bool is64bit = Computer["CPU64Bit"].ToBoolean();
-            string[] OLEDBProviders = DriverInfo.GetExtendedOLEDBNames();  // SQL and some non-SQL OLE DB Providers
+            DataTable OLEDBProviders = DriverInfo.GetExtendedOLEDBNames(is64bit);  // SQL and some non-SQL OLE DB Providers
             string[] ODBCDrivers = DriverInfo.GetODBCNames();
             DriverInfo info = null;
             FileVersionInfo versionInfo = null;
@@ -1454,104 +1456,112 @@ namespace SQLCheck
             string windowsReleaseID = Computer.GetString("WindowsReleaseID");
             string badPath = "";
 
-            foreach (string Provider in OLEDBProviders)
+            foreach (DataRow Provider in OLEDBProviders.Rows)
             {
-                // info = DriverInfo.GetDriverInfo(Provider);
-                object g = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SOFTWARE\Classes\{Provider}\Clsid", "", "");
-                string guid = g == null ? "" : g.ToString();
-                if (guid != "")
+                //object g = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SOFTWARE\Classes\{Provider["ProgID"].ToString()}\Clsid", "", "");  // should exist since we have the enumerated list
+                //string guid = g == null ? "" : g.ToString();
+                //if (guid == "") continue;
+
+                //object ip = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{Provider["CLSID"].ToString()}\InProcServer32", "", "");  // should exist in this bitness
+                //object pi = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{Provider["CLSID"].ToString()}\ProgID", "", "");  // replace Provider["ProgID"] with this value it it exists and does not end in ",1"
+                //string inprocServer32 = (ip == null ? "" : ip.ToString());
+                //string progid = (pi == null ? Provider["ProgID"].ToString() : pi.ToString());
+                //if (progid.EndsWith(".1")) progid = progid.Substring(0, progid.Length - 2);   // looking for providers that may have more than one ProgID variation
+                //if (inprocServer32 != "")
+                //{
+                string inprocServer32 = "";
+                try // now does 32-bit and 64-bit Providers; the OLEDBProviders DataTable is filled with both
                 {
-                    object ip = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SOFTWARE\Classes\CLSID\{guid}\InProcServer32", "", "");
-                    string inprocServer32 = (ip == null ? "" : ip.ToString());
-                    if (inprocServer32 != "")
+                    DatabaseDriver = ds.Tables["DatabaseDriver"].NewRow();
+                    ds.Tables["DatabaseDriver"].Rows.Add(DatabaseDriver);
+
+                    badPath = "";
+                    string originalPath = Provider["Path"].ToString().Trim();
+                    inprocServer32 = Utility.KeepBeforeIncluding(originalPath, ".dll");
+                    if (inprocServer32 != originalPath) badPath = "InProcServer32 has extra characters; ";
+
+                    DatabaseDriver["DriverName"] = Provider["ProgID"].ToString(); // get from Provider and not the commented code above
+                    DatabaseDriver["Description"] = Provider["Description"].ToString();
+                    DatabaseDriver["DriverType"] = "OLE DB";
+                    DatabaseDriver["Guid"] = Provider["CLSID"].ToString();
+                    DatabaseDriver["Path"] = inprocServer32;
+                    try
                     {
-                        try
-                        {
-                            DatabaseDriver = ds.Tables["DatabaseDriver"].NewRow();
-                            ds.Tables["DatabaseDriver"].Rows.Add(DatabaseDriver);
-
-                            badPath = "";
-                            string originalPath = inprocServer32.Trim();
-                            inprocServer32 = Utility.KeepBeforeIncluding(originalPath, ".dll");
-                            if (inprocServer32 != originalPath) badPath = "InProcServer32 has extra characters; ";
-
-                            DatabaseDriver["DriverName"] = Provider;
-                            DatabaseDriver["DriverType"] = "OLE DB";
-                            DatabaseDriver["Guid"] = guid;
-                            DatabaseDriver["Path"] = inprocServer32;
-                            try
-                            {
-                                versionInfo = FileVersionInfo.GetVersionInfo(inprocServer32);
-                            }
-                            catch (FileNotFoundException)
-                            {
-                                versionInfo = null;
-                                DatabaseDriver["Message"] = badPath + "File not found";
-                            }
-                            info = DriverInfo.GetDriverInfo(Provider, versionInfo, windowsVersion, windowsReleaseID);
-                            DatabaseDriver["Version"] = versionInfo == null ? "Unknown" : versionInfo.ProductVersion;
-                            DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
-                            DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
-                            DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
-                            DatabaseDriver["Supported"] = info == null ? "" : info.Supported;
-                            DatabaseDriver["MultiSubnetFailoverSupport"] = info == null ? "" : info.MultiSubnetFailover;
-                        }
-                        catch (FileNotFoundException)
-                        {
-                            DatabaseDriver["Message"] = "File not found";
-                        }
-                        catch (Exception ex)
-                        {
-                            DatabaseDriver.LogException($"There was a problem enumerating OLE DB Provider {inprocServer32}.", ex);
-                        }
+                        versionInfo = FileVersionInfo.GetVersionInfo(inprocServer32);
                     }
-                    if (is64bit)
+                    catch (FileNotFoundException)
                     {
-                        ip = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SOFTWARE\Classes\WOW6432Node\CLSID\{guid}\InProcServer32", "", "");
-                        inprocServer32 = ip == null ? "" : ip.ToString();
-                        if (inprocServer32 != "")
-                        {
-                            inprocServer32 = SmartString.ReplaceBeginning(inprocServer32, Environment.GetEnvironmentVariable("ProgramFiles") + @"\", Environment.GetEnvironmentVariable("ProgramFiles(x86)") + @"\", true);
-                            inprocServer32 = SmartString.ReplaceBeginning(inprocServer32, Environment.GetEnvironmentVariable("SystemRoot") + @"\System32\", Environment.GetEnvironmentVariable("SystemRoot") + @"\SysWOW64\", true);
-
-                            try
-                            {
-                                DatabaseDriver = ds.Tables["DatabaseDriver"].NewRow();
-                                ds.Tables["DatabaseDriver"].Rows.Add(DatabaseDriver);
-
-                                badPath = "";
-                                string originalPath = inprocServer32.Trim();
-                                inprocServer32 = Utility.KeepBeforeIncluding(originalPath, ".dll");
-                                if (inprocServer32 != originalPath) badPath = "InProcServer32 has extra characters; ";
-
-                                DatabaseDriver["DriverName"] = Provider;
-                                DatabaseDriver["DriverType"] = "OLE DB";
-                                DatabaseDriver["Path"] = inprocServer32;
-                                DatabaseDriver["Guid"] = guid;
-                                try
-                                {
-                                    versionInfo = FileVersionInfo.GetVersionInfo(inprocServer32);
-                                }
-                                catch (FileNotFoundException)
-                                {
-                                    versionInfo = null;
-                                    DatabaseDriver["Message"] = badPath + "File not found";
-                                }
-                                info = DriverInfo.GetDriverInfo(Provider, versionInfo, windowsVersion, windowsReleaseID);
-                                DatabaseDriver["Version"] = versionInfo == null ? "Unknown" : versionInfo.ProductVersion;
-                                DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
-                                DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
-                                DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
-                                DatabaseDriver["Supported"] = info == null ? "" : info.Supported;
-                                DatabaseDriver["MultiSubnetFailoverSupport"] = info == null ? "" : info.MultiSubnetFailover;
-                            }
-                            catch (Exception ex)
-                            {
-                                DatabaseDriver.LogException($"There was a problem enumerating 32-bit OLE DB Provider {inprocServer32}.", ex);
-                            }
-                        }
+                        versionInfo = null;
+                        DatabaseDriver["Message"] = badPath + "File not found";
                     }
+                    info = DriverInfo.GetDriverInfo(Provider["ProgID"].ToString(), versionInfo, windowsVersion, windowsReleaseID);
+                    DatabaseDriver["Version"] = versionInfo == null ? "Unknown" : versionInfo.ProductVersion;
+                    DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
+                    DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
+                    DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
+                    DatabaseDriver["Supported"] = info == null ? "" : info.Supported;   // non-MS and also non-SQL drivers and providers have null; MS + SQL have a string value
+                    DatabaseDriver["MultiSubnetFailoverSupport"] = info == null ? "" : info.MultiSubnetFailover;
                 }
+                catch (FileNotFoundException)
+                {
+                    DatabaseDriver["Message"] = "File not found";
+                }
+                catch (Exception ex)
+                {
+                    DatabaseDriver.LogException($"There was a problem enumerating OLE DB Provider {inprocServer32}.", ex);
+                }
+                //}
+                //if (is64bit)  // Windows OS is 64-bit, then look for 32-bit Providers
+                //{
+                //    ip = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SOFTWARE\Classes\WOW6432Node\CLSID\{Provider["CLSID"].ToString()}\InProcServer32", "", "");
+                //    pi = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SOFTWARE\Classes\WOW6432Node\CLSID\{Provider["CLSID"].ToString()}\ProgID", "", "");  // replace Provider["ProgID"] with this value it it exists and does not end in ",1"
+                //    inprocServer32 = ip == null ? "" : ip.ToString();
+                //    progid = (pi == null ? Provider["ProgID"].ToString() : pi.ToString());
+                //    if (progid.EndsWith(".1")) progid = progid.Substring(0, progid.Length - 2);   // looking for providers that may have more than one ProgID variation
+
+                //    if (inprocServer32 != "")
+                //    {
+                //        inprocServer32 = SmartString.ReplaceBeginning(inprocServer32, Environment.GetEnvironmentVariable("ProgramFiles") + @"\", Environment.GetEnvironmentVariable("ProgramFiles(x86)") + @"\", true);
+                //        inprocServer32 = SmartString.ReplaceBeginning(inprocServer32, Environment.GetEnvironmentVariable("SystemRoot") + @"\System32\", Environment.GetEnvironmentVariable("SystemRoot") + @"\SysWOW64\", true);
+
+                //        try
+                //        {
+                //            DatabaseDriver = ds.Tables["DatabaseDriver"].NewRow();
+                //            ds.Tables["DatabaseDriver"].Rows.Add(DatabaseDriver);
+
+                //            badPath = "";
+                //            string originalPath = inprocServer32.Trim();
+                //            inprocServer32 = Utility.KeepBeforeIncluding(originalPath, ".dll");
+                //            if (inprocServer32 != originalPath) badPath = "InProcServer32 has extra characters; ";
+
+                //            DatabaseDriver["DriverName"] = progid;
+                //            DatabaseDriver["Description"] = Provider["Description"].ToString();
+                //            DatabaseDriver["DriverType"] = "OLE DB";
+                //            DatabaseDriver["Guid"] = Provider["CLSID"].ToString();
+                //            DatabaseDriver["Path"] = inprocServer32;
+                //            try
+                //            {
+                //                versionInfo = FileVersionInfo.GetVersionInfo(inprocServer32);
+                //            }
+                //            catch (FileNotFoundException)
+                //            {
+                //                versionInfo = null;
+                //                DatabaseDriver["Message"] = badPath + "File not found";
+                //            }
+                //            info = DriverInfo.GetDriverInfo(Provider["ProgID"].ToString(), versionInfo, windowsVersion, windowsReleaseID);
+                //            DatabaseDriver["Version"] = versionInfo == null ? "Unknown" : versionInfo.ProductVersion;
+                //            DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
+                //            DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;
+                //            DatabaseDriver["ServerCompatibility"] = info == null ? "" : info.ServerCompatibility;
+                //            DatabaseDriver["Supported"] = info == null ? "" : info.Supported;
+                //            DatabaseDriver["MultiSubnetFailoverSupport"] = info == null ? "" : info.MultiSubnetFailover;
+                //        }
+                //        catch (Exception ex)
+                //        {
+                //            DatabaseDriver.LogException($"There was a problem enumerating 32-bit OLE DB Provider {inprocServer32}.", ex);
+                //        }
+                //    }
+                //}
             }
 
             // enumerate drivers in HKEY_LOCAL_MACHINE\SOFTWARE\ODBC\ODBCINST.INI\ODBC Drivers
@@ -1604,6 +1614,7 @@ namespace SQLCheck
                                     if (path != originalPath) badPath = "Driver path has extra characters; ";
 
                                     DatabaseDriver["DriverName"] = valueName;
+                                    DatabaseDriver["Description"] = valueName;
                                     DatabaseDriver["DriverType"] = "ODBC";
                                     DatabaseDriver["Path"] = path;
                                     DatabaseDriver["Guid"] = "";
@@ -1695,6 +1706,7 @@ namespace SQLCheck
                                     if (path != originalPath) badPath = "Driver path has extra characters; ";
 
                                     DatabaseDriver["DriverName"] = valueName;
+                                    DatabaseDriver["Description"] = valueName;
                                     DatabaseDriver["DriverType"] = "ODBC";
                                     DatabaseDriver["Path"] = path;
                                     DatabaseDriver["Guid"] = "";
