@@ -95,7 +95,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0215.0
+                  SQLTrace.ps1 version 1.0.0217.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -408,6 +408,7 @@ Function StartTraces
 
     tasklist > "$($global:LogFolderName)\TasklistAtStart.txt"
     netstat -abon > "$($global:LogFolderName)\NetStatAtStart.txt"
+	ipconfig -all > "$($global:LogFolderName)\IPCONFIG.txt"
     StartBIDTraces
 	StartNetworkTraces
     StartAuthenticationTraces
