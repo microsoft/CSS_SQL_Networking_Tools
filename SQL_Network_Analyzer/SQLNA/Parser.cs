@@ -31,9 +31,11 @@ namespace SQLNA
     class Parser
     {
 
+        // preinitializes ArrayList size to reduce the number to growth copies
         const long BYTES_PER_FRAME = 200;
         const long BYTES_PER_CONVERSATION = 50000;
 
+        // how far back we look for a duplicate frame -> retransmit frame ... looks back in only the sending or receiving side, not both
         const int BACK_COUNT_LIMIT = 20;
 
         public static void ParseFileSpec(string fileSpec, NetworkTrace t)
@@ -55,9 +57,15 @@ namespace SQLNA
             try
             {
                 // In case a relative path was specified, we need to use the fileInfo class to resolve this into an absolute path
-                // If wildcards were specified, replace with letters to make a pseudo-filename; the file name does not have to exist for the calls we are doing
+                // If wildcards were specified, replace with letters to make a pseudo-filename;
+                //
+                //     *** the file name does not have to exist for the calls we are doing ***
+                //
                 // Get the directory name and the length of the file name with wild cards so we can split it out
-                // e.g.   ..\temp\mytrace*.cap -> c:\users\johnsmith\temp for directory and mytrace*.cap for the filespec as arguments for the GetFiles method
+                // e.g.   ..\temp\mytrace*.cap -> ..\temp\mytraces.cap -> c:\users\johnsmith\temp for directory and mytrace*.cap for the filespec as arguments for the GetFiles method
+                //                       ^                       ^
+                //
+
                 fi = new FileInfo(fileSpec.Replace("*", "s").Replace("?", "q"));
                 files = Directory.GetFiles(fi.DirectoryName, fileSpec.Substring(fileSpec.Length - fi.Name.Length));
 
@@ -113,6 +121,7 @@ namespace SQLNA
             ETLFileReader er = null;
             long initialTick = 0;
 
+            Console.WriteLine("Peeking at initial tick for file " + Path.GetFileName(filePath));
             Program.logDiagnostic("Peeking at initial tick for file " + filePath);
 
             try
@@ -527,6 +536,7 @@ namespace SQLNA
             }
         }
 
+        // does not include WFP
         public static void ParseNetEventFrame(byte[] b, int offset, NetworkTrace t, FrameData f)
         {
             Guid NDIS = new Guid("2ED6006E-4729-4609-B423-3EE7BCD678EF");

@@ -16,7 +16,7 @@ namespace SQLNA
     //
     // Arguments can have the following prioperties:
     //
-    //    Case sensitive or case-insensitive
+    //    Case sensitive or case-insensitive names
     //    Required or optional
     //    Appear once or many times (or 0 times if optional)
     //    Have a value or not

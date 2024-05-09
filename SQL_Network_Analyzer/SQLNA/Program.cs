@@ -14,7 +14,7 @@ namespace SQLNA
     // Reads a network trace and produces a report and a csv file to give an overview of the trace and potential issues
     // Produces a diagnostic log file to record any exceptions or other issues
     //
-    // Usage: SQLNA captureFile [/output outputFile] [[/sql ipaddress,port]...] [/convList] [/filterFmt NETMON|WireShark]
+    // Usage: SQLNA captureFile [/output outputFile] [[/sql ipaddress,port]...] [/convList] [/filterFmt NETMON|WireShark|Auto]
     //
 
     class Program
@@ -29,10 +29,10 @@ namespace SQLNA
         public static string diagOutFile = null;
         public static bool outputConversationList = false;   // enables a section in the main report that is normally suppressed
         public static string filterFormat = "";              // blank | A | N | W   if N or W, replace the Client IP and Port in reports with a filter string in either NETMON or WireShark format
-                                                             // filterFormat A = AUTO, will perform NETMON or WirreShark filters based on the capture type ... ETL -> Netmon format
+                                                             // filterFormat A = AUTO, will perform NETMON or WireShark filters based on the capture type ... ETL -> Netmon format
 
         public static string VERSION_NUMBER = Assembly.GetExecutingAssembly().GetName().Version.ToString();
-        public const string UPDATE_DATE = "2024/01/01";
+        public const string UPDATE_DATE = "2024/09/01";
         public const string GITHUB_PROJECT_URL = "https://github.com/microsoft/CSS_SQL_Networking_Tools";
 
         static void Main(string[] args)
@@ -55,7 +55,7 @@ namespace SQLNA
             cp.AddRule(new ArgRule("output", true, false, true, false));          // -output filename is optional and case-insensitive, one time only
             cp.AddRule(new ArgRule("sql", true, true, false, false));             // -sql 10:10:10:10,1433 -sql 10.10.10.11,1433 ... -sql ip,port     0..n times   (ipv4 or ipv6)
             cp.AddRule(new ArgRule("convList", false, false, true, false));       // -convList     outputs a rather lengthy report segment that is normally not required
-            cp.AddRule(new ArgRule("filterFmt", true, false, true, false));       // -filterFmt NETMON|WireShark   replaces the Client IP address and port columns with a filter string, instead
+            cp.AddRule(new ArgRule("filterFmt", true, false, true, false));       // -filterFmt NETMON|WireShark|Auto   replaces the Client IP address and port columns with a filter string, instead
             string ruleViolation = cp.Parse(args);
 
             if (ruleViolation != "")
@@ -150,13 +150,14 @@ namespace SQLNA
 
                 // output diagnostic header
                 logDiagnostic("SQL Server Network Analyzer " + VERSION_NUMBER);
-                logDiagnostic("Command line arguments:      " + string.Join(" ", args));
+                logDiagnostic("Command line arguments:      " + commandLine);
                 logDiagnostic("Analysis run on:             " + DateTime.Now.ToString(utility.DATE_FORMAT));
                     
                 // open log file
                 CurrentActivity = "opening log file: " + outFile;
                 logFile = new StreamWriter(outFile);
 
+                // all network frames and conversation metadata get stored in here
                 NetworkTrace Trace = new NetworkTrace();
 
                 // add SQL hints
@@ -174,7 +175,7 @@ namespace SQLNA
                 CurrentActivity = "parsing input file(s) from the folder.";
                 Parser.ParseFileSpec(fileSpec, Trace);
 
-                //Post Processing
+                // Post Processing for IP and TCP layers
                 CurrentActivity = "processing data.";
 
                 T.start("\nReversing backward conversations");
@@ -193,6 +194,7 @@ namespace SQLNA
                 Parser.FindContinuationFrames(Trace);
                 T.stop();
                
+                // Post processing for SQL TDS traffic
                 T.start("Parsing TDS frames");
                 TDSParser.ProcessTDS(Trace);
                 T.stop();
@@ -209,19 +211,23 @@ namespace SQLNA
                 TDSParser.CreatingPacketsFromFrames(Trace);
                 T.stop();
 
+                // Post processing for UDP layer
                 T.start("Parsing UDP frames");
                 SSRPParser.ProcessUDP(Trace);
                 T.stop();
 
+                // Post processing for UDP layer
                 T.start("Parsing DNS frames");
                 NameResolutionParser.ProcessUDP(Trace);
                 T.stop();
 
+                // Post processing for UDP layer
                 T.start("Parsing Kerberos frames");
                 //CurrentActivity = "analyzing data.";
                 KerberosParser.Process(Trace);
                 T.stop();
 
+                // Post processing for domain controllers
                 T.start("Locating Domain Controllers");
                 //CurrentActivity = "analyzing data.";
                 DomainControllerParser.Process(Trace);
