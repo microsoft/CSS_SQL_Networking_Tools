@@ -303,7 +303,9 @@ namespace DBTest
                             ReportFormatter rf = new ReportFormatter();
                             rf.SetColumnNames(colNames);
 
-                            int rows2disp = RowsToDisplay == -1 ? dt.Rows.Count : RowsToDisplay;
+                            // int rows2disp = RowsToDisplay == -1 ? dt.Rows.Count : RowsToDisplay; // Nug: Array out of bounds exception when RowsToDisplay > dt.Rows.Count
+                            // if RowsToDisplay == -1, display all rows, otherwise display lesser of actual rows and RowsToDisplay
+                            int rows2disp = RowsToDisplay == -1 ? dt.Rows.Count : (RowsToDisplay > dt.Rows.Count ? dt.Rows.Count : RowsToDisplay);
                             for (int r = 0; r < rows2disp; r++)
                             {
                                 row = dt.Rows[r];
