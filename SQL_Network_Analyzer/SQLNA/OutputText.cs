@@ -1741,14 +1741,16 @@ namespace SQLNA
 
                 foreach (ConversationData c in s.conversations)
                 {
+                    long cStart = ((FrameData)c.frames[0]).ticks;
+
                     // check whether the login sequence is visible; if not, skip this connection
                     string loginFlags = c.loginFlags.Trim();
                     bool hasLoginSequence = loginFlags != "AD" && loginFlags != "";  // if blank or only 'AD' then we are past the login phase
                     if (!hasLoginSequence) continue;   // try the next connection
 
-                    // if we have login failures, was the total duration more than 2 seconds
-                    long duration = ((FrameData)c.frames[c.frames.Count - 1]).ticks - ((FrameData)c.frames[0]).ticks;
-                    if (!c.hasLoginFailure || duration < 2 * utility.TICKS_PER_SECOND) continue;
+                    // was the total duration more than 2 seconds
+                    long duration = ((FrameData)c.frames[c.frames.Count - 1]).ticks - cStart;
+                    if (duration < 2 * utility.TICKS_PER_SECOND) continue;
 
                     // if we are encrypted, was the time up until the Login packet greater than 2 seconds?
                     // the packets after that are all encrypted, so we can't reliably time them
@@ -1756,11 +1758,12 @@ namespace SQLNA
                     {
                         if (c.LoginTime != 0 && c.LoginDelay("AD", firstTick) < 2 * utility.TICKS_PER_SECOND) continue;
                     }
-
-                    // check whether we completed the login
-                    long cStart = ((FrameData)c.frames[0]).ticks;
-                    if (c.LoginAckTime != 0 && c.LoginDelay("LA", firstTick) < 2 * utility.TICKS_PER_SECOND) continue;
-                    if (c.ErrorTime != 0 && c.LoginDelay("ER", firstTick) < 2 * utility.TICKS_PER_SECOND) continue;
+                    else
+                    {
+                        // check whether we completed the login in < 2 seconds
+                        if (c.LoginAckTime != 0 && c.LoginDelay("LA", firstTick) < 2 * utility.TICKS_PER_SECOND) continue;
+                        if (c.ErrorTime != 0 && c.LoginDelay("ER", firstTick) < 2 * utility.TICKS_PER_SECOND) continue;
+                    }
 
                     hasDelay = true;
 
