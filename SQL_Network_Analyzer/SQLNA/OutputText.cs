@@ -1748,7 +1748,7 @@ namespace SQLNA
 
                     // if we have login failures, was the total duration more than 2 seconds
                     long duration = ((FrameData)c.frames[c.frames.Count - 1]).ticks - ((FrameData)c.frames[0]).ticks;
-                    if (c.hasLoginFailure && duration < 2 * utility.TICKS_PER_SECOND) continue;
+                    if (!c.hasLoginFailure || duration < 2 * utility.TICKS_PER_SECOND) continue;
 
                     // if we are encrypted, was the time up until the Login packet greater than 2 seconds?
                     // the packets after that are all encrypted, so we can't reliably time them

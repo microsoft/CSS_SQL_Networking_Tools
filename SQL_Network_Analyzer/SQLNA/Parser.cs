@@ -323,8 +323,12 @@ namespace SQLNA
                                                     }
                                                     break;
                                                 }
-
                                         }
+                                        break;
+                                    }
+                                case 276:
+                                    {
+                                        ParseLinuxCookedFramev2(frame.data, 0, t, f);
                                         break;
                                     }
                                 case 0x0071:  // Linux Cooked Capture - no MAC addresses, just IP and higher protocols
@@ -524,8 +528,86 @@ namespace SQLNA
 
             if (f.conversation != null)
             {
-                f.conversation.sourceMAC = sourceMAC;
-                f.conversation.destMAC = destMAC;
+                if (sourceMAC != 0) f.conversation.sourceMAC = sourceMAC;
+                if (destMAC != 0) f.conversation.destMAC = destMAC;
+                // statistical gathering
+                if (f.conversation.startTick == 0 || f.ticks < f.conversation.startTick)
+                {
+                    f.conversation.startTick = f.ticks;
+                }
+                if (f.conversation.endTick < f.ticks) f.conversation.endTick = f.ticks;
+                if (f.isFromClient) f.conversation.sourceFrames++; else f.conversation.destFrames++;
+            }
+        }
+
+        public static void ParseLinuxCookedFramev2(byte[] b, int offset, NetworkTrace t, FrameData f)
+        {
+            ushort NextProtocol = 0;      // IPV4 = 0x0800 (2048)    IPV6 = 0x86DD (34525)     
+            UInt32 InterfaceIndex = 0;    // where does this packet come from
+            UInt16 AddressType = 0;       // we just want 0 or 1 = Ethernet or 772 = loopback - we can largely ignore that; use the NextProtocol, instead
+            byte   PacketType = 0;        // we just want 0=Incoming and 4=Outgoing
+            byte   AddressLength = 0;     // we can read MAC address if length = 6
+            ulong  sourceMAC = 0;
+            ulong  destMAC = 0;
+
+
+            NextProtocol = utility.B2UInt16(b, offset);
+            offset += 2;
+
+            // skip unnamed/unused bytes
+            offset += 2;
+
+            InterfaceIndex = utility.B2UInt32(b, offset);
+            offset += 4;
+
+            AddressType = utility.B2UInt16(b, offset);
+            if (AddressType != 0 && AddressType != 1 && AddressType != 772) return;
+            offset += 2;
+
+            PacketType = b[offset];
+            if (PacketType != 0 && PacketType != 4) return;
+            offset++;
+
+            AddressLength = b[offset];
+            offset++;
+
+            switch (AddressLength)
+            {
+                case 6:
+                    {
+                        if (PacketType == 0)
+                        {
+                            sourceMAC = utility.B2UInt48(b, offset);
+                        }
+                        else
+                        {
+                            destMAC = utility.B2UInt48(b, offset);
+                        }
+                        offset += 8;  // ignore implementation-specific data of 2 bytes
+                        break;
+                    }
+                default:
+                    {
+                        offset += 8;  // data is always 8 in length, address + remainder bytes
+                        break;
+                    }
+            }
+
+
+            try
+            {
+                ParseNextProtocol(NextProtocol, b, offset, t, f);
+            }
+            catch (IndexOutOfRangeException)
+            {
+                if (f.conversation != null) f.conversation.truncationErrorCount++;
+            }
+            catch { throw; }
+
+            if (f.conversation != null)
+            {
+                if (sourceMAC != 0) f.conversation.sourceMAC = sourceMAC;
+                if (destMAC != 0)   f.conversation.destMAC = destMAC;
                 // statistical gathering
                 if (f.conversation.startTick == 0 || f.ticks < f.conversation.startTick)
                 {
