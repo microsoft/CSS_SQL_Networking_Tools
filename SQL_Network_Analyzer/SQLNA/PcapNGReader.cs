@@ -181,7 +181,8 @@ namespace SQLNA
             {
                 OptType = read2Bytes();
                 OptLen = read2Bytes();
-                padding = OptLen % 4;
+                // padding = OptLen % 4;
+                padding = (OptLen % 4) == 0 ? 0: 4 - (OptLen % 4);
 
                 while (OptType != 0)
                 {
@@ -205,9 +206,12 @@ namespace SQLNA
                             }
                     }
 
+                    if (r.BaseStream.Position >= nextBlockStart - 4) break;  // potentially no OptType 0 at end of options, though this is not supposed to happen, the spec seems to allow it
+
                     OptType = read2Bytes();
                     OptLen = read2Bytes();
-                    padding = OptLen % 4;
+                    // padding = OptLen % 4;
+                    padding = (OptLen % 4) == 0 ? 0 : 4 - (OptLen % 4);
                 }
             }
 
