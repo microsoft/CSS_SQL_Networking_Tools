@@ -2086,7 +2086,7 @@ namespace SQLNA
 
             foreach (SQLServer s in Trace.sqlServers)
             {
-                if (s.hasLoginFailures)
+                if (s.hasLoginFailures || s.hasSynFailure)
                 {
                     hasError = true;
                     List<FailedConnectionData> TimeoutRecords = new List<FailedConnectionData>();
@@ -2103,7 +2103,7 @@ namespace SQLNA
 
                     foreach (ConversationData c in s.conversations)
                     {
-                        if (c.hasLoginFailure)
+                        if (c.hasLoginFailure || c.hasSynFailure)
                         {
                             FailedConnectionData td = new FailedConnectionData();
 
