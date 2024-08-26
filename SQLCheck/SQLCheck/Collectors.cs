@@ -15,6 +15,10 @@ using System.Diagnostics;
 using System.Security.Cryptography.X509Certificates;
 using System.Security.Cryptography;
 using System.Linq;
+using System.ComponentModel;
+using System.Runtime.Remoting.Messaging;
+using System.Security.Principal;
+using System.Runtime.ConstrainedExecution;
 
 namespace SQLCheck
 {
@@ -47,10 +51,12 @@ namespace SQLCheck
             CollectSQLAlias(ds);
             CollectClientSNI(ds);
             CollectCertificate(ds);
+            CollectCertificatePerm(ds);
             CollectService(ds);
             CollectSPNAccount(ds);
             CollectSQLInstance(ds);   // dropped SQL 2000 and RS 2000
             CollectSQLServer(ds);
+
             // Collect SSRS
             // Collect OLAP
 
@@ -3422,6 +3428,55 @@ namespace SQLCheck
 
             // no match
             return false;
+        }
+
+        private static void CollectCertificatePerm(DataSet ds)
+        {
+            DataTable dtCertificatePerm = ds.Tables["CertificatePermissions"];
+            DataRow Certificate = null;         
+            try
+            {
+               
+                X509Store store = new X509Store(StoreName.My, StoreLocation.LocalMachine); //set store to Local Machine/My
+                store.Open(OpenFlags.ReadOnly | OpenFlags.OpenExistingOnly);
+                string keyPath = Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData) + @"/Microsoft/Crypto/RSA/MachineKeys/";
+                foreach (X509Certificate2 mCert in store.Certificates) //loop through all private keys in store directory
+                {
+                    if (mCert.HasPrivateKey)//check to see if the certificate has a private key 
+                    {
+                        try
+                        {
+                            RSACryptoServiceProvider pkey = (RSACryptoServiceProvider)mCert.PrivateKey; //save private key to a veriable
+
+                            if (pkey != null)
+                            {
+                                //get private key file name
+                                string Container = pkey.CspKeyContainerInfo.KeyContainerName.ToString(); //get private key file name
+                                string[] pKeyName = Container.Split('}');
+                                string PrivateKey = pKeyName[pKeyName.Length - 1];
+                                //add private key file name to the folder path
+                                if (File.Exists(keyPath + PrivateKey))
+                                {
+                                    FileSecurity fSecurity = File.GetAccessControl(keyPath + PrivateKey);
+                                    //loop through all ACL on the file and add it to the data collector
+                                    foreach (FileSystemAccessRule rule in fSecurity.GetAccessRules(true, true, typeof(System.Security.Principal.NTAccount)))
+                                    {
+                                        Certificate = dtCertificatePerm.NewRow();
+                                        Certificate["FriendlyName"] = mCert.FriendlyName;
+                                        Certificate["Thumbprint"] = mCert.Thumbprint;
+                                        Certificate["UserID"] = $"{rule.IdentityReference.Value}";
+                                        Certificate["Permissions"] = $"{rule.FileSystemRights}";
+                                        dtCertificatePerm.Rows.Add(Certificate);
+                                    }
+                                }
+                            }
+                        }
+                        catch { }; 
+                    }
+                }
+                store.Close();               
+            }
+            catch (Exception ex) { Console.WriteLine(ex); };
         }
     }
 }
