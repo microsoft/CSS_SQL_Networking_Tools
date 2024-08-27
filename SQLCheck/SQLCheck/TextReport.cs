@@ -43,6 +43,7 @@ namespace SQLCheck
             s.WriteLine(SmartString.CenterText("SQL Server Information", fieldWidth));
             s.WriteLine();
             ReportCertificate(ds, s);
+            ReportCertificatePermissions(ds, s);
             ReportService(ds, s);
             ReportSQLServer(ds, s);
             ReportFooter(s);
@@ -1041,6 +1042,26 @@ namespace SQLCheck
             }
         }
 
+        static void ReportCertificatePermissions(DataSet ds, TextWriter s) // outputs Certificate friendly name, thumbprint, UserID's and permissions
+        {
+            DataTable dtCertificatePerm = ds.Tables["CertificatePermissions"];
+            s.WriteLine("Certificate Permissions:");
+            s.WriteLine();
+            ReportFormatter rf = new ReportFormatter();
+            rf.SetColumnNames("Friendly Name:L", "Thumbprint:L", "UserID:L", "Permissions:L");
+            foreach (DataRow drCertPerm in dtCertificatePerm.Rows)
+            {
+                rf.SetcolumnData(drCertPerm.GetString("FriendlyName"),
+                                 drCertPerm.GetString("Thumbprint"),
+                                 drCertPerm.GetString("UserID"),
+                                 drCertPerm.GetString("Permissions"));
+            }
+            s.WriteLine(rf.GetHeaderText());
+            s.WriteLine(rf.GetSeparatorText());
+            for (int i = 0; i < rf.GetRowCount(); i++) s.WriteLine(rf.GetDataText(i));
+            s.WriteLine();
+            ReportMessages(ds, s, "Certificate Permissions", -1);  // returns a blank line at the end ... -1 = messages for all rows
+        }
         static void ReportMessages(DataSet ds, TextWriter s, string tableName, int tableRow, bool blankLineAlways = false, bool WarningsAndAbove = false)
         {
 

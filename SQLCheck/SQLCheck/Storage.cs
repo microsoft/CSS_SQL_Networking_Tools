@@ -586,6 +586,19 @@ namespace SQLCheck
             dt.AddColumn("Message", "String");
             ds.Tables.Add(dt);
 
+            //
+            //Certificate User and Permissions
+            //
+
+            dt = new DataTable("CertificatePermissions");
+            dt.AddColumn("ID", "Integer");
+            dt.Columns["ID"].AutoIncrement=true;
+            dt.AddColumn("FriendlyName", "String");
+            dt.AddColumn("Thumbprint", "String");
+            dt.AddColumn("UserID", "String");
+            dt.AddColumn("Permissions", "String");
+            ds.Tables.Add(dt);
+
             return ds;
         }
 
