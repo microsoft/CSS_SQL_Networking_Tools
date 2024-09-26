@@ -175,6 +175,7 @@ namespace SQLCheck
             DisplayVersion = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "DisplayVersion", "");
             Computer["WindowsReleaseID"] = releaseID;
             if (DisplayVersion == "") DisplayVersion = releaseID; // Windows 2022 uses DisplayVersion, Windows 2019 and earlier do not have this, use ReleaseID instead
+            Computer["WindowsDisplayVersion"] = DisplayVersion;
             ubr = Utility.RegistryTryGetValue(@"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows NT\CurrentVersion", "UBR", 0);  // UBR = Update Build Revision
             Computer["WindowsUBR"] = ubr.ToString();
 
@@ -1460,6 +1461,7 @@ namespace SQLCheck
             FileVersionInfo versionInfo = null;
             string windowsVersion = Computer.GetString("WindowsVersion");
             string windowsReleaseID = Computer.GetString("WindowsReleaseID");
+            string windowsDisplayVersion = Computer.GetString("WindowsDisplayVersion");  // use instead of ReleaseID for GetDriverInfo call
             string badPath = "";
 
             foreach (DataRow Provider in OLEDBProviders.Rows)
@@ -1500,7 +1502,8 @@ namespace SQLCheck
                         versionInfo = null;
                         DatabaseDriver["Message"] = badPath + "File not found";
                     }
-                    info = DriverInfo.GetDriverInfo(Provider["ProgID"].ToString(), versionInfo, windowsVersion, windowsReleaseID);
+                    // info = DriverInfo.GetDriverInfo(Provider["ProgID"].ToString(), versionInfo, windowsVersion, windowsReleaseID);  // okay for Win 2019 and prior, need display version for 2022 and later
+                    info = DriverInfo.GetDriverInfo(Provider["ProgID"].ToString(), versionInfo, windowsVersion, windowsDisplayVersion);
                     DatabaseDriver["Version"] = versionInfo == null ? "Unknown" : versionInfo.ProductVersion;
                     DatabaseDriver["TLS12"] = info == null ? "" : info.MinTLS12Version;
                     DatabaseDriver["TLS13"] = info == null ? "" : info.MinTLS13Version;

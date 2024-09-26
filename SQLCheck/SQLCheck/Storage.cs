@@ -140,6 +140,7 @@ namespace SQLCheck
             dt.AddColumn("MinorVersion", "String");
             dt.AddColumn("WindowsBuild", "String");
             dt.AddColumn("WindowsReleaseID", "String");
+            dt.AddColumn("WindowsDisplayVersion", "String");   // in Windows 2022, this is separate from RelaseID, for prior versions, ReleaseID is copied here
             dt.AddColumn("WindowsUBR", "String");
             dt.AddColumn("CLR4Version", "String");
             dt.AddColumn("CLR4StrongCrypto", "String");

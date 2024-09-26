@@ -36,7 +36,7 @@ namespace SQLCheck
             MultiSubnetFailover = multiSubnetFailover;
         }
 
-        public static DriverInfo GetDriverInfo(string driverName, FileVersionInfo versionInfo, string WindowsVersion, string WindowsReleaseID)  // TODO - fix up MinTLSVersion and Server Support
+        public static DriverInfo GetDriverInfo(string driverName, FileVersionInfo versionInfo, string WindowsVersion, string WindowsDisplayVersion)  // TODO - fix up MinTLSVersion and Server Support
         {
             string TLS12 = "No";
             string TLS13 = "No";
@@ -60,7 +60,8 @@ namespace SQLCheck
             {
                 case "SQLOLEDB":
                 case "SQL Server":
-                    switch (WindowsReleaseID.ToUpper())
+                    // switch (WindowsReleaseID.ToUpper())   // okay for pre-Win 11 or Win 2022
+                    switch (WindowsDisplayVersion.ToUpper())
                     {
                         case "":            // Windows 8.1/2012 R2 and earlier - Won't fix these versions: Windows 2003, XP, 2008, 2008 R2, 2012
                                             // Windows 8.1 and Windows 2012 R2 = version 6.3.9600 - what build supports the updated DBNETLIB.DLL???
@@ -104,11 +105,15 @@ namespace SQLCheck
                             if (Utility.CompareVersion(WindowsVersion, "10.0.19042") == "=" && Utility.CompareVersion(WindowsVersion, "10.0.19042.609") == ">") TLS12 = "Yes";
                             break;
                         case "21H1":        // Windows 10/2019  21H1         ????                  build 19043  ????
+                        case "IRON":        // more at https://microsoft.visualstudio.com/OS/_workitems/edit/27324781
+                        case "21H2":
+                        case "22H2":
+                        case "23H2":
+                        case "24H2":
                             TLS12 = "Yes";
                             break;
-                        case "IRON":        // Windows 10/2019  Iron         ????                  build 20207????  ????   April 16, 2021????
-                                            // more at https://microsoft.visualstudio.com/OS/_workitems/edit/27324781
-                            TLS12 = "Yes";
+                        default:           // all versions of Winodws 11 or 2022 or greater support TLS 1.2
+                            if (Utility.CompareVersion(WindowsVersion, "10.0.19999") == ">") TLS12 = "Yes";
                             break;
                     }
                     break;
