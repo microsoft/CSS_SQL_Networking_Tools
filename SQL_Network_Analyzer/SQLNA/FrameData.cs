@@ -146,6 +146,7 @@ namespace SQLNA
                 if (isZeroWindowPacket) return "ZW";
                 if (isKeepAlive) return "KA";
                 if (isRetransmit && payloadLength > 1) return "RET";
+                if (isContinuation) return "CONT";
 
                 switch (frameType)
                 {
