@@ -3081,7 +3081,7 @@ namespace SQLCheck
 
         public static void ProcessSQLErrorlog_File(DataRow SQLServer)  // must come prior to loading the certificate from the registry key
         {
-            string baseFileName = SQLServer.GetString("ErrorLogPath");
+            string baseFileName = SQLServer.GetString("ErrorLogPath");  // includes the filename ERRORLOG as well as the path
             if (baseFileName == "") return;
             string fileName = "";
             string el = "";                    // the entire log
@@ -3089,16 +3089,17 @@ namespace SQLCheck
             bool found = false;
 
             //
-            // Find the first ERRORLOG[.n] file that starts from the beginning
+            // Find the first ERRORLOG[.n] file that starts from the beginning - can be more than 30 files, potentially, so we'll try up to 99; break when file not found
             //
 
             try
             {
-                for (int i = 0; i < 10; i++)
+                for (int i = 0; i < 99; i++)
                 {
                     fileName = $@"{baseFileName}" + ((i > 0) ? $".{i}" : "");
-                    el = Utility.GetFileText($@"{fileName}");    // returns empty string if the file does not exist
-                    if (el.Length > 0 && SmartString.GetStringLine(el, "Registry startup parameters") != "")
+                    el = Utility.GetFileText($@"{fileName}");                                  // returns empty string if the file does not exist
+                    if (el.Length == 0) break;                                                 // end of files if names aren't contiguous or no more files, i.e. file name not found
+                    if (SmartString.GetStringLine(el, "Registry startup parameters") != "")
                     {
                         found = true;
                         break;
