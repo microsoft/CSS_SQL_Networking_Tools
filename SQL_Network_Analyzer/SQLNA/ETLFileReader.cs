@@ -346,7 +346,7 @@ namespace SQLNA
                 
                 // FrameBuffer is empty and we're not done with the trace
                 // Spin and give the event handler time to add a few rows to the frame buffer
-                Thread.Sleep(1); // can we remove the delay?
+                // Thread.Sleep(1); // can we remove the delay?
             }
         }
 
