@@ -95,7 +95,7 @@ LogRaw "
 /_______  /\_____\ \_/|_______ \|____|    |__|   (____  / \___  >\___  >
         \/        \__>        \/                      \/      \/     \/
 
-                  SQLTrace.ps1 version 1.0.0217.0
+                  SQLTrace.ps1 version 1.0.0234.0
                by the Microsoft SQL Server Networking Team
 "
 
@@ -177,6 +177,8 @@ Function ReadINIFile
                                 DeleteOldFiles   = "No"
                                 MinFiles         = "20"
                                 MinMinutes       = "30"
+                                SQLCheck         = "Yes"
+                                SQLCheckPath     = ".\"            # default to current folder
                             }
 
     $fileName = $INIFile
@@ -232,6 +234,8 @@ Function ReadINIFile
             "DeleteOldFiles"    { $global:INISettings.DeleteOldFiles     = $value }
             "MinFiles"          { $global:INISettings.MinFiles           = $value }
             "MinMinutes"        { $global:INISettings.MinMinutes         = $value }
+            "SQLCheck"          { $global:INISettings.SQLCheck           = $value }
+            "SQLCheckPath"      { $global:INISettings.SQLCheckPath       = $value }
             default             { "Unknown keyword $keyWord in line: $l" }
         }
     }
@@ -269,6 +273,8 @@ Function DisplayINIValues
     LogInfo "DeleteOldFiles      $($global:INISettings.DeleteOldFiles)"
     LogInfo "MinFiles            $($global:INISettings.MinFiles)"
     LogInfo "MinMinutes          $($global:INISettings.MinMinutes)"
+    LogInfo "SQLCheck            $($global:INISettings.SQLCheck)"
+    LogInfo "SQLCheckPath        $($global:INISettings.SQLCheckPath)"
 }
 
 function RegisterEventLog
@@ -405,6 +411,29 @@ Function StartTraces
 
     FlushExistingTraces
     FlushCaches
+
+    # Run SQLCheck
+
+    if($global:INISettings.SQLCheck -eq "Yes")
+    {
+        if((Test-Path "$($global:INISettings.SQLCheckPath)SQLCheck.exe" -PathType Leaf) -eq $false)
+        {
+            LogWarning "SQLCheck not found at the following location: $($global:INISettings.SQLCheckPath)SQLCheck.exe"
+        }
+        else
+        {
+			LogInfo "Starting SQLCheck."
+            $cmd = (get-item "$($global:INISettings.SQLCheckPath)SQLCheck.exe").FullName           # absolute path to SQLCheck, e.g. .\sqlcheck.exe -> c:\msdata\sqlcheck.exe
+            Push-Location "$($global:LogFolderName)"                                               # change to the log folder and preserve the path
+            $result = invoke-expression $cmd                                                       # log is written to the current [log folder] location
+            LogInfo "SQLCheck: $result"
+            Pop-Location                                                                           # return to the last folder before the Push-Location
+        }
+    }
+    else
+    {
+        LogInfo "SQLCheck not run."
+    }
 
     tasklist > "$($global:LogFolderName)\TasklistAtStart.txt"
     netstat -abon > "$($global:LogFolderName)\NetStatAtStart.txt"
