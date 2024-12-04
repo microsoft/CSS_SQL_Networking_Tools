@@ -284,6 +284,9 @@ namespace SQLCheck
                 s.WriteLine(rf.GetDataText(i));
             }
             s.WriteLine();
+
+            // report messages in standard format
+            ReportMessages(ds, s, "DiskDrive", -1);  // returns a blank line at the end
         }
 
         static void ReportNetwork(DataSet ds, TextWriter s)  // outputs network settings, IP addresses, DNS Aliases, hosts file entries, and NIC adapters
