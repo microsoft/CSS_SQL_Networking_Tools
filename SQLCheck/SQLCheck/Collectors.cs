@@ -2190,6 +2190,7 @@ namespace SQLCheck
             ManagementObjectSearcher searcher = null;
 
             DataRow Computer = ds.Tables["Computer"].Rows[0];
+            DataRow Domain = ds.Tables["Domain"].Rows[0];
             DataRow Service = null;
 
             //
@@ -2229,7 +2230,12 @@ namespace SQLCheck
                                 Service["Description"] = description;
                                 Service["Path"] = mo.GetPropertyValue("PathName").ToString();
                                 Service["ServiceAccount"] = mo.GetPropertyValue("StartName").ToString();
-                                Service["DomainAccount"] = Utility.TranslateServiceAccount(Service["ServiceAccount"].ToString(), Computer["NETBIOSName"].ToString());
+
+                                // better method of converting
+                                // Service["DomainAccount"] = Utility.TranslateServiceAccount(Service["ServiceAccount"].ToString(), Computer["NETBIOSName"].ToString());
+                                string NTAccountName = Utility.NormalizeNTAccount(Service["ServiceAccount"].ToString(), "");
+                                Service["DomainAccount"] = Utility.ConvertLocalAccountToDomainAccount(NTAccountName, Computer.GetString("NETBIOSName"), Domain.GetString("DomainShortName"));
+
                                 string startMode = mo.GetPropertyValue("StartMode").ToString();
                                 Service["StartMode"] = startMode;
                                 bool started = mo.GetPropertyValue("Started").ToBoolean();
@@ -2288,7 +2294,12 @@ namespace SQLCheck
                     Service["Path"] = mo.GetPropertyValue("ExecutablePath").ToString();
                     mo.InvokeMethod("GetOwner", owner);
                     Service["ServiceAccount"] = $@"{owner[1]}\{owner[0]}";
-                    Service["DomainAccount"] = Utility.TranslateServiceAccount(Service["ServiceAccount"].ToString(), Computer["NETBIOSName"].ToString());
+
+                    // better method of converting
+                    // Service["DomainAccount"] = Utility.TranslateServiceAccount(Service["ServiceAccount"].ToString(), Computer["NETBIOSName"].ToString());
+                    string NTAccountName = Utility.NormalizeNTAccount(Service["ServiceAccount"].ToString(), "");
+                    Service["DomainAccount"] = Utility.ConvertLocalAccountToDomainAccount(NTAccountName, Computer.GetString("NETBIOSName"), Domain.GetString("DomainShortName"));
+
                     Service["StartMode"] = "Manual";
                     Service["Started"] = true;  // boolean
                     Service["Status"] = "Running";
@@ -2365,9 +2376,10 @@ namespace SQLCheck
 
             foreach (string account in serviceAccounts)
             {
-                // split the account apart
+                // split the account apart - these have all been normalized to domain\account, including UPN and local accounts
                 acct = account;
-                domain = "";
+                domain = SmartString.ChopWord(acct, ref acct, @"\");
+/*
                 if (acct.Contains(@"\"))
                 {
                     domain = SmartString.ChopWord(acct, ref acct, @"\");
@@ -2381,24 +2393,29 @@ namespace SQLCheck
                     // domain = Computer["ExpandedName"].ToString();
                     domain = Domain["DomainName"].ToString();
                 }
+*/          
 
                 try
                 {
-                    // treat the account as a user account first
-                    tempAccount = acct;
-                    searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{domain}"), $"samAccountName={tempAccount}", new string[] { "AdsPath", "cn" }, SearchScope.Subtree);
+                    // treat the account as a user account first - we are no longer repressing the trailing $ so no need to test both ways
+                    // tempAccount = acct;
+                    // searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{domain}"), $"samAccountName={tempAccount}", new string[] { "AdsPath", "cn" }, SearchScope.Subtree);
+                    searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{domain}"), $"samAccountName={acct}", new string[] { "AdsPath", "cn" }, SearchScope.Subtree);
                     results = searcher.FindAll();
-                    if (results.Count == 0)  // treat the account as the machine account if user account search fails
-                    {
-                        results = null;
-                        searcher.Dispose();
-                        tempAccount += "$";  // machine accounts have $ suffix for searching
-                        searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{domain}"), $"samAccountName={tempAccount}", new string[] { "AdsPath", "cn" }, SearchScope.Subtree);
-                        results = searcher.FindAll();
-                    }
+                    /*
+                                        if (results.Count == 0)  // treat the account as the machine account if user account search fails
+                                        {
+                                            results = null;
+                                            searcher.Dispose();
+                                            tempAccount += "$";  // machine accounts have $ suffix for searching
+                                            searcher = new DirectorySearcher(new DirectoryEntry($@"LDAP://{domain}"), $"samAccountName={tempAccount}", new string[] { "AdsPath", "cn" }, SearchScope.Subtree);
+                                            results = searcher.FindAll();
+                                        }
+                    */
 
                     // if not found log a message and continue around the loop - the foreach won't do anything in that case
-                    if (results.Count == 0) Computer.LogCritical($"No accounts in domain '{domain}' have the samAccountName of '{acct}' or '{acct}$'.");
+                    // if (results.Count == 0) Computer.LogCritical($"No accounts in domain '{domain}' have the samAccountName of '{acct}' or '{acct}$'.");
+                    if (results.Count == 0) Computer.LogCritical($"No accounts in domain '{domain}' have the samAccountName of '{acct}'.");
 
                     // process results
                     foreach (SearchResult result in results)
@@ -2408,8 +2425,12 @@ namespace SQLCheck
                             SPNAccount = ds.Tables["SPNAccount"].NewRow();
                             ds.Tables["SPNAccount"].Rows.Add(SPNAccount);
                             entry = result.GetDirectoryEntry();
-                            SPNAccount["Account"] = tempAccount;
-                            SPNAccount["Domain"] = Domain["DomainShortName"].ToString();
+                            // SPNAccount["Account"] = tempAccount;
+                            SPNAccount["Account"] = acct;                                           // split from DomainAccount
+                            // SPNAccount["Domain"] = Domain["DomainShortName"].ToString();
+                            SPNAccount["Domain"] = domain;
+                            // split from DomainAccount
+                            SPNAccount["DomainAccount"] = account;
                             SPNAccount["DistinguishedName"] = entry.Path;
                             UAC = entry.Properties["UserAccountControl"][0].ToInt();
                             SPNAccount["UserAccountControl"] = $"{UAC} (0x{UAC.ToString("X")})";
@@ -2514,7 +2535,7 @@ namespace SQLCheck
 
             try
             {
-                entry = new DirectoryEntry(DistinguishedName);
+                entry = new DirectoryEntry(DistinguishedName);  // this is the AD "Entry.PAth" for the service account; used to get the account entry, again
                 pvc = entry.Properties["servicePrincipalName"];
                 if (pvc.Count == 0)
                 {
@@ -3237,9 +3258,11 @@ namespace SQLCheck
                 if (Computer.GetBoolean("JoinedToDomain") == true)
                 {
                     account = dr.GetString("DomainAccount");
-                    if (account.EndsWith("$")) account = account.Substring(0, account.Length - 1);
+                    // no longer remove trailing $
+                    // if (account.EndsWith("$")) account = account.Substring(0, account.Length - 1);
                     SQLServer["SPNServiceAccount"] = account;
                     SPNServiceAccount = account;
+
                     spnPrefixF = $"MSSQLSvc/{Computer.GetString("FQDN")}";
                     spnPrefixN = $"MSSQLSvc/{Computer.GetString("NETBIOSName")}";
                     // SPNs for TCP/IP
@@ -3269,7 +3292,7 @@ namespace SQLCheck
                                 }
                             }
                         }
-                        else  // don't suggest any for individual IP addresses
+                        else  // don't suggest any for individual IP addresses - TODO add this capability for FCI clusters
                         {
                             SQLServer.LogInfo("SQL Server is not listening on all IP addresses. Suggested SPNs not listed.");
                         }
@@ -3315,7 +3338,7 @@ namespace SQLCheck
             }
         } // end ProcessSQLPathAndSPNs
 
-        public static void CheckSPN(DataSet ds, DataRow SQLServer, DataRow SuggestedSPN, string SPNName, string accountName)  // check that the SPN is on the SQL account name and no other
+        public static void CheckSPN(DataSet ds, DataRow SQLServer, DataRow SuggestedSPN, string SPNName, string accountName)  // check that the SPN is on the SQL account name and no other; Contoso]sqlprod01$
         {
             DataRow Computer = ds.Tables["Computer"].Rows[0];
             DirectoryEntry dupRoot = null, entry = null;
@@ -3346,7 +3369,7 @@ namespace SQLCheck
                 {
                     SearchResult result = results[0];
                     entry = result.GetDirectoryEntry();
-                    if (CompareAccounts(entry.Properties["samAccountName"][0].ToString(), accountName) == true)
+                    if (CompareAccounts(entry.Properties["samAccountName"][0].ToString(), accountName) == true)  // samAccountNAme does not include the domain name
                     {
                         SuggestedSPN["Exists"] = true;
                         SuggestedSPN["Message"] = "Okay";
@@ -3416,11 +3439,12 @@ namespace SQLCheck
             {
                 domain1 = SmartString.ChopWord(account1, ref account1, @"\");
             }
+/*
             else if (account1.Contains(@"@") == true)
             {
                 account1 = SmartString.ChopWord(account1, ref domain1, @"\");
             }
-
+*/        
             //
             // Split account2 into a domain and account portions
             //
@@ -3429,10 +3453,12 @@ namespace SQLCheck
             {
                 domain2 = SmartString.ChopWord(account2, ref account2, @"\");
             }
+/*
             else if (account1.Contains(@"@") == true)
             {
                 account2 = SmartString.ChopWord(account2, ref domain2, @"\");
             }
+*/
 
             //
             // Compare them -  TODO - there might be a better way to match them, maybe their distinguished names???
@@ -3442,7 +3468,7 @@ namespace SQLCheck
             if (account1.Equals(account2, StringComparison.CurrentCultureIgnoreCase) && domain1.Equals(domain2, StringComparison.CurrentCultureIgnoreCase)) return true;
 
             // partial match
-            if (account1.Equals(account2, StringComparison.CurrentCultureIgnoreCase) && (domain1 =="" || domain2 == "")) return true;
+            if (account1.Equals(account2, StringComparison.CurrentCultureIgnoreCase) && (domain1 == "" || domain2 == "")) return true;
 
             // no match
             return false;

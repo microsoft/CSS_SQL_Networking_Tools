@@ -456,8 +456,9 @@ namespace SQLCheck
             dt.AddColumn("ID", "Integer");
             dt.Columns["ID"].AutoIncrement = true;
             dt.AddColumn("ParentID", "Integer");
-            dt.AddColumn("Account", "String");
-            dt.AddColumn("Domain", "String");
+            dt.AddColumn("Account", "String");         // split from Service!DomainAccount - unique combo in this table - can have trailing $ if machine account or GMSA account
+            dt.AddColumn("Domain", "String");          // split from Service!DomainAccount - unique combo in this table
+            dt.AddColumn("DomainAccount", "String");   // full account name contoso\sqlprod01$
             dt.AddColumn("DistinguishedName", "String");
             dt.AddColumn("AccountType", "String");
             dt.AddColumn("UserAccountControl", "String");
