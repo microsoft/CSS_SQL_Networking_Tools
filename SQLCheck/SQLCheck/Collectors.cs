@@ -1128,21 +1128,35 @@ namespace SQLCheck
 
             int pctFree = 0;
 
-            foreach (DriveInfo drive in DriveInfo.GetDrives())
+            try
             {
-                DataRow DiskDrive = ds.Tables["DiskDrive"].NewRow();
-                DiskDrive["Drive"] = drive.Name;
-                DiskDrive["DriveType"] = drive.DriveType.ToString();
-                if (drive.IsReady)
+                foreach (DriveInfo drive in DriveInfo.GetDrives())
                 {
-                    DiskDrive["DriveFormat"] = drive.DriveFormat;
-                    DiskDrive["Capacity"] = drive.TotalSize.ToString("#,##0");
-                    DiskDrive["BytesFree"] = drive.TotalFreeSpace.ToString("#,##0");
-                    pctFree = (int)((drive.TotalFreeSpace * 100.0) / drive.TotalSize);
-                    DiskDrive["PctFree"] = $"{pctFree}%";
-                    if (pctFree < 10) DiskDrive["Message"] = "Low Disk Space";
+                    DataRow DiskDrive = ds.Tables["DiskDrive"].NewRow();
+                    try
+                    {
+                        ds.Tables["DiskDrive"].Rows.Add(DiskDrive);
+                        DiskDrive["Drive"] = drive.Name;
+                        DiskDrive["DriveType"] = drive.DriveType.ToString();
+                        if (drive.IsReady)
+                        {
+                            DiskDrive["DriveFormat"] = drive.DriveFormat;
+                            DiskDrive["Capacity"] = drive.TotalSize.ToString("#,##0");
+                            DiskDrive["BytesFree"] = drive.TotalFreeSpace.ToString("#,##0");
+                            pctFree = (int)((drive.TotalFreeSpace * 100.0) / drive.TotalSize);
+                            DiskDrive["PctFree"] = $"{pctFree}%";
+                            if (pctFree < 10) DiskDrive["Message"] = "Low Disk Space";
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        DiskDrive.LogException("Error reading disk drive properties.", ex);
+                    }
                 }
-                ds.Tables["DiskDrive"].Rows.Add(DiskDrive);
+            }
+            catch (Exception ex2)
+            {
+                Computer.LogException("Error enumerating disk drives.", ex2);
             }
         }
 
