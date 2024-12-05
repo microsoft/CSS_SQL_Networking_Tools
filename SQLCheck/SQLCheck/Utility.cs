@@ -8,6 +8,7 @@ using System.DirectoryServices;
 using Microsoft.Win32;
 using System.Diagnostics;
 using System.IO;
+using System.Data;
 
 namespace SQLCheck
 {
@@ -277,6 +278,44 @@ namespace SQLCheck
             string result = p.StandardOutput.ReadToEnd();
             p.WaitForExit();
             return result;
+        }
+
+        //
+        // Service Account Name Normalization
+        //
+        // Used to make all account names, including UPN account names, into the NT Account format
+        // Convert local account names into domain account names ("domain\computer$")
+        //
+
+        public static string NormalizeNTAccount(string account, string domain = "")   // unsplit names just go in account and leave domain blank
+        {
+            try
+            {
+                System.Security.Principal.NTAccount nta = new System.Security.Principal.NTAccount(domain, account);
+                System.Security.Principal.SecurityIdentifier si = (System.Security.Principal.SecurityIdentifier)nta.Translate(typeof(System.Security.Principal.SecurityIdentifier));
+                System.Security.Principal.NTAccount ntaFull = (System.Security.Principal.NTAccount)si.Translate(typeof(System.Security.Principal.NTAccount));
+                return $"{ntaFull.Value}";
+            }
+            catch (Exception ex)
+            {
+                if (domain == "") return account;
+                return $@"{domain}\{account}";
+            }
+        }
+
+        public static string ConvertLocalAccountToDomainAccount(string account, string ComputerName, string DomainName)
+        {
+            // string ComputerName = Computer.GetString("NETBIOSName");
+            // string DomainName = Domain.GetString("DomainShortName");
+
+            if (account.StartsWith(@"NT AUTHORITY\", StringComparison.InvariantCultureIgnoreCase) ||     // local built-in accounts             NT AUTHORITY\NETWORK SERVICE
+                account.StartsWith(@"NT SERVICE\", StringComparison.InvariantCultureIgnoreCase) ||       // local virtual service accounts      NT SerVICE\MSSQLSERVICE
+                account.StartsWith($@"{ComputerName}\", StringComparison.InvariantCultureIgnoreCase) ||  // local account                       SQLProd01\Administrator
+                account.Contains(@"\") == false)
+            {
+                return $@"{DomainName}\{ComputerName}$";                                                 // output                              Contoso\SQLProd01$
+            }
+            return account;                                                                              // return domain account names unchanged
         }
 
         //

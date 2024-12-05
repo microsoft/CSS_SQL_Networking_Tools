@@ -581,6 +581,8 @@ namespace SQLCheck
 
             s.WriteLine("Services of Interest:");
             s.WriteLine();
+            s.WriteLine(@"Note: UPN account names (SQLSVC@Contoso.com) are converted to NT Account format (Contoso\SQLSVC) for ease of comparison and LDAP queries.");
+            s.WriteLine();
 
             ReportFormatter rf = new ReportFormatter();
             rf.SetColumnNames("Name:L", "Instance:L", "Description:L", "PID:R", "Service Account:L", "Domain Account:L", "Start Mode:L", "Started:L", "Status:L");
