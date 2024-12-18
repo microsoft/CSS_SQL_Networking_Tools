@@ -2199,8 +2199,6 @@ namespace SQLCheck
             {
               Domain = ds.Tables["Domain"].Rows[0];    // crash if not in domain                     
             }
-
-
             //////////////////// clintonw
 
 
