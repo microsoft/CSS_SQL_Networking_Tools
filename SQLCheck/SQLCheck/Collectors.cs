@@ -2190,7 +2190,20 @@ namespace SQLCheck
             ManagementObjectSearcher searcher = null;
 
             DataRow Computer = ds.Tables["Computer"].Rows[0];
-            DataRow Domain = ds.Tables["Domain"].Rows[0];
+
+            ////////////////////// clintonw
+            DataRow Domain = null;
+
+            // if (Computer.GetBoolean("JoinedToDomain") == false) { }  // bug : not in domain
+            if (ds.Tables["Domain"].Rows.Count > 0)
+            {
+              Domain = ds.Tables["Domain"].Rows[0];    // crash if not in domain                     
+            }
+
+
+            //////////////////// clintonw
+
+
             DataRow Service = null;
 
             //
@@ -2234,7 +2247,13 @@ namespace SQLCheck
                                 // better method of converting
                                 // Service["DomainAccount"] = Utility.TranslateServiceAccount(Service["ServiceAccount"].ToString(), Computer["NETBIOSName"].ToString());
                                 string NTAccountName = Utility.NormalizeNTAccount(Service["ServiceAccount"].ToString(), "");
-                                Service["DomainAccount"] = Utility.ConvertLocalAccountToDomainAccount(NTAccountName, Computer.GetString("NETBIOSName"), Domain.GetString("DomainShortName"));
+
+                                // Handle computer not joined to the domain; Domain datatable will be null    : bug clintonw
+                                Service["DomainAccount"] = NTAccountName;
+                                if (Domain != null)
+                                {
+                                   Service["DomainAccount"] = Utility.ConvertLocalAccountToDomainAccount(NTAccountName, Computer.GetString("NETBIOSName"), Domain.GetString("DomainShortName"));
+                                }
 
                                 string startMode = mo.GetPropertyValue("StartMode").ToString();
                                 Service["StartMode"] = startMode;
@@ -2298,7 +2317,13 @@ namespace SQLCheck
                     // better method of converting
                     // Service["DomainAccount"] = Utility.TranslateServiceAccount(Service["ServiceAccount"].ToString(), Computer["NETBIOSName"].ToString());
                     string NTAccountName = Utility.NormalizeNTAccount(Service["ServiceAccount"].ToString(), "");
-                    Service["DomainAccount"] = Utility.ConvertLocalAccountToDomainAccount(NTAccountName, Computer.GetString("NETBIOSName"), Domain.GetString("DomainShortName"));
+
+                    // Handle computer not joined to the domain; Domain datatable will be null    : bug clintonw
+                    Service["DomainAccount"] = NTAccountName;
+                    if (Domain != null)
+                    {
+                        Service["DomainAccount"] = Utility.ConvertLocalAccountToDomainAccount(NTAccountName, Computer.GetString("NETBIOSName"), Domain.GetString("DomainShortName"));
+                    }
 
                     Service["StartMode"] = "Manual";
                     Service["Started"] = true;  // boolean
