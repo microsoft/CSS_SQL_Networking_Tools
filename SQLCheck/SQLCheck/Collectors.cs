@@ -860,11 +860,17 @@ namespace SQLCheck
                     TLS["TLSVersion"] = tlsVersion;
                     defVal = tlsInfo.GetComputerDefault(tlsVersion, cs);
                     TLS["Defaultvalue"] = defVal;
-                    temp = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\{tlsVersion}\{cs}", "Enabled", "");
+                    if (Registry.GetValue($@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\{tlsVersion}\{cs}", "Enabled", null) == null)
+                        temp = null;
+                    else
+                        temp = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\{tlsVersion}\{cs}", "Enabled", "");
                     if (tlsVersion == "TLS 1.3" && temp != null) isTLS13KeyPresent = true;
                     enVal = temp == null ? "" : ((temp.ToInt() != 0) ? $"True " : "False") + $" (0x{temp.ToInt().ToString("X8")})" + CheckTLS(tlsVersion, "Enabled", temp.ToInt());
                     TLS["EnabledValue"] = enVal;
-                    temp = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\{tlsVersion}\{cs}", "DisabledByDefault", "");
+                    if (Registry.GetValue($@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\{tlsVersion}\{cs}", "DisabledByDefault", null) == null)
+                        temp = null;
+                    else
+                        temp = Registry.GetValue($@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\SecurityProviders\SCHANNEL\Protocols\{tlsVersion}\{cs}", "DisabledByDefault", "");
                     if (tlsVersion == "TLS 1.3" && temp != null) isTLS13KeyPresent = true;
                     disVal = temp == null ? "" : ((temp.ToInt() != 0) ? $"True " : "False") + $" (0x{temp.ToInt().ToString("X8")})" + CheckTLS(tlsVersion, "DisabledByDefault", temp.ToInt());
                     TLS["DisabledByDefaultValue"] = disVal;
