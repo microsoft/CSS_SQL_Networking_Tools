@@ -1,4 +1,4 @@
-##
+﻿##
 ## Copyright (c) Microsoft Corporation.
 ## Licensed under the MIT license.
 ##
@@ -21,6 +21,7 @@
 
 param
 (
+
     [Parameter(ParameterSetName = 'Help', Mandatory=$true)]
     [switch] $Help,
      
@@ -165,6 +166,15 @@ Function ReadINIFile
                                 FilterString     = ""              # Empty default
 
                                 AuthTrace        = "No"
+                                
+                                PerfmonLogs      = "No"
+                                InstanceName     = "DEFAULT"
+                                Triggers         = "No"
+                                SharedPath       = ""
+                                TriggerEventSource = "Application"
+                                TriggerEventID = ""
+
+
                                 SSL              = "No"
                                 Kerberos         = "No"
                                 LSA              = "No"
@@ -223,6 +233,14 @@ Function ReadINIFile
             "TCPEvents"         { $global:INISettings.TCPEvents          = $value }
             "FilterString"      { $global:INISettings.FilterString       = $value }
             "AuthTrace"         { $global:INISettings.AuthTrace          = $value }
+            
+            "PerfmonLogs"       { $global:INISettings.PerfmonLogs        = $value }
+            "InstanceName"      { $global:INISettings.InstanceName       = $value }
+            "Triggers"          { $global:INISettings.Triggers           = $value }
+            "SharedPath"        { $global:INISettings.SharedPath         = $value }
+            "TriggerEventSource"{ $global:INISettings.TriggerEventSource = $value }
+            "TriggerEventID"    { $global:INISettings.TriggerEventID     = $value }
+                                 
             "SSL"               { $global:INISettings.SSL                = $value }
             "CredSSP_NTLM"      { $global:INISettings.CredSSP            = $value }
             "Kerberos"          { $global:INISettings.Kerberos           = $value }
@@ -275,6 +293,15 @@ Function DisplayINIValues
     LogInfo "MinMinutes          $($global:INISettings.MinMinutes)"
     LogInfo "SQLCheck            $($global:INISettings.SQLCheck)"
     LogInfo "SQLCheckPath        $($global:INISettings.SQLCheckPath)"
+
+    
+    LogInfo "PermonLogs          $($global:INISettings.PerfmonLogs)"
+    LogInfo "InstanceName        $($global:INISettings.InstanceName)"
+    LogInfo "Triggers            $($global:INISettings.Triggers)"
+    LogInfo "SharedPath          $($global:INISettings.SharedPath)"
+    LogInfo "TriggerEventSource  $($global:INISettings.TriggerEventSource)"
+    LogInfo "TriggerEventID      $($global:INISettings.TriggerEventID)"
+
 }
 
 function RegisterEventLog
@@ -441,6 +468,9 @@ Function StartTraces
     StartBIDTraces
 	StartNetworkTraces
     StartAuthenticationTraces
+    
+    StartPerfmonLogs
+
 
     if ($global:INISettings.DeleteOldFiles -eq "Yes")
     {
@@ -466,10 +496,24 @@ Function StartTraces
         }
         StopTraces
     }
-    else
+    
+    elseif ($global:INISettings.Triggers -ne "Yes")
     {
         LogInfo "The trace will run until manually terminated with: .\SqlTrace.ps1 -stop"
+                 
     }
+    else 
+    {
+        LogInfo "The trace will be terminated automatically when $($global:INISettings.TriggerEventSource) Event ID: $($global:INISettings.TriggerEventID) is trigered. "
+        StartTriggerMonitoring
+    }
+
+    
+
+
+    
+
+
 }
 
 Function FlushExistingTraces
@@ -1010,6 +1054,324 @@ Function StartAuthenticationTraces
     }
 }
 
+
+Function StartPerfmonLogs
+{
+
+# Define environment variables (replace with actual values or use $env:PERFMON_COUNTERS etc.)
+$PERFMON_COUNTERS = $global:INISettings.PerfmonLogs
+$INSTANCENAME = $global:INISettings.InstanceName
+$ComputerName = $env:COMPUTERNAME
+
+
+
+if ($PERFMON_COUNTERS -eq "Yes") {
+
+    # create folder 
+    if((Test-Path "$($global:LogFolderName)\Perfmon" -PathType Container) -eq $false)
+		{
+            md "$($global:LogFolderName)\Perfmon" > $null
+        }
+
+    LogInfo "Starting perfmon logs ..."
+    
+
+    # Check if we have perfmon already running 
+    $exists = logman.exe query MsftPerfSQLKit
+
+    if (![string]::IsNullOrWhiteSpace($exists)) {
+    LogInfo "Stopping existing Data Collector Set: MsftPerfSQLKit (if any)"
+    $null = logman.exe stop MsftPerfSQLKit 2>$null
+    LogInfo "Deleting existing Data Collector Set: MsftPerfSQLKit (if any)"
+    $null = logman.exe delete -n MsftPerfSQLKit 2>$null
+    } 
+        
+   $baseCounters = @(
+            "\Memory\*",
+            "\PhysicalDisk(*)\*",
+            "\LogicalDisk(*)\*",
+            "\NetworkAdapter(*)\*",
+            "\NetworkInterface(*)\*",
+            "\Processor(*)\*",
+            "\Process(*)\*",
+            "\System\*",
+            "\Server\*"
+)
+
+if ($INSTANCENAME -and $INSTANCENAME -ne 'DEFAULT') {
+    $mssqlPrefix = '\MSSQL$'    # literal, contains the dollar sign
+    $mssqlPrefix1 = 'MSSQL$'    # literal, contains the dollar sign
+    # Check if the SQL Server instance is running
+
+    $serviceName = "${mssqlPrefix1}${INSTANCENAME}"
+    $service = Get-WmiObject -Class Win32_Service -Filter "Name = '$serviceName'"
+    
+    if ($service -and $service.State -eq 'Running') {
+
+
+    # build MSSQL$<instance>:CounterName strings by concatenation
+    
+    $sqlCounters = @(
+        "${mssqlPrefix}${INSTANCENAME}:General Statistics\*",
+        "${mssqlPrefix}${INSTANCENAME}:Locks(*)\*",
+        "${mssqlPrefix}${INSTANCENAME}:Databases(*)\*",
+        "${mssqlPrefix}${INSTANCENAME}:Database Mirroring(*)\*",
+        "${mssqlPrefix}${INSTANCENAME}:Database Replica(*)\*",
+        "${mssqlPrefix}${INSTANCENAME}:Availability Replica(*)\*",
+        "${mssqlPrefix}${INSTANCENAME}:Latches\*",
+        "${mssqlPrefix}${INSTANCENAME}:Errors(*)\*",
+        "${mssqlPrefix}${INSTANCENAME}:SQL Statistics\*",
+        "${mssqlPrefix}${INSTANCENAME}:Buffer Manager(*)\*",
+        "${mssqlPrefix}${INSTANCENAME}:Memory Manager\*",
+        "${mssqlPrefix}${INSTANCENAME}:Transactions\*",
+        "${mssqlPrefix}${INSTANCENAME}:Wait Statistics(*)\*"
+    )
+    }##if ($service -and $service.State -eq 'Running') 
+    else
+    {
+        LogWarning "Service '${mssqlPrefix1}${INSTANCENAME}' is not running � will collect Windows perfmon base counters only."
+
+    }
+}
+else {
+    $serviceName = "MSSQLSERVER"
+    $service = Get-WmiObject -Class Win32_Service -Filter "Name = '$serviceName'"
+
+     if ($service -and $service.State -eq 'Running') {
+
+    # default instance uses SQLServer: counters
+    $sqlCounters = @(
+        "\SQLServer:General Statistics\*",
+        "\SQLServer:Locks(*)\*",
+        "\SQLServer:Databases(*)\*",
+        "\SQLServer:Database Mirroring(*)\*",
+        "\SQLServer:Database Replica(*)\*",
+        "\SQLServer:Availability Replica(*)\*",
+        "\SQLServer:Latches\*",
+        "\SQLServer:Errors(*)\*",
+        "\SQLServer:SQL Statistics\*",
+        "\SQLServer:Buffer Manager(*)\*",
+        "\SQLServer:Memory Manager\*",
+        "\SQLServer:Transactions\*",
+        "\SQLServer:Wait Statistics(*)\*"
+    )
+    }##if ($service -and $service.State -eq 'Running')
+    else
+    {
+        LogWarning "Service 'MSSQLSERVER' is not running � will collect Windows perfmon base counters only."
+    }
+}
+
+    
+    $oPath = "$($global:LogFolderName)\perfmon\$ComputerName`_Perf.blg"
+    $counters = $baseCounters + $sqlCounters
+    
+ logman create counter MsftPerfSQLKit `
+    -o $oPath `
+    -f bincirc `
+    -v mmddhhmm `
+    -max 2000 `
+    -c $counters `
+    -si 00:00:02 
+
+    
+     logman start MsftPerfSQLKit
+     LogInfo "perfmon logs started ..."
+}
+
+}
+
+
+Function StartTriggerMonitoring {
+
+    if (-not $global:INISettings.SharedPath) 
+    {
+        LogError "Shared path: $($global:INISettings.SharedPath) does not exist."
+        Handle-AccessFailure -Path $global:INISettings.SharedPath
+
+
+    } ##if (-not $global:INISettings.SharedPath)
+    elseif (Test-Path $global:INISettings.SharedPath) 
+    {
+            LogInfo "Shared path: $($global:INISettings.SharedPath) exists."
+            # Check write permission by attempting to create and delete a temp file
+            try 
+            {
+                $tempFile = Join-Path $global:INISettings.SharedPath "permission_test.tmp"
+                $created = New-Item -Path $tempFile -ItemType File -Force -ErrorAction Stop
+                Remove-Item -Path $tempFile -Force -ErrorAction Stop
+                LogInfo "Read/write access confirmed for: $($global:INISettings.SharedPath)"
+            } ##try
+            catch 
+            {
+                LogError "Path exists but read/write access failed: $($global:INISettings.SharedPath). Error: $($_.Exception.Message)"
+                Handle-AccessFailure -Path $global:INISettings.SharedPath
+            } ##catch
+
+            ##
+            ## Path is valid and accesible, proceed
+            ##
+
+            # Remove file if it exists 
+            $triggerFile = Join-Path $global:INISettings.SharedPath "Trigger.txt"
+
+            if (Test-Path $triggerFile) {
+                Remove-Item -Path $triggerFile -Force
+                LogInfo "Trigger.txt deleted: ($triggerFile)." 
+            } 
+
+
+            # Define the WMI query to monitor Application/System Event ID 
+            $query = "
+            SELECT * FROM __InstanceCreationEvent
+            WITHIN 5
+            WHERE TargetInstance ISA 'Win32_NTLogEvent'
+            AND TargetInstance.EventCode = '$($global:INISettings.TriggerEventID)'
+            AND TargetInstance.LogFile = '$($global:INISettings.TriggerEventSource)'
+            "
+            # Register the event
+            $sourceId = "Monitor$($global:INISettings.TriggerEventID)"
+
+            # Remove existing event subscription if already registered
+            if (Get-EventSubscriber -SourceIdentifier $sourceId -ErrorAction SilentlyContinue) {
+                Unregister-Event -SourceIdentifier $sourceId
+                LogInfo "Existing event subscription '$sourceId' removed (if any)."
+            }
+
+            # Register new event subscription
+            
+                     Register-WmiEvent -Query $query -SourceIdentifier $sourceId -Action {
+                        $logsFolder = $global:LogFolderName
+                        $sharedPath = $global:INISettings.SharedPath
+                        $logFile = Join-Path $logsFolder "TriggerMonitoring.Log"
+                        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                    
+                        $triggerFile = Join-Path $sharedPath "Trigger.txt"
+                        New-Item -Path $triggerFile -ItemType File -Force | Out-Null
+                        Add-Content -Path $logFile -Value "$timestamp - Trigger file created due to Event ID $($global:INISettings.TriggerEventID)"
+
+                        # this event is checked from the main space -- Action will run in different space 
+                        New-Event -SourceIdentifier "TriggerNotification" -MessageData "Trigger file created at: $triggerFile due to Event ID $($global:INISettings.TriggerEventID)"                        
+                }
+            
+            LogInfo "Event monitor for $($global:INISettings.TriggerEventSource) Event ID $($global:INISettings.TriggerEventID) registered. Waiting for trigger..."
+            ##wait for event in the trigger space and write it in the main PS window
+            while ($true) 
+            {
+                displayFolderSize
+                 $subscriber = Get-EventSubscriber | Where-Object { $_.SourceIdentifier -eq "TriggerNotification" }
+                   if ($null -ne $subscriber) {
+                      $event = Get-Event -SourceIdentifier "TriggerNotification"
+                       if ($null -ne $event) {
+                           LogInfo $($event.MessageData)
+                           Remove-Event -SourceIdentifier "TriggerNotification"
+                           break
+                        }
+                    } 
+                
+                # the case were Event triggered from the other machine 
+                $logFile = Join-Path $global:LogFolderName "TriggerMonitoring.Log"
+                
+                if (Test-Path $triggerFile) {
+                    $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+                    Add-Content -Path $logFile -Value "$timestamp - Trigger.txt detected. sqltrace -stop executed."
+                    StopTraces
+                    return;
+                    break;
+                    
+                }
+            }#while ($true)             
+             
+            #The case when event is triggered from this machine 
+             $logFile = Join-Path $global:LogFolderName "TriggerMonitoring.Log"
+             
+            while ($true) {
+                displayFolderSize
+                    if (Test-Path $triggerFile) {
+                        $timestamp = Get-Date -Format "yyyy-MM-dd HH:mm:ss"
+
+                        # Log the action
+                        Add-Content -Path $logFile -Value "$timestamp - Trigger.txt detected. sqltrace -stop executed."
+
+                        # Stop SQL trace
+                        StopTraces
+                        break  # Exit monitor after handling once
+                    }                    
+                }
+
+
+    }##elseif (Test-Path $global:INISettings.SharedPath)
+   else 
+   {
+       LogError "Shared path: $($global:INISettings.SharedPath) does not exist or is inaccessible."
+       Handle-AccessFailure -Path $global:INISettings.SharedPath
+
+   }##else 
+}
+
+function Handle-AccessFailure {
+    param (
+        [string]$Path,
+        [string]$ScriptToStop = "$PSScriptRoot\SQLTrace.ps1"
+    )
+    
+
+    Write-Host "Do you want to continue anyway or stop? Type 'Y' to continue or 'N' to stop" -ForegroundColor DarkYellow
+    $choice = Read-Host
+
+    switch ($choice.ToUpper()) {
+        'Y' {
+            LogInfo "Continuing execution despite inaccessible path..."
+            LogInfo "The trace will run until manually terminated with: .\SqlTrace.ps1 -stop"
+            
+            # Add continuation logic here if needed
+        }
+        'N' {
+            LogInfo "Stopping trace as requested due to inaccessible path..."
+            & $ScriptToStop -stop
+        }
+        default {
+            LogError "Invalid input. Please type 'Y' or 'N'."
+        }
+    }
+}
+
+
+# Keep track of last display time
+$global:LastFolderSizeDisplayTime = $null
+
+function displayFolderSize {
+    param (
+        [string]$FolderPath = $global:LogFolderName
+    )
+
+    if (-not (Test-Path $FolderPath)) {
+        LogWarning "*** Folder not found: $FolderPath ***"
+        return
+    }
+
+    $now = Get-Date
+
+    if ($null -eq $global:LastFolderSizeDisplayTime -or 
+        ($now - $global:LastFolderSizeDisplayTime).TotalMinutes -ge 10) {
+        
+        $global:LastFolderSizeDisplayTime = $now
+
+        # Get all files (including hidden/system)
+        $files = Get-ChildItem -Path $FolderPath -Recurse -File -Force -ErrorAction SilentlyContinue
+
+        # Calculate size in MB
+        $sizeMB = ($files | Measure-Object -Property Length -Sum).Sum / 1MB
+
+        # Log the result
+        LogWarning ("*** Logs folder size: {0:N2} MB ***" -f $sizeMB)
+    }
+}
+
+
+
+
+
 # ================================================= Stop Traces ====================================================
 
 Function StopTraces
@@ -1023,11 +1385,19 @@ Function StopTraces
     StopAuthenticationTraces
     StopDeleteOldFiles
     CopySqlErrorLog
+     
+    StopPerfmon
+    cleanTriggerData
+       
+
     LogInfo "Traces have stopped ..."
     LogRaw ""
     LogRaw "Please ZIP the contents of ""$($global:LogFolderName)"" and upload to Microsoft for analysis."
     LogRaw "Please see our GitHub site for more information: https://github.com/microsoft/CSS_SQL_Networking_Tools"
     Write-EventLog -LogName Application -Source $global:EventSourceName -EventID 3004 -Message "SQLTrace has stopped."
+
+   
+
 }
 
 Function StopBIDTraces
@@ -1251,6 +1621,45 @@ Function CopySQLErrorLog()
 
 }
 
+
+Function StopPerfmon
+{
+    if($global:INISettings.PerfmonLogs -eq "Yes")
+    {
+        LogInfo "Stopping Perfmon Traces ..."	
+        logman.exe stop MsftPerfSQLKit 2>$null
+        logman.exe delete -n MsftPerfSQLKit 2>$null
+    }
+}
+
+
+
+Function cleanTriggerData {
+    if ($global:INISettings.Triggers -eq "Yes") {
+
+        $sourceId = "Monitor$($global:INISettings.TriggerEventID)"
+
+        if (Get-EventSubscriber -SourceIdentifier $sourceId -ErrorAction SilentlyContinue) {
+            Unregister-Event -SourceIdentifier $sourceId
+            LogInfo "Existing event subscription '$sourceId' removed."
+        }
+
+        $triggerFile = Join-Path $global:INISettings.SharedPath "Trigger.txt"
+
+        try {
+            Remove-Item -Path $triggerFile -Force -ErrorAction Stop
+            LogInfo "Trigger.txt deleted: ($triggerFile)."
+        }
+        catch {
+            # File was already deleted by other machine process � this is OK
+           LogInfo "Trigger.txt already deleted: ($triggerFile)."
+        }
+        
+    }
+}
+
+
+
 # ======================================= Cleanup Traces =========================================
 
 Function CleanupTraces
@@ -1337,6 +1746,8 @@ Function StopDeleteOldFiles
     }
     catch { LogInfo "Error stopping the DeleteOldFiles job." }
 }
+
+
 
 # ======================================= Logging ===============================
 
